@@ -11,6 +11,6 @@ services:
       dockerfile: Dockerfile
     environment:
       - TZ=Europe/Moscow
-      - MRMSUPPORTBOT_AUTH_LOGIN=login
-      - MRMSUPPORTBOT_AUTH_PASSWORD=password
+      - CUSTOMERBOT_AUTH_LOGIN=${CUSTOMERBOT_AUTH_LOGIN}
+      - CUSTOMERBOT_AUTH_PASSWORD=${CUSTOMERBOT_AUTH_PASSWORD}
     command: ["gunicorn", "bot:app", "--workers", "1", "--worker-class", "uvicorn.workers.UvicornWorker", "--bind", "0.0.0.0:8888", "--timeout", "180"]
