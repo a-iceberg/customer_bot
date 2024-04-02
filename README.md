@@ -1,5 +1,5 @@
 # Telegram bot python docker server
-Docker server with telegram bot for customer
+Docker server with telegram bot for customers
 
 ## Usage
 
