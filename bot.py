@@ -22,8 +22,8 @@ async def call_message(request: Request, authorization: str = Header(None)):
 
         bot = telebot.TeleBot(token)
 
-        chat_id = message["message"]["chat"]["id"]
-        answer = message["message"]["text"]
+        chat_id = message["chat"]["id"]
+        answer = message["text"]
 
         bot.send_message(chat_id, answer)
 
