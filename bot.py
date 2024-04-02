@@ -27,8 +27,6 @@ async def call_message(request: Request, authorization: str = Header(None)):
 
         bot.send_message(chat_id, answer)
 
-        return JSONResponse(content={"type": "text", "body": str(answer)})
-
     else:
         answer = "Не удалось определить токен бота."
         return JSONResponse(content={"type": "text", "body": str(answer)})
