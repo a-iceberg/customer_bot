@@ -1,0 +1,16 @@
+version: '3.8'
+
+services:
+  customer_bot:
+    container_name: customer_bot
+    ports:
+      - "8888:8888"
+    restart: always
+    build:
+      context: .
+      dockerfile: Dockerfile
+    environment:
+      - TZ=Europe/Moscow
+      - MRMSUPPORTBOT_AUTH_LOGIN=login
+      - MRMSUPPORTBOT_AUTH_PASSWORD=password
+    command: ["gunicorn", "bot:app", "--workers", "1", "--worker-class", "uvicorn.workers.UvicornWorker", "--bind", "0.0.0.0:8888", "--timeout", "180"]
