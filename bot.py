@@ -4,11 +4,7 @@ import logging
 import telebot
 
 from langchain_community.llms import Ollama
-from langchain.chains import (
-    create_history_aware_retriever,
-    create_retrieval_chain,
-    create_stuff_documents_chain,
-)
+from langchain.chains import LLMChain
 from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
 from langchain_core.messages import HumanMessage, AIMessage
 
@@ -25,31 +21,14 @@ llm = Ollama(
     temperature=0.5,
 )
 
-
 prompt = ChatPromptTemplate.from_messages(
     [
-        MessagesPlaceholder(variable_name="chat_history"),
-        ("user", "{input}"),
-        (
-            "user",
-            "Основываясь на предоставленном диалоге, создай поисковый запрос, чтобы получить информацию, релевантную диалогу",
-        ),
-    ]
-)
-retriever_chain = create_history_aware_retriever(llm, prompt)
-
-prompt = ChatPromptTemplate.from_messages(
-    [
-        (
-            "system",
-            "Ответь на вопрос пользователя основываясь на предоставленном контексте:\n\n{context}",
-        ),
-        MessagesPlaceholder(variable_name="chat_history"),
+        ("system", "Ты - сотрудник колл-центра сервисного центра по ремонту бытовой техники. Отвечай на сообщения и вопросы пользователя максимально дружелюбно. Ответь на следующее сообщение."),
+        MessagesPlaceholder("chat_history"),
         ("user", "{input}"),
     ]
 )
-document_chain = create_stuff_documents_chain(llm, prompt)
-retrieval_chain = create_retrieval_chain(retriever_chain, document_chain)
+llm_chain = LLMChain(llm=llm, prompt=prompt)
 
 chat_history = []
 
@@ -71,12 +50,16 @@ async def call_message(request: Request, authorization: str = Header(None)):
         chat_id = message["chat"]["id"]
         user_message = message["text"]
 
+        try:
+            bot_response = llm_chain.invoke({"chat_history": chat_history, "input": user_message})
+        except Exception as e:
+            logger.info(f"Error: {e}")
+
+        logger.info(f"response: {bot_response}")
+
         chat_history.append(HumanMessage(content=user_message))
-
-        bot_response = retrieval_chain.invoke(
-            {"chat_history": chat_history, "input": user_message}
-        )
-
         chat_history.append(AIMessage(content=bot_response))
+
+        logger.info(f"history: {chat_history}")
 
         bot.send_message(chat_id, bot_response)
