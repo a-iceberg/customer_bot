@@ -17,20 +17,20 @@ llm = Ollama(
     model="command-r",
     base_url="http://10.2.4.87:11434",
     keep_alive=-1,
-    template="Ты - сотрудник колл-центра сервисного центра по ремонту бытовой техники. Отвечай на сообщения и вопросы пользователя максимально дружелюбно",
-    temperature=0.5,
+    system="Ты - сотрудник колл-центра сервисного центра по ремонту бытовой техники. Отвечай на сообщения и вопросы пользователя максимально дружелюбно",
+    repeat_last_n=-1,
+    temperature=0.5
 )
 
 prompt = ChatPromptTemplate.from_messages(
     [
-        ("system", "Ты - сотрудник колл-центра сервисного центра по ремонту бытовой техники. Отвечай на сообщения и вопросы пользователя максимально дружелюбно. Ответь на следующее сообщение."),
         MessagesPlaceholder("chat_history"),
         ("user", "{input}"),
     ]
 )
 llm_chain = LLMChain(llm=llm, prompt=prompt)
 
-chat_history = []
+chat_history = {}
 
 @app.post("/message")
 async def call_message(request: Request, authorization: str = Header(None)):
@@ -40,26 +40,30 @@ async def call_message(request: Request, authorization: str = Header(None)):
         token = authorization.split(" ")[1]
 
     else:
-        answer = "Не удалось определить токен бота."
+        answer = "Failed to get bot token"
         return JSONResponse(content={"type": "text", "body": str(answer)})
 
     if token:
         message = await request.json()
-        logger.info(f"message: {message}")
         bot = telebot.TeleBot(token)
+
         chat_id = message["chat"]["id"]
         user_message = message["text"]
 
+        if user_message == "/reset":
+            chat_history[chat_id] = []
+            bot.send_message(chat_id, "Chat history has been reset.")
+            return JSONResponse(content={"type": "text", "body": "Chat history has been reset"})
+
+        if chat_id not in chat_history:
+            chat_history[chat_id] = []
+
         try:
-            bot_response = llm_chain.invoke({"chat_history": chat_history, "input": user_message})
+            bot_response = llm_chain.invoke({"chat_history": chat_history[chat_id], "input": user_message})["text"]
         except Exception as e:
             logger.info(f"Error: {e}")
 
-        logger.info(f"response: {bot_response}")
-
-        chat_history.append(HumanMessage(content=user_message))
-        chat_history.append(AIMessage(content=bot_response))
-
-        logger.info(f"history: {chat_history}")
+        chat_history[chat_id].extend([HumanMessage(content=user_message), AIMessage(content=bot_response)])
+        logger.info(f"History for {chat_id}: {chat_history[chat_id]}")
 
         bot.send_message(chat_id, bot_response)
