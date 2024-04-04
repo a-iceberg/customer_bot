@@ -52,18 +52,35 @@ async def call_message(request: Request, authorization: str = Header(None)):
 
         if user_message == "/reset":
             chat_history[chat_id] = []
-            bot.send_message(chat_id, "Chat history has been reset.")
-            return JSONResponse(content={"type": "text", "body": "Chat history has been reset"})
+            bot.send_message(chat_id, "Chat history has been reset")
 
         if chat_id not in chat_history:
             chat_history[chat_id] = []
 
-        try:
-            bot_response = llm_chain.invoke({"chat_history": chat_history[chat_id], "input": user_message})["text"]
-        except Exception as e:
-            logger.info(f"Error: {e}")
+        if user_message != "/start":
+            keyboard = telebot.types.ReplyKeyboardMarkup(
+                row_width=1, resize_keyboard=True
+            )
+            button = telebot.types.KeyboardButton(
+                text="Send your location",
+                request_location=True,
+            )
+            keyboard.add(button)
 
-        chat_history[chat_id].extend([HumanMessage(content=user_message), AIMessage(content=bot_response)])
-        logger.info(f"History for {chat_id}: {chat_history[chat_id]}")
+            bot.send_message(
+                chat_id, "Please send your location", reply_markup=keyboard
+            )
 
-        bot.send_message(chat_id, bot_response)
+            try:
+                bot_response = llm_chain.invoke(
+                    {"chat_history": chat_history[chat_id], "input": user_message}
+                )["text"]
+            except Exception as e:
+                logger.info(f"Error: {e}")
+
+            chat_history[chat_id].extend(
+                [HumanMessage(content=user_message), AIMessage(content=bot_response)]
+            )
+            logger.info(f"History for {chat_id}: {chat_history[chat_id]}")
+
+            bot.send_message(chat_id, bot_response)
