@@ -57,7 +57,7 @@ async def call_message(request: Request, authorization: str = Header(None)):
         if chat_id not in chat_history:
             chat_history[chat_id] = []
 
-        if user_message != "/start":
+        if user_message != "/start" and user_message != "/reset":
             keyboard = telebot.types.ReplyKeyboardMarkup(
                 row_width=1, resize_keyboard=True
             )
