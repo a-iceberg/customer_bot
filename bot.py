@@ -49,7 +49,7 @@ def create_location_tool(bot, chat_id):
     return StructuredTool.from_function(
         func=send_location_request,
         name="Request Location",
-        description="Используй, когда тебе нужно запросить локацию пользователя для дальнейшего использования этой информации при создании заявки, чтобы помочь пользователю.",
+        description="Используй разово, когда тебе нужно запросить локацию пользователя для дальнейшего использования этой информации при создании заявки, чтобы помочь пользователю.",
     )
 
 
@@ -67,7 +67,7 @@ def create_contact_tool(bot, chat_id):
     return StructuredTool.from_function(
         func=send_contact_request,
         name="Request Contact",
-        description="Используй, когда тебе нужно запросить контакты пользователя для дальнейшего использования этой информации при создании заявки, чтобы помочь пользователю.",
+        description="Используй разово, когда тебе нужно запросить контакты пользователя для дальнейшего использования этой информации при создании заявки, чтобы помочь пользователю.",
     )
 
 
@@ -128,7 +128,7 @@ async def call_message(request: Request, authorization: str = Header(None)):
                 # )["text"]
                 bot_response = agent.run(
                     input=user_message, chat_history=chat_history[chat_id]
-                )["text"]
+                )["output"]
             except Exception as e:
                 logger.info(f"Error: {e}")
 
