@@ -51,6 +51,7 @@ def create_location_tool(bot, chat_id):
         func=send_location_request,
         name="Request Location",
         description="Используй разово, когда тебе нужно запросить локацию пользователя для дальнейшего использования этой информации при создании заявки, чтобы помочь пользователю.",
+        return_direct=True,
     )
 
 
@@ -70,6 +71,7 @@ def create_contact_tool(bot, chat_id):
         func=send_contact_request,
         name="Request Contact",
         description="Используй разово, когда тебе нужно запросить контакты пользователя для дальнейшего использования этой информации при создании заявки, чтобы помочь пользователю.",
+        return_direct=True,
     )
 
 
