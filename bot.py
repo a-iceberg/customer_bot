@@ -138,6 +138,9 @@ async def call_message(request: Request, authorization: str = Header(None)):
                 # bot_response = llm_chain.invoke(
                 #     {"chat_history": chat_history[chat_id], "input": user_message}
                 # )["text"]
+                
+                # anquet = {"Location":{"latitude":0,"longitude":0},"Contact":{"phone_number":""}}
+                # user_message = f"Anquet: {str(anquet)}\nUser message:{user_message}"
 
                 bot_response = agent.run(
                     input=user_message, chat_history=chat_history[chat_id]
