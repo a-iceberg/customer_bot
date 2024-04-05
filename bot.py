@@ -42,10 +42,11 @@ def create_location_tool(bot, chat_id):
             text="Send your location", request_location=True
         )
         keyboard.add(button)
-        bot.send_message(
-            chat_id, "Please submit your location below", reply_markup=keyboard
-        )
-        return "Локация пользователя была успешно запрошена"
+        # bot.send_message(
+        #     chat_id, "Please submit your location below", reply_markup=keyboard
+        # )
+        # return "Локация пользователя была успешно запрошена"
+        return 'Локация пользователя была успешно запрошена. Ответь пожалуйста пользователю: "Пожалуйста, отправьте свои координаты, нажав кнопку внизу."'
 
     return StructuredTool.from_function(
         func=send_location_request,
@@ -62,10 +63,10 @@ def create_contact_tool(bot, chat_id):
             text="Send your contact", request_contact=True
         )
         keyboard.add(button)
-        bot.send_message(
-            chat_id, "Please submit your contact below", reply_markup=keyboard
-        )
-        return "Контакты пользователя были успешно запрошены"
+        # bot.send_message(
+        #     chat_id, "Please submit your contact below", reply_markup=keyboard
+        # )
+        return 'Контакты пользователя были успешно запрошены. Ответь пожалуйста пользователю: "Пожалуйста, отправьте свои контактные данные, нажав кнопку внизу."'
 
     return StructuredTool.from_function(
         func=send_contact_request,
