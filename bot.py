@@ -73,7 +73,7 @@ def create_contact_tool(bot, chat_id):
     )
 
 
-chat_history = {}
+chat_history = {}Ъ
 
 @app.post("/message")
 async def call_message(request: Request, authorization: str = Header(None)):
