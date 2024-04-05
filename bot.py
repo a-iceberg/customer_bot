@@ -45,6 +45,7 @@ def create_location_tool(bot, chat_id):
         bot.send_message(
             chat_id, "Please submit your location below", reply_markup=keyboard
         )
+        return "Локация пользователя была успешно запрошена"
 
     return StructuredTool.from_function(
         func=send_location_request,
@@ -63,6 +64,7 @@ def create_contact_tool(bot, chat_id):
         bot.send_message(
             chat_id, "Please submit your contact below", reply_markup=keyboard
         )
+        return "Контакты пользователя были успешно запрошены"
 
     return StructuredTool.from_function(
         func=send_contact_request,
@@ -128,36 +130,17 @@ async def call_message(request: Request, authorization: str = Header(None)):
                 #     {"chat_history": chat_history[chat_id], "input": user_message}
                 # )["text"]
 
-                # bot_response = agent.run(
-                #     input=user_message, chat_history=chat_history[chat_id]
-                # )["output"]
-                bot_response = None
-
-                while True:
-                    agent_response = agent.run(
-                        input=user_message, chat_history=chat_history[chat_id]
-                    )
-
-                    if "action" in agent_response:
-                        action = agent_response["action"]
-                        if action == "Final Answer":
-                            bot_response = agent_response["action_input"]
-                            break
-                    else:
-                        bot_response = agent_response
-                        break
-
-                if bot_response:
-                    chat_history[chat_id].extend(
-                        [
-                            HumanMessage(content=user_message),
-                            AIMessage(content=bot_response),
-                        ]
-                    )
-                    logger.info(f"History for {chat_id}: {chat_history[chat_id]}")
-                    bot.send_message(chat_id, bot_response)
-                else:
-                    logger.warning("Agent didn't provide a response")
+                bot_response = agent.run(
+                    input=user_message, chat_history=chat_history[chat_id]
+                )
+                chat_history[chat_id].extend(
+                    [
+                        HumanMessage(content=user_message),
+                        AIMessage(content=bot_response),
+                    ]
+                )
+                logger.info(f"History for {chat_id}: {chat_history[chat_id]}")
+                bot.send_message(chat_id, bot_response)
             except Exception as e:
                 logger.info(f"Error: {e}")
 
