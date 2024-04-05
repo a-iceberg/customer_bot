@@ -94,9 +94,12 @@ async def call_message(request: Request, authorization: str = Header(None)):
 
     if token:
         message = await request.json()
+        logger.info(f"Message: {message}")
         bot = telebot.TeleBot(token)
 
         chat_id = message["chat"]["id"]
+        if "text" not in message:
+            return empty_response
         user_message = message["text"]
 
         if user_message == "/reset":
