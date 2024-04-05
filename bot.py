@@ -42,17 +42,18 @@ def create_location_tool(bot, chat_id):
             text="Send your location", request_location=True
         )
         keyboard.add(button)
-        # bot.send_message(
-        #     chat_id, "Please submit your location below", reply_markup=keyboard
-        # )
+        bot.send_message(
+            chat_id, "Please submit your location below", reply_markup=keyboard
+        )
         # return "Локация пользователя была успешно запрошена"
-        return 'Локация пользователя была успешно запрошена. Ответь пожалуйста пользователю: "Пожалуйста, отправьте свои координаты, нажав кнопку внизу."'
+        # return 'Локация пользователя была успешно запрошена. Ответь пожалуйста пользователю: "Пожалуйста, отправьте свои координаты, нажав кнопку внизу."'
+        return 'Location was sent'
 
     return StructuredTool.from_function(
         func=send_location_request,
         name="Request Location",
         description="Используй разово, когда тебе нужно запросить локацию пользователя для дальнейшего использования этой информации при создании заявки, чтобы помочь пользователю.",
-        return_direct=False,
+        return_direct=True,
     )
 
 
@@ -63,16 +64,17 @@ def create_contact_tool(bot, chat_id):
             text="Send your contact", request_contact=True
         )
         keyboard.add(button)
-        # bot.send_message(
-        #     chat_id, "Please submit your contact below", reply_markup=keyboard
-        # )
-        return 'Контакты пользователя были успешно запрошены. Ответь пожалуйста пользователю: "Пожалуйста, отправьте свои контактные данные, нажав кнопку внизу."'
+        bot.send_message(
+            chat_id, "Please submit your contact below", reply_markup=keyboard
+        )
+        # return 'Контакты пользователя были успешно запрошены. Ответь пожалуйста пользователю: "Пожалуйста, отправьте свои контактные данные, нажав кнопку внизу."'
+        return 'Contacts was sent'
 
     return StructuredTool.from_function(
         func=send_contact_request,
         name="Request Contact",
         description="Используй разово, когда тебе нужно запросить контакты пользователя для дальнейшего использования этой информации при создании заявки, чтобы помочь пользователю.",
-        return_direct=False,
+        return_direct=True,
     )
 
 
@@ -81,6 +83,7 @@ chat_history = {}
 @app.post("/message")
 async def call_message(request: Request, authorization: str = Header(None)):
     logger.info("post: message")
+    empty_response = JSONResponse(content={"type": "empty", "body": ""})
     token = None
     if authorization and authorization.startswith("Bearer "):
         token = authorization.split(" ")[1]
@@ -143,7 +146,13 @@ async def call_message(request: Request, authorization: str = Header(None)):
                     ]
                 )
                 logger.info(f"History for {chat_id}: {chat_history[chat_id]}")
-                bot.send_message(chat_id, bot_response)
+                if bot_response == 'Location was sent' \
+                    or bot_response == 'Contacts was sent':                    
+                    return empty_response
+                else:
+                    # bot.send_message(chat_id, bot_response)
+                    return JSONResponse(content={"type": "text", "body": bot_response})
+
             except Exception as e:
                 logger.info(f"Error: {e}")
 
@@ -153,3 +162,4 @@ async def call_message(request: Request, authorization: str = Header(None)):
             # logger.info(f"History for {chat_id}: {chat_history[chat_id]}")
 
             # bot.send_message(chat_id, bot_response)
+            return empty_response
