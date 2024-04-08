@@ -92,7 +92,7 @@ async def call_message(request: Request, authorization: str = Header(None)):
 
         user_message = message["text"]
 
-        if message == "/reset":
+        if user_message == "/reset":
             chat_history_service.delete_chat_history(chat_id)
             bot.send_message(chat_id, "История чата была очищена")
 
