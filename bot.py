@@ -110,6 +110,9 @@ async def call_message(request: Request, authorization: str = Header(None)):
             message_text = f"Ты - сотрудник колл-центра сервисного центра по ремонту бытовой техники. Отвечай на сообщения и вопросы пользователя максимально дружелюбно. Твоя основная итоговая цель - получить у пользователя его локацию и телефон для последующего создания заявки и отвечать сообщениями на сообщения пользователя. Тебе доступен набор инструментов. Настоятельно рекомендуется их использовать для выполнения основной цели. Отвечай на русском языке, учитывая контекст переписки. Сейчас ты получил следующее сообщение: {user_message}"
 
             try:
+                chat_history = await chat_history_service.read_chat_history(chat_id)
+                bot_response = agent.run(input=message_text, chat_history=chat_history)
+
                 await chat_history_service.save_to_chat_history(
                     chat_id,
                     user_message,
@@ -118,10 +121,6 @@ async def call_message(request: Request, authorization: str = Header(None)):
                     message["from"]["first_name"],
                     "human",
                 )
-
-                chat_history = await chat_history_service.read_chat_history(chat_id)
-                bot_response = agent.run(input=message_text, chat_history=chat_history)
-
                 await chat_history_service.save_to_chat_history(
                     chat_id,
                     bot_response,
