@@ -10,7 +10,7 @@ from langchain.agents import initialize_agent, AgentType
 from langchain.tools.base import StructuredTool
 
 from config_manager import ConfigManager
-from chat_history_service import ChatHistoryService
+from file_service import FileService
 
 app = FastAPI()
 
@@ -22,13 +22,14 @@ llm = Ollama(
     base_url="http://10.2.4.87:11434",
     keep_alive=-1,
     system="Ты - сотрудник колл-центра сервисного центра по ремонту бытовой техники. Отвечай на сообщения и вопросы пользователя максимально дружелюбно. Твоя основная итоговая цель - получить у пользователя его локацию и телефон для последующего создания заявки и отвечать сообщениями на сообщения пользователя. Тебе доступен набор инструментов. Настоятельно рекомендуется использовать их все для выполнения основной цели. Отвечай на РУССКОМ языке, учитывая контекст переписки.",
-    num_ctx=4096,
-    repeat_last_n=2048,
+    num_ctx=8192,
+    repeat_last_n=4096,
     temperature=0.3,
 )
 
 config_manager = ConfigManager("config.json")
-chat_history_service = ChatHistoryService(config_manager.get("chats_dir"), logger)
+chat_history_service = FileService(config_manager.get("chats_dir"), logger)
+request_service = FileService(config_manager.get("request_dir"), logger)
 
 def create_location_tool(bot, chat_id):
     def send_location_request():

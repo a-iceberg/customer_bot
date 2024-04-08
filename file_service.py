@@ -7,12 +7,12 @@ import aiofiles
 from langchain.schema import AIMessage, HumanMessage
 
 
-class ChatHistoryService:
+class FileService:
     def __init__(self, data_dir, logger):
         self.data_dir = data_dir
         self.logger = logger
 
-    def chat_log_path(self, chat_id):
+    def file_path(self, chat_id):
         return os.path.join(self.data_dir, str(chat_id))
 
     async def save_to_chat_history(
@@ -40,7 +40,7 @@ class ChatHistoryService:
         # log_file_name = f'{message_date}_{message_id}_{event_id}.json'
         log_file_name = f"{unix_timestamp}_{message_id}_{event_id}.json"
 
-        chat_log_dir = self.chat_log_path(chat_id)
+        chat_log_dir = self.file_path(chat_id)
         Path(chat_log_dir).mkdir(parents=True, exist_ok=True)
 
         full_path = os.path.join(chat_log_dir, log_file_name)
@@ -79,7 +79,7 @@ class ChatHistoryService:
 
     async def date_of_latest_message(self, chat_id: str):
         self.logger.info(f"DEBUG: date_of_latest_message chat_id: {chat_id}")
-        chat_log_path = self.chat_log_path(chat_id)
+        chat_log_path = self.file_path(chat_id)
         Path(chat_log_path).mkdir(parents=True, exist_ok=True)
         log_files = os.listdir(chat_log_path)
 
@@ -117,7 +117,7 @@ class ChatHistoryService:
     async def read_chat_history(self, chat_id: str):
         """Reads the chat history from a folder and returns it as a list of messages."""
         chat_history = []
-        chat_log_path = self.chat_log_path(chat_id)
+        chat_log_path = self.file_path(chat_id)
         Path(chat_log_path).mkdir(parents=True, exist_ok=True)
         self.logger.info(f"Reading chat history from: {chat_log_path}")
 
@@ -139,7 +139,7 @@ class ChatHistoryService:
 
     def delete_chat_history(self, chat_id: str):
         """Deletes the chat history folder and all its content."""
-        chat_log_path = Path(self.chat_log_path(chat_id))
+        chat_log_path = Path(self.file_path(chat_id))
         if chat_log_path.exists() and chat_log_path.is_dir():
             try:
                 shutil.rmtree(chat_log_path)
@@ -152,3 +152,65 @@ class ChatHistoryService:
             self.logger.info(
                 f"No chat history found for chat_id: {chat_id}, nothing to delete."
             )
+
+    async def save_to_request(
+        self,
+        chat_id,
+        message_text,
+        message_id,
+        message_type,
+        date_override=None,
+    ):
+        self.logger.info(
+            f"[{message_type}] Saving request item to request for chat_id: {chat_id} for message_id: {message_id}"
+        )
+        if date_override is None:
+            message_date = py_time.strftime("%Y-%m-%d-%H-%M-%S", py_time.localtime())
+            parsed_time = py_time.strptime(message_date, "%Y-%m-%d-%H-%M-%S")
+            unix_timestamp = int(py_time.mktime(parsed_time))
+        else:
+            unix_timestamp = date_override
+            message_date = py_time.strftime(
+                "%Y-%m-%d-%H-%M-%S", py_time.localtime(unix_timestamp)
+            )
+        log_file_name = f"{unix_timestamp}_{message_id}_{message_type}.json"
+
+        request_dir = self.file_path(chat_id)
+        Path(request_dir).mkdir(parents=True, exist_ok=True)
+
+        full_path = os.path.join(request_dir, log_file_name)
+        async with aiofiles.open(full_path, "w") as log_file:
+            await log_file.write(
+                json.dumps(
+                    {
+                        "type": message_type,
+                        "text": message_text,
+                        "date": message_date,
+                        "message_id": message_id,
+                    },
+                    ensure_ascii=False,
+                )
+            )
+
+    async def read_request(self, chat_id: str):
+        """Reads request items from a folder and returns it."""
+        request_items = {}
+        request_path = self.file_path(chat_id)
+        Path(request_path).mkdir(parents=True, exist_ok=True)
+        self.logger.info(f"Reading request from: {request_path}")
+
+        for item in sorted(os.listdir(request_path)):
+            full_path = os.path.join(request_path, item)
+            try:
+                with open(full_path, "r") as file:
+                    message = json.load(file)
+                    if message["type"] == "Phone":
+                        request_items["phone"] = message["text"]
+                    elif message["type"] == "Address":
+                        request_items["address"] = message["text"]
+            except Exception as e:
+                self.logger.error(f"Error reading request file {item}: {e}")
+                # Remove problematic file
+                os.remove(full_path)
+
+        return request_items
