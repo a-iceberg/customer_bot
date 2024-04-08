@@ -7,4 +7,5 @@ COPY requirements.txt /app/
 RUN apt-get update && rm -rf /var/lib/apt/list/*
 RUN pip3 install -r requirements.txt
 
-COPY bot.py /app/
+COPY *.py /app/
+COPY config.json /app/
