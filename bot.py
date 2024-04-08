@@ -87,6 +87,8 @@ async def call_message(request: Request, authorization: str = Header(None)):
         bot = telebot.TeleBot(token)
         chat_id = message["chat"]["id"]
 
+        logger.info(f"Message: {message}")
+
         if "text" not in message:
             return JSONResponse(content={"type": "empty", "body": ""})
 
