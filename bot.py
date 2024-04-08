@@ -141,7 +141,7 @@ async def call_message(request: Request, authorization: str = Header(None)):
                     message["from"]["first_name"],
                     "llm",
                 )
-
+                chat_history = await chat_history_service.read_chat_history(chat_id)
                 logger.info(f"History for {chat_id}: {chat_history}")
                 bot.send_message(chat_id, bot_response)
 
