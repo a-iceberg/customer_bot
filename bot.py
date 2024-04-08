@@ -22,8 +22,8 @@ llm = Ollama(
     base_url="http://10.2.4.87:11434",
     keep_alive=-1,
     system="Ты - сотрудник колл-центра сервисного центра по ремонту бытовой техники. Отвечай на сообщения и вопросы пользователя максимально дружелюбно. Твоя основная итоговая цель - получить у пользователя его локацию и телефон для последующего создания заявки и отвечать сообщениями на сообщения пользователя. Тебе доступен набор инструментов. Настоятельно рекомендуется использовать их все для выполнения основной цели. Отвечай на РУССКОМ языке, учитывая контекст переписки.",
-    num_ctx=8192,
-    repeat_last_n=4096,
+    num_ctx=4096,
+    repeat_last_n=2048,
     temperature=0.3,
 )
 
@@ -84,9 +84,7 @@ async def call_message(request: Request, authorization: str = Header(None)):
 
     if token:
         message = await request.json()
-
         bot = telebot.TeleBot(token)
-
         chat_id = message["chat"]["id"]
 
         if "text" not in message:
@@ -94,7 +92,11 @@ async def call_message(request: Request, authorization: str = Header(None)):
 
         user_message = message["text"]
 
-        if user_message != "/start":
+        if message == "/reset":
+            chat_history_service.delete_chat_history(chat_id)
+            bot.send_message(chat_id, "История чата была очищена")
+
+        if user_message != "/start" and user_message != "/reset":
             location_tool = create_location_tool(bot, chat_id)
             contact_tool = create_contact_tool(bot, chat_id)
             tools = [location_tool, contact_tool]
@@ -109,18 +111,8 @@ async def call_message(request: Request, authorization: str = Header(None)):
 
             message_text = f"Ты - сотрудник колл-центра сервисного центра по ремонту бытовой техники. Отвечай на сообщения и вопросы пользователя максимально дружелюбно. Твоя основная итоговая цель - получить у пользователя его локацию и телефон для последующего создания заявки и отвечать сообщениями на сообщения пользователя. Тебе доступен набор инструментов. Настоятельно рекомендуется использовать их все для выполнения основной цели. Отвечай на РУССКОМ языке, учитывая контекст переписки. Сейчас ты получил следующее сообщение: {user_message}"
 
-            try:
-                chat_history = await chat_history_service.read_chat_history(chat_id)
-                logger.info(f"History for {chat_id}: {chat_history}")
-            except:
-                await chat_history_service.save_to_chat_history(
-                    chat_id,
-                    "",
-                    message["message_id"],
-                    "InitialMessage",
-                    message["from"]["first_name"],
-                )
-                chat_history = await chat_history_service.read_chat_history(chat_id)
+            chat_history = await chat_history_service.read_chat_history(chat_id)
+            logger.info(f"History for {chat_id}: {chat_history}")
 
             try:
                 bot_response = agent.run(input=message_text, chat_history=chat_history)
@@ -141,9 +133,10 @@ async def call_message(request: Request, authorization: str = Header(None)):
                     message["from"]["first_name"],
                     "llm",
                 )
+                bot.send_message(chat_id, bot_response)
+
                 chat_history = await chat_history_service.read_chat_history(chat_id)
                 logger.info(f"History for {chat_id}: {chat_history}")
-                bot.send_message(chat_id, bot_response)
 
             except Exception as e:
                 logger.info(f"Error: {e}")

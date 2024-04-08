@@ -1,5 +1,6 @@
 import json
 import os
+import shutil
 from pathlib import Path
 import time as py_time
 import aiofiles
@@ -135,3 +136,19 @@ class ChatHistoryService:
                 os.remove(full_path)
 
         return chat_history
+
+    def delete_chat_history(self, chat_id: str):
+        """Deletes the chat history folder and all its content."""
+        chat_log_path = self.chat_log_path(chat_id)
+        if chat_log_path.exists() and chat_log_path.is_dir():
+            try:
+                shutil.rmtree(chat_log_path)
+                self.logger.info(f"Deleted chat history for chat_id: {chat_id}")
+            except Exception as e:
+                self.logger.error(
+                    f"Error deleting chat history for chat_id: {chat_id}: {e}"
+                )
+        else:
+            self.logger.info(
+                f"No chat history found for chat_id: {chat_id}, nothing to delete."
+            )
