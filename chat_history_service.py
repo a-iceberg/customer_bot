@@ -139,7 +139,7 @@ class ChatHistoryService:
 
     def delete_chat_history(self, chat_id: str):
         """Deletes the chat history folder and all its content."""
-        chat_log_path = self.chat_log_path(chat_id)
+        chat_log_path = Path(self.chat_log_path(chat_id))
         if chat_log_path.exists() and chat_log_path.is_dir():
             try:
                 shutil.rmtree(chat_log_path)
