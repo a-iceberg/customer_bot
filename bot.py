@@ -136,7 +136,7 @@ async def call_message(request: Request, authorization: str = Header(None)):
                 await chat_history_service.save_to_chat_history(
                     chat_id,
                     bot_response,
-                    message["message_id"],
+                    message["message_id"] + 1,
                     "AIMessage",
                     message["from"]["first_name"],
                     "llm",
