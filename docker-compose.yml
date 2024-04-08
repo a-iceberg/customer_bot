@@ -15,4 +15,6 @@ services:
       - LANGCHAIN_ENDPOINT=https://api.smith.langchain.com
       - LANGCHAIN_API_KEY=
       - LANGCHAIN_PROJECT=customer_bot
+    volumes:
+      - ./data:/app/data
     command: ["gunicorn", "bot:app", "--workers", "1", "--worker-class", "uvicorn.workers.UvicornWorker", "--bind", "0.0.0.0:86", "--timeout", "1800"]
