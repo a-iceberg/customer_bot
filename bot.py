@@ -111,6 +111,8 @@ async def call_message(request: Request, authorization: str = Header(None)):
 
             try:
                 chat_history = await chat_history_service.read_chat_history(chat_id)
+                logger.info(f"History for {chat_id}: {chat_history[chat_id]}")
+
                 bot_response = agent.run(input=message_text, chat_history=chat_history)
 
                 await chat_history_service.save_to_chat_history(
