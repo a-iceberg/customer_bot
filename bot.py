@@ -24,7 +24,7 @@ llm = Ollama(
     system="Ты - сотрудник колл-центра сервисного центра по ремонту бытовой техники. Отвечай на сообщения и вопросы пользователя максимально дружелюбно. Твоя основная итоговая цель - получить у пользователя его локацию и телефон для последующего создания заявки и отвечать сообщениями на сообщения пользователя. Тебе доступен набор инструментов. Настоятельно рекомендуется использовать их все для выполнения основной цели. Отвечай на РУССКОМ языке, учитывая контекст переписки.",
     num_ctx=8192,
     repeat_last_n=4096,
-    temperature=0.3,
+    temperature=0.2,
 )
 
 config_manager = ConfigManager("config.json")
@@ -90,10 +90,20 @@ async def call_message(request: Request, authorization: str = Header(None)):
 
         logger.info(f"Message: {message}")
 
-        if "text" not in message:
+        if "text" in message:
+            user_message = message["text"]
+        elif "location" in message:
+            user_message = message["location"]
+            await request_service.save_to_request(
+                chat_id, user_message, message["message_id"], "address"
+            )
+        elif "contact" in message:
+            user_message = message["contact"]
+            await request_service.save_to_request(
+                chat_id, user_message, message["message_id"], "phone"
+            )
+        else:
             return JSONResponse(content={"type": "empty", "body": ""})
-
-        user_message = message["text"]
 
         if user_message == "/reset":
             chat_history_service.delete_chat_history(chat_id)
@@ -112,7 +122,9 @@ async def call_message(request: Request, authorization: str = Header(None)):
                 handle_parsing_errors=True,
             )
 
-            message_text = f"Ты - сотрудник колл-центра сервисного центра по ремонту бытовой техники. Отвечай на сообщения и вопросы пользователя максимально дружелюбно. Твоя основная итоговая цель - получить у пользователя его локацию и телефон для последующего создания заявки и отвечать сообщениями на сообщения пользователя. Тебе доступен набор инструментов. Настоятельно рекомендуется использовать их все для выполнения основной цели. Отвечай на РУССКОМ языке, учитывая контекст переписки. Сейчас ты получил следующее сообщение: {user_message}"
+            request = await request_service.read_request(chat_id)
+
+            message_text = f"Ты - сотрудник колл-центра сервисного центра по ремонту бытовой техники. Отвечай на сообщения и вопросы пользователя максимально дружелюбно. Твоя основная итоговая цель - получить у пользователя его локацию и телефон для последующего создания заявки и отвечать сообщениями на сообщения пользователя. Тебе доступен набор инструментов. Настоятельно рекомендуется использовать их все для выполнения основной цели. Текущее содержание заявки: {request}. Отвечай на РУССКОМ языке, учитывая контекст переписки. Сейчас ты получил следующее сообщение: {user_message}"
 
             chat_history = await chat_history_service.read_chat_history(chat_id)
             logger.info(f"History for {chat_id}: {chat_history}")
