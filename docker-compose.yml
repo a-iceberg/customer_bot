@@ -13,8 +13,9 @@ services:
       - TZ=Europe/Moscow
       - LANGCHAIN_TRACING_V2=true
       - LANGCHAIN_ENDPOINT=https://api.smith.langchain.com
-      - LANGCHAIN_API_KEY=
       - LANGCHAIN_PROJECT=customer_bot
+      - LANGCHAIN_API_KEY=
+      - OPENAI_API_KEY=
     volumes:
       - ./data:/app/data
     command: ["gunicorn", "bot:app", "--workers", "1", "--worker-class", "uvicorn.workers.UvicornWorker", "--bind", "0.0.0.0:86", "--timeout", "1800"]

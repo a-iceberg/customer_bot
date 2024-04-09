@@ -3,8 +3,8 @@ from fastapi.responses import JSONResponse
 import logging
 import telebot
 
-from langchain_community.llms import Ollama
-from langchain_core.messages import HumanMessage, AIMessage
+# from langchain_community.llms import Ollama
+from langchain_openai import ChatOpenAI
 
 from langchain.agents import initialize_agent, AgentType
 from langchain.tools.base import StructuredTool
@@ -17,19 +17,25 @@ app = FastAPI()
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger()
 
-llm = Ollama(
-    model="command-r",
-    base_url="http://10.2.4.87:11434",
-    keep_alive=-1,
-    system="Ты - сотрудник колл-центра сервисного центра по ремонту бытовой техники. Отвечай на сообщения и вопросы пользователя максимально дружелюбно. Твоя основная итоговая цель - получить у пользователя его локацию и телефон для последующего создания заявки и отвечать сообщениями на сообщения пользователя. Тебе доступен набор инструментов. Настоятельно рекомендуется использовать их все для выполнения основной цели. Отвечай на РУССКОМ языке, учитывая контекст переписки.",
-    num_ctx=8192,
-    repeat_last_n=4096,
-    temperature=0.2,
-)
+# llm = Ollama(
+#     model="command-r",
+#     base_url="http://10.2.4.87:11434",
+#     keep_alive=-1,
+#     system="Вы - сотрудник колл-центра сервисного центра по ремонту бытовой техники. Отвечайте на сообщения и вопросы пользователя максимально дружелюбно. Ваша основная итоговая цель - получить у пользователя его локацию и телефон для последующего создания заявки и отвечать сообщениями на сообщения пользователя. Вам доступен набор инструментов. Используйте только один инструмент за раз, если он ещё не был использован. Отвечайте на РУССКОМ языке, учитывая контекст переписки.",
+#     num_ctx=8192,
+#     repeat_last_n=4096,
+#     temperature=0.2,
+# )
 
 config_manager = ConfigManager("config.json")
+
 chat_history_service = FileService(config_manager.get("chats_dir"), logger)
 request_service = FileService(config_manager.get("request_dir"), logger)
+
+llm = ChatOpenAI(
+    model=config_manager.get("model"),
+    temperature=config_manager.get("temperature")
+)
 
 def create_location_tool(bot, chat_id):
     def send_location_request():
@@ -48,7 +54,7 @@ def create_location_tool(bot, chat_id):
     return StructuredTool.from_function(
         func=send_location_request,
         name="Request Location",
-        description="Используй, когда тебе нужно запросить локацию пользователя для дальнейшего использования этой информации при создании заявки, чтобы помочь пользователю.",
+        description="Используйте, когда вам нужно запросить локацию пользователя для дальнейшего использования этой информации при создании заявки, чтобы помочь пользователю.",
         return_direct=False,
     )
 
@@ -66,7 +72,7 @@ def create_contact_tool(bot, chat_id):
     return StructuredTool.from_function(
         func=send_contact_request,
         name="Request Contact",
-        description="Используй, когда тебе нужно запросить контакты пользователя для дальнейшего использования этой информации при создании заявки, чтобы помочь пользователю.",
+        description="Используйте, когда вам нужно запросить контакты пользователя для дальнейшего использования этой информации при создании заявки, чтобы помочь пользователю.",
         return_direct=False,
     )
 
@@ -90,18 +96,18 @@ async def call_message(request: Request, authorization: str = Header(None)):
 
         logger.info(f"Message: {message}")
 
-        if "text" in message:
-            user_message = message["text"]
-        elif "location" in message:
-            user_message = message["location"]
+        if "location" in message:
+            user_message = f"Мои координаты - {message["location"]}"
             await request_service.save_to_request(
-                chat_id, user_message, message["message_id"], "address"
+                chat_id, message["location"], message["message_id"], "address"
             )
         elif "contact" in message:
-            user_message = message["contact"]
+            user_message = f"Мой телефон - {message["contact"]["phone_number"]}"
             await request_service.save_to_request(
-                chat_id, user_message, message["message_id"], "phone"
+                chat_id, message["contact"]["phone_number"], message["message_id"], "phone"
             )
+        elif "text" in message:
+            user_message = message["text"]
         else:
             return JSONResponse(content={"type": "empty", "body": ""})
 
@@ -124,7 +130,7 @@ async def call_message(request: Request, authorization: str = Header(None)):
 
             request = await request_service.read_request(chat_id)
 
-            message_text = f"Ты - сотрудник колл-центра сервисного центра по ремонту бытовой техники. Отвечай на сообщения и вопросы пользователя максимально дружелюбно. Твоя основная итоговая цель - получить у пользователя его локацию и телефон для последующего создания заявки и отвечать сообщениями на сообщения пользователя. Тебе доступен набор инструментов. Настоятельно рекомендуется использовать их все для выполнения основной цели. Текущее содержание заявки: {request}. Отвечай на РУССКОМ языке, учитывая контекст переписки. Сейчас ты получил следующее сообщение: {user_message}"
+            message_text = f"Вы - сотрудник колл-центра сервисного центра по ремонту бытовой техники. Отвечайте на сообщения и вопросы пользователя максимально дружелюбно. Ваша основная итоговая цель - получить у пользователя его локацию и телефон для последующего создания заявки и отвечать сообщениями на сообщения пользователя. Вам доступен набор инструментов. Используйте только один инструмент за раз, если он ещё не был использован. Текущее содержание заявки: {request}. Отвечайте на РУССКОМ языке, учитывая контекст переписки. Сейчас вы получили следующее сообщение: {user_message}"
 
             chat_history = await chat_history_service.read_chat_history(chat_id)
             logger.info(f"History for {chat_id}: {chat_history}")
