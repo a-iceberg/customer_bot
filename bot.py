@@ -2,15 +2,18 @@ from fastapi import FastAPI, Request, Header
 from fastapi.responses import JSONResponse
 import logging
 import telebot
+import os
 
 # from langchain_community.llms import Ollama
 from langchain_openai import ChatOpenAI
 
 from langchain.agents import initialize_agent, AgentType
-from langchain.tools.base import StructuredTool
 
 from config_manager import ConfigManager
 from file_service import FileService
+
+from location_tool import create_location_tool
+from contact_tool import create_contact_tool
 
 app = FastAPI()
 
@@ -33,48 +36,10 @@ chat_history_service = FileService(config_manager.get("chats_dir"), logger)
 request_service = FileService(config_manager.get("request_dir"), logger)
 
 llm = ChatOpenAI(
+    openai_api_key=os.environ.get("OPENAI_API_KEY", ""),
     model=config_manager.get("model"),
-    temperature=config_manager.get("temperature")
+    temperature=config_manager.get("temperature"),
 )
-
-def create_location_tool(bot, chat_id):
-    def send_location_request():
-        keyboard = telebot.types.ReplyKeyboardMarkup(row_width=1, resize_keyboard=True)
-        button = telebot.types.KeyboardButton(
-            text="Ваше местоположение", request_location=True
-        )
-        keyboard.add(button)
-        bot.send_message(
-            chat_id,
-            "Укажите ваше местоположение через кнопку ниже",
-            reply_markup=keyboard,
-        )
-        return "Локация пользователя была успешно запрошена"
-
-    return StructuredTool.from_function(
-        func=send_location_request,
-        name="Request Location",
-        description="Используйте, когда вам нужно запросить локацию пользователя для дальнейшего использования этой информации при создании заявки, чтобы помочь пользователю.",
-        return_direct=False,
-    )
-
-
-def create_contact_tool(bot, chat_id):
-    def send_contact_request():
-        keyboard = telebot.types.ReplyKeyboardMarkup(row_width=1, resize_keyboard=True)
-        button = telebot.types.KeyboardButton(text="Ваш телефон", request_contact=True)
-        keyboard.add(button)
-        bot.send_message(
-            chat_id, "Укажите ваш телефон через кнопку ниже", reply_markup=keyboard
-        )
-        return "Контакты пользователя были успешно запрошены"
-
-    return StructuredTool.from_function(
-        func=send_contact_request,
-        name="Request Contact",
-        description="Используйте, когда вам нужно запросить контакты пользователя для дальнейшего использования этой информации при создании заявки, чтобы помочь пользователю.",
-        return_direct=False,
-    )
 
 
 @app.post("/message")
