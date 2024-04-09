@@ -97,12 +97,12 @@ async def call_message(request: Request, authorization: str = Header(None)):
         logger.info(f"Message: {message}")
 
         if "location" in message:
-            user_message = f"Мои координаты - {message["location"]}"
+            user_message = f'Мои координаты - {message["location"]}'
             await request_service.save_to_request(
                 chat_id, message["location"], message["message_id"], "address"
             )
         elif "contact" in message:
-            user_message = f"Мой телефон - {message["contact"]["phone_number"]}"
+            user_message = f'Мой телефон - {message["contact"]["phone_number"]}'
             await request_service.save_to_request(
                 chat_id, message["contact"]["phone_number"], message["message_id"], "phone"
             )
