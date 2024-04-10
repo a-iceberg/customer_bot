@@ -10,11 +10,11 @@ def create_contact_tool(bot, chat_id):
         bot.send_message(
             chat_id, "Укажите ваш телефон через кнопку ниже", reply_markup=keyboard
         )
-        return "Контакты пользователя были успешно запрошены"
+        return "Контакты пользователя были запрошены"
 
     return StructuredTool.from_function(
         func=send_contact_request,
-        name="Request Contact",
+        name="Запрос контактов",
         description="Используйте, когда вам нужно запросить контакты пользователя для дальнейшего использования этой информации при создании заявки, чтобы помочь пользователю.",
         return_direct=False,
     )

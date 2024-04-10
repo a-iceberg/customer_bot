@@ -14,11 +14,11 @@ def create_location_tool(bot, chat_id):
             "Укажите ваше местоположение через кнопку ниже",
             reply_markup=keyboard,
         )
-        return "Локация пользователя была успешно запрошена"
+        return "Локация пользователя была запрошена"
 
     return StructuredTool.from_function(
         func=send_location_request,
-        name="Request Location",
+        name="Запрос локации",
         description="Используйте, когда вам нужно запросить локацию пользователя для дальнейшего использования этой информации при создании заявки, чтобы помочь пользователю.",
         return_direct=False,
     )
