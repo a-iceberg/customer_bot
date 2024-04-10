@@ -5,7 +5,8 @@ import telebot
 import os
 
 # from langchain_community.llms import Ollama
-from langchain_openai import ChatOpenAI
+# from langchain_openai import ChatOpenAI
+from langchain_anthropic import ChatAnthropic
 
 from langchain.agents import initialize_agent, AgentType
 
@@ -35,8 +36,14 @@ config_manager = ConfigManager("config.json")
 chat_history_service = FileService(config_manager.get("chats_dir"), logger)
 request_service = FileService(config_manager.get("request_dir"), logger)
 
-llm = ChatOpenAI(
-    openai_api_key=os.environ.get("OPENAI_API_KEY", ""),
+# llm = ChatOpenAI(
+#     openai_api_key=os.environ.get("OPENAI_API_KEY", ""),
+#     model=config_manager.get("model"),
+#     temperature=config_manager.get("temperature"),
+# )
+
+llm = ChatAnthropic(
+    anthropic_api_key=os.environ.get("ANTHROPIC_API_KEY", ""),
     model=config_manager.get("model"),
     temperature=config_manager.get("temperature"),
 )
