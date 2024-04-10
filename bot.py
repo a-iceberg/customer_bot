@@ -4,10 +4,8 @@ import logging
 import telebot
 import os
 
-# from langchain_community.llms import Ollama
 # from langchain_openai import ChatOpenAI
 from langchain_anthropic import ChatAnthropic
-
 from langchain.agents import initialize_agent, AgentType
 
 from config_manager import ConfigManager
@@ -15,21 +13,13 @@ from file_service import FileService
 
 from location_tool import create_location_tool
 from contact_tool import create_contact_tool
+from request_tool import create_request_tool
+
 
 app = FastAPI()
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger()
-
-# llm = Ollama(
-#     model="command-r",
-#     base_url="http://10.2.4.87:11434",
-#     keep_alive=-1,
-#     system="Вы - сотрудник колл-центра сервисного центра по ремонту бытовой техники. Отвечайте на сообщения и вопросы пользователя максимально дружелюбно. Ваша основная итоговая цель - получить у пользователя его локацию и телефон для последующего создания заявки и отвечать сообщениями на сообщения пользователя. Вам доступен набор инструментов. Используйте только один инструмент за раз, если он ещё не был использован. Отвечайте на РУССКОМ языке, учитывая контекст переписки.",
-#     num_ctx=8192,
-#     repeat_last_n=4096,
-#     temperature=0.2,
-# )
 
 config_manager = ConfigManager("config.json")
 
@@ -88,9 +78,12 @@ async def call_message(request: Request, authorization: str = Header(None)):
             bot.send_message(chat_id, "История чата была очищена")
 
         if user_message != "/start" and user_message != "/reset":
+            request = await request_service.read_request(chat_id)
+
             location_tool = create_location_tool(bot, chat_id)
             contact_tool = create_contact_tool(bot, chat_id)
-            tools = [location_tool, contact_tool]
+            request_tool = create_request_tool(request, chat_id)
+            tools = [location_tool, contact_tool, request_tool]
 
             agent = initialize_agent(
                 tools,
@@ -100,9 +93,7 @@ async def call_message(request: Request, authorization: str = Header(None)):
                 handle_parsing_errors=True,
             )
 
-            request = await request_service.read_request(chat_id)
-
-            message_text = f"Вы - сотрудник колл-центра сервисного центра по ремонту бытовой техники. Ваша первочередная итоговая цель - для создания заявки запросить у пользователя его локацию и телефон путем ИСПОЛЬЗОВАНИЯ предоставленных вам инструментов и отвечать сообщениями на сообщения пользователя. Вам доступен набор инструментов. Вам НАСТОЯТЕЛЬНО рекомендуется использовать ваши инструменты. Используйте ТОЛЬКО ОДИН инструмент за раз, если он ещё не был использован. Текущее содержание заявки: {request}. Отвечайте на РУССКОМ языке, учитывая контекст переписки. Сейчас вы получили следующее сообщение: {user_message}"
+            message_text = f'Вы - сотрудник колл-центра сервисного центра по ремонту бытовой техники. Ваша первочередная итоговая цель - для создания заявки запросить у пользователя его локацию и телефон путем ИСПОЛЬЗОВАНИЯ предоставленных вам инструментов и отвечать сообщениями на сообщения пользователя. Вам доступен набор инструментов. Вам НАСТОЯТЕЛЬНО рекомендуется использовать ваши инструменты. Используйте ТОЛЬКО ОДИН инструмент за раз, если он ещё не был использован. Текущее содержание заявки: {request}. Если в заявке уже есть и "phone", и "address", ОБЯЗАТЕЛЬНО используйте интструмент "Создание заявки". Отвечайте на РУССКОМ языке, учитывая контекст переписки. Сейчас вы получили следующее сообщение: {user_message}'
 
             chat_history = await chat_history_service.read_chat_history(chat_id)
             logger.info(f"History for {chat_id}: {chat_history}")
