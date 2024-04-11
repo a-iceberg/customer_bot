@@ -82,7 +82,7 @@ async def call_message(request: Request, authorization: str = Header(None)):
 
             location_tool = create_location_tool(bot, chat_id)
             contact_tool = create_contact_tool(bot, chat_id)
-            request_tool = create_request_tool(request, chat_id)
+            request_tool = create_request_tool(request)
             tools = [location_tool, contact_tool, request_tool]
 
             agent = initialize_agent(
