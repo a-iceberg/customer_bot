@@ -17,6 +17,7 @@ services:
       - LANGCHAIN_API_KEY=
       - OPENAI_API_KEY=
       - ANTHROPIC_API_KEY=
+      - 1С_TOKEN=
     volumes:
       - ./data:/app/data
     command: ["gunicorn", "bot:app", "--workers", "1", "--worker-class", "uvicorn.workers.UvicornWorker", "--bind", "0.0.0.0:86", "--timeout", "1800"]
