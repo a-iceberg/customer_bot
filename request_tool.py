@@ -20,7 +20,7 @@ def create_request_tool(request):
         base_url = config_manager.get("base_url")
         token = os.environ.get("1С_TOKEN", "")
 
-        with open("template.json", "r", encoding="utf-8") as f:
+        with open("./data/template.json", "r", encoding="utf-8") as f:
             params = json.load(f)
 
         params["order"]["client"]["display_name"] = "Андрей"
