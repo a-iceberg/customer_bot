@@ -25,10 +25,14 @@ def create_request_tool(request):
 
         params["order"]["client"]["display_name"] = "Андрей"
         params["order"]["client"]["phone"] = request["phone"]
-        params["order"]["address"]["geopoint"]["longitude"] = request["address"]["longitude"]
-        params["order"]["address"]["geopoint"]["latitude"] = request["address"]["latitude"]
-        params["order"]["address"]["name"] = "Москва, Театральная площадь, д.1"
-        params["order"]["uslugi_id"] = int(uuid4())
+        params["order"]["address"]["geopoint"]["longitude"] = request["location"][
+            "longitude"
+        ]
+        params["order"]["address"]["geopoint"]["latitude"] = request["location"][
+            "latitude"
+        ]
+        params["order"]["address"]["name"] = request["address"]
+        params["order"]["uslugi_id"] = str(uuid4())
         logger.info(f"Parametrs: {params}")
 
         request_data = {"token": token, "params": params}

@@ -15,6 +15,7 @@ from location_tool import create_location_tool
 from contact_tool import create_contact_tool
 from request_tool import create_request_tool
 
+from geopy.geocoders import Nominatim
 
 app = FastAPI()
 
@@ -59,9 +60,22 @@ async def call_message(request: Request, authorization: str = Header(None)):
         logger.info(f"Message: {message}")
 
         if "location" in message:
-            user_message = f'Мои координаты - {message["location"]}'
+            geolocator = Nominatim(user_agent="my_app")
+            location = message["location"]
+            address = geolocator.reverse(
+                f"{location.latitude}, {location.longitude}"
+            ).address
+            parts = address.split(", ")
+            house_and_street = parts[0:2]
+            city = parts[3]
+            address = f"{city}, {', '.join(house_and_street[::-1])}"
+
+            user_message = f"Мой адрес - {address}"
             await request_service.save_to_request(
-                chat_id, message["location"], message["message_id"], "address"
+                chat_id, message["location"], message["message_id"], "location"
+            )
+            await request_service.save_to_request(
+                chat_id, address, message["message_id"], "address"
             )
         elif "contact" in message:
             user_message = f'Мой телефон - {message["contact"]["phone_number"]}'

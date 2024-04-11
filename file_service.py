@@ -206,6 +206,8 @@ class FileService:
                     message = json.load(file)
                     if message["type"] == "phone":
                         request_items["phone"] = message["text"]
+                    elif message["type"] == "location":
+                        request_items["location"] = message["text"]
                     elif message["type"] == "address":
                         request_items["address"] = message["text"]
             except Exception as e:
