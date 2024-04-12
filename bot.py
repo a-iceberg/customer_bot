@@ -63,12 +63,8 @@ async def call_message(request: Request, authorization: str = Header(None)):
             geolocator = Nominatim(user_agent="my_app")
             location = message["location"]
             address = geolocator.reverse(
-                f"{location.latitude}, {location.longitude}"
+                f'{location["latitude"]}, {location["longitude"]}'
             ).address
-            parts = address.split(", ")
-            house_and_street = parts[0:2]
-            city = parts[3]
-            address = f"{city}, {', '.join(house_and_street[::-1])}"
 
             user_message = f"Мой адрес - {address}"
             await request_service.save_to_request(
