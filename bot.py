@@ -25,6 +25,7 @@ logger = logging.getLogger()
 config_manager = ConfigManager("config.json")
 
 chat_history_service = FileService(config_manager.get("chats_dir"), logger)
+request_service = FileService(config_manager.get("request_dir"), logger)
 
 # llm = ChatOpenAI(
 #     openai_api_key=os.environ.get("OPENAI_API_KEY", ""),
