@@ -1,6 +1,14 @@
+import logging
 from langchain.tools.base import StructuredTool
-from file_service import save_to_request
+from config_manager import ConfigManager
+from file_service import FileService
 from geopy.geocoders import Nominatim
+
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger()
+
+config_manager = ConfigManager("config.json")
+request_service = FileService(config_manager.get("request_dir"), logger)
 
 
 def create_location_tool(chat_id, message):
@@ -11,12 +19,16 @@ def create_location_tool(chat_id, message):
             address = geolocator.reverse(
                 f'{location["latitude"]}, {location["longitude"]}'
             ).address
-            save_to_request(
+            request_service.save_to_request(
                 chat_id, message["location"], message["message_id"], "location"
             )
-            save_to_request(chat_id, address, message["message_id"], "address")
+            request_service.save_to_request(
+                chat_id, address, message["message_id"], "address"
+            )
         else:
-            save_to_request(chat_id, message["text"], message["message_id"], "address")
+            request_service.save_to_request(
+                chat_id, message["text"], message["message_id"], "address"
+            )
         return "Адрес пользователя был получен"
 
     return StructuredTool.from_function(
