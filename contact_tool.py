@@ -11,8 +11,9 @@ config_manager = ConfigManager("config.json")
 request_service = FileService(config_manager.get("request_dir"), logger)
 
 def create_contact_tool(chat_id, message):
-    def save_contact():
-        request_service.save_to_request(
+
+    async def save_contact():
+        await request_service.save_to_request(
             chat_id,
             "".join(re.findall(r"[+\d]", message["text"])),
             message["message_id"],
