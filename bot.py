@@ -65,19 +65,8 @@ async def call_message(request: Request, authorization: str = Header(None)):
             address = geolocator.reverse(
                 f'{location["latitude"]}, {location["longitude"]}'
             ).address
-
             user_message = f"Мой адрес - {address}"
-            await request_service.save_to_request(
-                chat_id, message["location"], message["message_id"], "location"
-            )
-            await request_service.save_to_request(
-                chat_id, address, message["message_id"], "address"
-            )
-        elif "contact" in message:
-            user_message = f'Мой телефон - {message["contact"]["phone_number"]}'
-            await request_service.save_to_request(
-                chat_id, message["contact"]["phone_number"], message["message_id"], "phone"
-            )
+
         elif "text" in message:
             user_message = message["text"]
         else:
@@ -90,8 +79,8 @@ async def call_message(request: Request, authorization: str = Header(None)):
         if user_message != "/start" and user_message != "/reset":
             request = await request_service.read_request(chat_id)
 
-            location_tool = create_location_tool(bot, chat_id)
-            contact_tool = create_contact_tool(bot, chat_id)
+            location_tool = create_location_tool(chat_id, message)
+            contact_tool = create_contact_tool(chat_id, message)
             request_tool = create_request_tool(request)
             tools = [location_tool, contact_tool, request_tool]
 
@@ -103,7 +92,7 @@ async def call_message(request: Request, authorization: str = Header(None)):
                 handle_parsing_errors=True,
             )
 
-            message_text = f'Вы - сотрудник колл-центра сервисного центра по ремонту бытовой техники. Ваша первочередная итоговая цель - для создания заявки запросить у пользователя локацию неисправности и контактный телефон путем ИСПОЛЬЗОВАНИЯ предоставленных вам инструментов и отвечать сообщениями на сообщения пользователя. Вам доступен набор инструментов. Вам НАСТОЯТЕЛЬНО рекомендуется использовать ваши инструменты. Используйте ТОЛЬКО какой-то ОДИН инструмент сразу за каждый отдельный вызов / запрос, после использования одного отвечайте пользователю сообщением и только потом, после ответа, можете использовать другой. Текущее содержание заявки: {request}. Если в заявке уже есть и "phone", и "address", ОБЯЗАТЕЛЬНО уточните у пользователя корректность переданных переданных им данных, содержащихся в заявке, прислав их ему. И ТОЛЬКО ТОГДА, в случае получения подтверждения, ОБЯЗАТЕЛЬНО ИСПОЛЬЗУЙТЕ ваш инструмент "Создание заявки". Если же пользователь указал на неточность данных, снова вызывайте соответствующий инструмент для получения конкретных актуальных данных, "Запрос локации" или "Запрос контактов". Отвечайте на РУССКОМ языке, учитывая контекст переписки. Сейчас вы получили следующее сообщение: {user_message}'
+            message_text = f'Вы - сотрудник колл-центра сервисного центра по ремонту бытовой техники. Ваша первочередная итоговая цель - для создания заявки запросить сообщениями у пользователя адрес неисправности и контактный телефон и  в принципе отвечать сообщениями на сообщения пользователя. Вам доступен набор инструментов. Вам НАСТОЯТЕЛЬНО рекомендуется использовать ваши инструменты, когда вы сочтете нужным. Текущее содержание заявки: {request}. Если в заявке не хватает адреса или телефона, запрашивайте их. После получения от пользователя сообщения с этими данными ИСПОЛЬЗУЙТЕ один из ваших инструментов для сохранения этих данных в заявку. Если в заявке уже есть и "phone", и "address", ОБЯЗАТЕЛЬНО уточните у пользователя корректность переданных переданных им данных, содержащихся в заявке, прислав их ему. И ТОЛЬКО ТОГДА, в случае получения подтверждения, ОБЯЗАТЕЛЬНО ИСПОЛЬЗУЙТЕ ваш инструмент "Создание заявки". Если же пользователь указал на неточность данных, снова запрашивайте актуальные данные для обновления заявки. Отвечайте на РУССКОМ языке, учитывая контекст переписки. Сейчас вы получили следующее сообщение: {user_message}'
 
             chat_history = await chat_history_service.read_chat_history(chat_id)
             logger.info(f"History for {chat_id}: {chat_history}")

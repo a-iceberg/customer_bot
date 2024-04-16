@@ -1,24 +1,27 @@
-import telebot
 from langchain.tools.base import StructuredTool
+from file_service import save_to_request
+from geopy.geocoders import Nominatim
 
 
-def create_location_tool(bot, chat_id):
-    def send_location_request():
-        keyboard = telebot.types.ReplyKeyboardMarkup(row_width=1, resize_keyboard=True)
-        button = telebot.types.KeyboardButton(
-            text="Ваше местоположение", request_location=True
-        )
-        keyboard.add(button)
-        bot.send_message(
-            chat_id,
-            "Укажите ваше местоположение через кнопку ниже",
-            reply_markup=keyboard,
-        )
-        return "Локация пользователя была запрошена"
+def create_location_tool(chat_id, message):
+    def save_location():
+        if "location" in message:
+            geolocator = Nominatim(user_agent="my_app")
+            location = message["location"]
+            address = geolocator.reverse(
+                f'{location["latitude"]}, {location["longitude"]}'
+            ).address
+            save_to_request(
+                chat_id, message["location"], message["message_id"], "location"
+            )
+            save_to_request(chat_id, address, message["message_id"], "address")
+        else:
+            save_to_request(chat_id, message["text"], message["message_id"], "address")
+        return "Адрес пользователя был получен"
 
     return StructuredTool.from_function(
-        func=send_location_request,
-        name="Запрос локации",
-        description="Используйте, когда вам нужно запросить локацию пользователя для дальнейшего использования этой информации при создании заявки, чтобы помочь пользователю.",
+        func=save_location,
+        name="Сохранение адреса",
+        description="Используйте, когда вам нужно сохранить полученный от пользователя адрес в заявку",
         return_direct=False,
     )

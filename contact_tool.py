@@ -1,20 +1,21 @@
-import telebot
+import re
 from langchain.tools.base import StructuredTool
+from file_service import save_to_request
 
 
-def create_contact_tool(bot, chat_id):
-    def send_contact_request():
-        keyboard = telebot.types.ReplyKeyboardMarkup(row_width=1, resize_keyboard=True)
-        button = telebot.types.KeyboardButton(text="Ваш телефон", request_contact=True)
-        keyboard.add(button)
-        bot.send_message(
-            chat_id, "Укажите ваш телефон через кнопку ниже", reply_markup=keyboard
+def create_contact_tool(chat_id, message):
+    def save_contact():
+        save_to_request(
+            chat_id,
+            "".join(re.findall(r"[+\d]", message["text"])),
+            message["message_id"],
+            "phone",
         )
-        return "Контакты пользователя были запрошены"
+        return "Телефон пользователя был получен"
 
     return StructuredTool.from_function(
-        func=send_contact_request,
-        name="Запрос контактов",
-        description="Используйте, когда вам нужно запросить контакты пользователя для дальнейшего использования этой информации при создании заявки, чтобы помочь пользователю.",
+        func=save_contact,
+        name="Сохранение телефона",
+        description="Используйте, когда вам нужно сохранить полученный от пользователя телефон в заявку",
         return_direct=False,
     )
