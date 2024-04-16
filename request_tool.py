@@ -23,7 +23,7 @@ def create_request_tool(request):
         with open("./data/template.json", "r", encoding="utf-8") as f:
             params = json.load(f)
 
-        params["order"]["client"]["display_name"] = "Андрей"
+        params["order"]["client"]["display_name"] = "Владислав"
         params["order"]["client"]["phone"] = request["phone"]
         params["order"]["address"]["geopoint"]["longitude"] = request["location"][
             "longitude"
