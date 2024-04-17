@@ -59,7 +59,7 @@ class ChatAgent:
 
         # Tool: save_gps_tool
         save_gps_tool = StructuredTool.from_function(
-            func=self.save_gps_to_request,
+            coroutine=self.save_gps_to_request,
             name="Сохранение GPS-координат",
             description="Сохраняет адрес на основании полученнных GPS-координат в заявку. Вам следует предоставить значения latitude и longitude в качестве параметров.",
             args_schema=save_gps_to_request_args,
@@ -69,7 +69,7 @@ class ChatAgent:
 
         # Tool: save_address_tool
         save_address_tool = StructuredTool.from_function(
-            func=self.save_address_to_request,
+            coroutine=self.save_address_to_request,
             name="Сохранение адреса",
             description="Сохраняет полученнный адрес в заявку. Вам следует предоставить только непосредственно сам address из всего сообщения в качестве параметра.",
             args_schema=save_address_to_request_args,
@@ -79,7 +79,7 @@ class ChatAgent:
 
         # Tool: save_phone_tool
         save_phone_tool = StructuredTool.from_function(
-            func=self.save_phone_to_request,
+            coroutine=self.save_phone_to_request,
             name="Сохранение телефона",
             description="Сохраняет полученнный телефон в заявку. Вам следует предоставить только непосредственно сам phone из всего сообщения в качестве параметра.",
             args_schema=save_phone_to_request_args,
