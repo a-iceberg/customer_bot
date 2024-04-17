@@ -195,7 +195,7 @@ class Application:
                     )
                     self.chat_agent.initialize_agent()
 
-                bot_response = self.chat_agent.agent.run(
+                bot_response = await self.chat_agent.agent.run(
                     input=message_text, chat_history=chat_history
                 )
                 await self.chat_history_service.save_to_chat_history(
