@@ -1,6 +1,6 @@
 from langchain.tools.base import StructuredTool
 from langchain_anthropic import ChatAnthropic
-from pydantic import BaseModel, Field
+from pydantic.v1 import BaseModel, Field
 import os
 import re
 from langchain.agents import initialize_agent, AgentType
