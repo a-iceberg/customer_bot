@@ -149,7 +149,6 @@ class Application:
         async def handle_message(request: Request, authorization: str = Header(None)):
             self.logger.info("handle_message")
             message = await request.json()
-            bot = telebot.TeleBot(token)
             self.chat_id = message["chat"]["id"]
             self.logger.info(message)
 
@@ -158,7 +157,7 @@ class Application:
                 token = authorization.split(" ")[1]
 
             if token:
-                pass
+                bot = telebot.TeleBot(token)
             else:
                 answer = "Не удалось определить токен бота."
                 return self.text_response(answer)
