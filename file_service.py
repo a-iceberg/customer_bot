@@ -37,7 +37,6 @@ class FileService:
             message_date = py_time.strftime(
                 "%Y-%m-%d-%H-%M-%S", py_time.localtime(unix_timestamp)
             )
-        # log_file_name = f'{message_date}_{message_id}_{event_id}.json'
         log_file_name = f"{unix_timestamp}_{message_id}_{event_id}.json"
 
         chat_log_dir = self.file_path(chat_id)
@@ -57,62 +56,6 @@ class FileService:
                     ensure_ascii=False,
                 )
             )
-
-    async def configuration_in_history(self, chat_id):
-        chat_log_path = os.path.join(self.data_dir, str(chat_id))
-        # Create the chat log path if not exist
-        Path(chat_log_path).mkdir(parents=True, exist_ok=True)
-        # self.crop_queue(chat_id=chat_id)
-        self.logger.info(f"DEBUG: Listing chat_log_path: {chat_log_path}")
-        for log_file in sorted(os.listdir(chat_log_path)):
-            self.logger.info(f"DEBUG: log_file: {log_file}")
-            # Return True if 'configuration' word is in the file_name
-            if "configuration" in log_file:
-                self.logger.info(
-                    f"DEBUG: configuration_in_history chat_id: {chat_id} True"
-                )
-                return True
-        self.logger.info(
-            f"DEBUG: NOT configuration_in_history chat_id: {chat_id} False"
-        )
-        return False
-
-    async def date_of_latest_message(self, chat_id: str):
-        self.logger.info(f"DEBUG: date_of_latest_message chat_id: {chat_id}")
-        chat_log_path = self.file_path(chat_id)
-        Path(chat_log_path).mkdir(parents=True, exist_ok=True)
-        log_files = os.listdir(chat_log_path)
-
-        if not log_files:
-            self.logger.info(f"No chat history found for chat_id: {chat_id}")
-            return 0
-
-        self.logger.info(
-            f"Chat history for chat_id: {chat_id} is {len(log_files)} messages."
-        )
-
-        latest_date = 0
-        for log_file in sorted(log_files, reverse=True):
-            try:
-                message_date = int(log_file.split("_")[0])
-                latest_date = max(latest_date, message_date)
-            except Exception as e:
-                self.logger.info(f"Error reading chat history file {log_file}: {e}")
-                os.remove(os.path.join(chat_log_path, log_file))
-
-        return latest_date
-
-    async def is_message_deprecated(self, event_id, message, reply_to_message_id):
-        current_date = message["date"]
-        latest_date = await self.date_of_latest_message(str(reply_to_message_id))
-        self.logger.info(
-            f"[{event_id}] current_date: {current_date} latest_date: {latest_date}"
-        )
-
-        if current_date < latest_date:
-            self.logger.info(f"[{event_id}] Cancelling task: Message is not the latest")
-            return True
-        return False
 
     async def read_chat_history(self, chat_id: str):
         """Reads the chat history from a folder and returns it as a list of messages."""
@@ -157,12 +100,11 @@ class FileService:
         self,
         chat_id,
         message_text,
-        message_id,
         message_type,
         date_override=None,
     ):
         self.logger.info(
-            f"[{message_type}] Saving request item to request for chat_id: {chat_id} for message_id: {message_id}"
+            f"[{message_type}] Saving request item to request for chat_id: {chat_id}"
         )
         if date_override is None:
             message_date = py_time.strftime("%Y-%m-%d-%H-%M-%S", py_time.localtime())
@@ -173,7 +115,7 @@ class FileService:
             message_date = py_time.strftime(
                 "%Y-%m-%d-%H-%M-%S", py_time.localtime(unix_timestamp)
             )
-        log_file_name = f"{unix_timestamp}_{message_id}_{message_type}.json"
+        log_file_name = f"{unix_timestamp}_{message_type}.json"
 
         request_dir = self.file_path(chat_id)
         Path(request_dir).mkdir(parents=True, exist_ok=True)
@@ -186,7 +128,6 @@ class FileService:
                         "type": message_type,
                         "text": message_text,
                         "date": message_date,
-                        "message_id": message_id,
                     },
                     ensure_ascii=False,
                 )
