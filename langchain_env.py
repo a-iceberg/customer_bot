@@ -13,8 +13,8 @@ from file_service import FileService
 
 
 class save_gps_to_request_args(BaseModel):
-    latitude: str = Field(description="latitude")
-    longitude: str = Field(description="longitude")
+    latitude: int = Field(description="latitude")
+    longitude: int = Field(description="longitude")
 
 
 class save_address_to_request_args(BaseModel):
@@ -61,7 +61,7 @@ class ChatAgent:
         save_gps_tool = StructuredTool.from_function(
             func=self.save_gps_to_request,
             name="Сохранение GPS-координат",
-            description="Сохраняет адрес на основании полученнных GPS-координат в заявку. Вам следует предоставить latitude и longitude в качестве параметров.",
+            description="Сохраняет адрес на основании полученнных GPS-координат в заявку. Вам следует предоставить значения latitude и longitude в качестве параметров.",
             args_schema=save_gps_to_request_args,
             return_direct=False,
         )
