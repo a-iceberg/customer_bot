@@ -26,7 +26,9 @@ class save_phone_to_request_args(BaseModel):
 
 
 class create_request_args(BaseModel):
-    request: dict = Field(description="request")
+    # request: dict = Field(description="request")
+    address: str = Field(description="address")
+    phone: str = Field(description="phone")
 
 
 class ChatAgent:
