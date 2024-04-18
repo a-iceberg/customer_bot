@@ -132,17 +132,17 @@ class ChatAgent:
         return "Телефон пользователя был сохранен в заявку"
 
     def create_request(self, address, phone):
-        self.logger.info(f"create_request request: {request}")
+        self.logger.info(f"create_request address: {address} phone: {phone}")
         token = os.environ.get("1С_TOKEN", "")
 
         with open("./data/template.json", "r", encoding="utf-8") as f:
             params = json.load(f)
 
         params["order"]["client"]["display_name"] = "Владислав"
-        params["order"]["client"]["phone"] = request["phone"]
+        # params["order"]["client"]["phone"] = request["phone"]
         params["order"]["address"]["geopoint"]["longitude"] = 0
         params["order"]["address"]["geopoint"]["latitude"] = 0
-        params["order"]["address"]["name"] = request["address"]
+        # params["order"]["address"]["name"] = request["address"]
         params["order"]["uslugi_id"] = str(uuid4())
 
         params["order"]["client"]["phone"] = phone
