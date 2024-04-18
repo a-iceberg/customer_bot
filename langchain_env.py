@@ -26,7 +26,6 @@ class save_phone_to_request_args(BaseModel):
 
 
 class create_request_args(BaseModel):
-    #     request: dict = Field(description="request")
     address: str = Field(description="address")
     phone: str = Field(description="phone")
 
@@ -139,10 +138,8 @@ class ChatAgent:
             params = json.load(f)
 
         params["order"]["client"]["display_name"] = "Владислав"
-        # params["order"]["client"]["phone"] = request["phone"]
         params["order"]["address"]["geopoint"]["longitude"] = 0
         params["order"]["address"]["geopoint"]["latitude"] = 0
-        # params["order"]["address"]["name"] = request["address"]
         params["order"]["uslugi_id"] = str(uuid4())
 
         params["order"]["client"]["phone"] = phone
