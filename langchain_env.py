@@ -25,10 +25,10 @@ class save_phone_to_request_args(BaseModel):
     phone: str = Field(description="phone")
 
 
-class create_request_args(BaseModel):
-    # request: dict = Field(description="request")
-    address: str = Field(description="address")
-    phone: str = Field(description="phone")
+# class create_request_args(BaseModel):
+#     request: dict = Field(description="request")
+#     address: str = Field(description="address")
+#     phone: str = Field(description="phone")
 
 
 class ChatAgent:
@@ -94,7 +94,7 @@ class ChatAgent:
             func=self.create_request,
             name="Создание заявки",
             description="Создает полностью заполненную заявку в 1С. Вам следует предоставить request в качестве параметра.",
-            args_schema=create_request_args,
+            # args_schema=create_request_args,
             return_direct=False,
         )
         tools.append(request_tool)
