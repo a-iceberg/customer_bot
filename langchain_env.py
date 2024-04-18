@@ -25,10 +25,10 @@ class save_phone_to_request_args(BaseModel):
     phone: str = Field(description="phone")
 
 
-# class create_request_args(BaseModel):
-#     request: dict = Field(description="request")
-#     address: str = Field(description="address")
-#     phone: str = Field(description="phone")
+class create_request_args(BaseModel):
+    #     request: dict = Field(description="request")
+    address: str = Field(description="address")
+    phone: str = Field(description="phone")
 
 
 class ChatAgent:
@@ -93,8 +93,8 @@ class ChatAgent:
         request_tool = StructuredTool.from_function(
             func=self.create_request,
             name="Создание заявки",
-            description="Создает полностью заполненную заявку в 1С. Вам следует предоставить request в качестве параметра.",
-            # args_schema=create_request_args,
+            description="Создает полностью заполненную заявку в 1С. Вам следует предоставить значения ключей request в качестве параметров.",
+            args_schema=create_request_args,
             return_direct=False,
         )
         tools.append(request_tool)
@@ -131,7 +131,7 @@ class ChatAgent:
         self.logger.info("Телефон пользователя был сохранен в заявку")
         return "Телефон пользователя был сохранен в заявку"
 
-    def create_request(self, request):
+    def create_request(self, address, phone):
         self.logger.info(f"create_request request: {request}")
         token = os.environ.get("1С_TOKEN", "")
 
@@ -144,6 +144,9 @@ class ChatAgent:
         params["order"]["address"]["geopoint"]["latitude"] = 0
         params["order"]["address"]["name"] = request["address"]
         params["order"]["uslugi_id"] = str(uuid4())
+
+        params["order"]["client"]["phone"] = phone
+        params["order"]["address"]["name"] = address
         self.logger.info(f"Parametrs: {params}")
 
         request_data = {"token": token, "params": params}
