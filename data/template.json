@@ -23,7 +23,7 @@
         "payment_type": "card",
         "client": {
             "display_name": "Алвар Аалто",
-            "phone": "+71234567890"
+            "phone": "81234567890"
         },
         "address": {
             "uri": "ymapsbm1://geo?ll=37.622504%2C55.753215&spn=1.164423%2C0.878654&text=%D0%9C%D0%BE%D1%81%D0%BA%D0%B2%D0%B0",
