@@ -1,5 +1,6 @@
 from langchain.tools.base import StructuredTool
-from langchain_anthropic import ChatAnthropic
+# from langchain_anthropic import ChatAnthropic
+from langchain_openai import ChatOpenAI
 from pydantic.v1 import BaseModel, Field
 import os
 import re
@@ -51,8 +52,10 @@ class ChatAgent:
         self.request_service = FileService(self.config["request_dir"], logger)
 
     def initialize_agent(self):
-        llm = ChatAnthropic(
-            anthropic_api_key=os.environ.get("ANTHROPIC_API_KEY", ""),
+        # llm = ChatAnthropic(
+        #     api_key=os.environ.get("ANTHROPIC_API_KEY", ""),
+        llm = ChatOpenAI(
+            api_key=os.environ.get("OPENAI_API_KEY", ""),
             model=self.config["model"],
             temperature=self.config["temperature"],
         )
