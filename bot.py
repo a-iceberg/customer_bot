@@ -1,7 +1,9 @@
+import os
+import logging
+
+import telebot
 from fastapi import FastAPI, Request, Header
 from fastapi.responses import JSONResponse
-import logging
-import telebot
 
 from config_manager import ConfigManager
 from file_service import FileService
@@ -9,8 +11,9 @@ from langchain_env import ChatAgent
 
 class Application:
     def __init__(self):
-        self.config_manager = ConfigManager("config.json")
+        self.config_manager = ConfigManager("./data/config.json")
         self.logger = self.setup_logging()
+        self.set_keys()
         self.chat_history_service = FileService(
             self.config_manager.get("chats_dir"), self.logger
         )
@@ -26,6 +29,15 @@ class Application:
 
     def text_response(self, text):
         return JSONResponse(content={"type": "text", "body": str(text)})
+
+    def set_keys(self):
+        cm = ConfigManager("./data/keys.json")
+
+        os.environ["LANGCHAIN_API_KEY"] = cm.get("LANGCHAIN_API_KEY", "")
+        os.environ["OPENAI_API_KEY"] = cm.get("OPENAI_API_KEY", "")
+        os.environ["ANTHROPIC_API_KEY"] = cm.get("ANTHROPIC_API_KEY", "")
+        os.environ["1С_TOKEN"] = cm.get("1С_TOKEN", "")
+        self.logger.info("Keys set successfully")
 
     def setup_logging(self):
         logging.basicConfig(level=logging.INFO)
