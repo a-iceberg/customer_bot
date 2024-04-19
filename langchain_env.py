@@ -13,8 +13,8 @@ from file_service import FileService
 
 
 class save_gps_to_request_args(BaseModel):
-    latitude: int = Field(description="latitude")
-    longitude: int = Field(description="longitude")
+    latitude: float = Field(description="latitude")
+    longitude: float = Field(description="longitude")
 
 
 class save_address_to_request_args(BaseModel):
