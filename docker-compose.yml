@@ -2,7 +2,7 @@ version: '3.8'
 
 services:
   customer_bot:
-    container_name: customer_bot
+    container_name: customer_bot_vlad_test
     ports:
       - "7406:86"
     restart: unless-stopped
@@ -13,7 +13,7 @@ services:
       - TZ=Europe/Moscow
       - LANGCHAIN_TRACING_V2=true
       - LANGCHAIN_ENDPOINT=https://api.smith.langchain.com
-      - LANGCHAIN_PROJECT=customer_bot
+      - LANGCHAIN_PROJECT=customer_bot_vlad_test
     volumes:
       - ./data:/app/data
     command: ["gunicorn", "bot:app", "--workers", "1", "--worker-class", "uvicorn.workers.UvicornWorker", "--bind", "0.0.0.0:86", "--timeout", "1800"]
