@@ -133,7 +133,7 @@ class ChatAgent:
         )
 
     def get_categories(self):
-        with open("./data/repar_cat.txt", "r", encoding="utf-8") as f:
+        with open("./data/repair_cat.txt", "r", encoding="utf-8") as f:
             categories = f.read().splitlines()
         categories_string = ", ".join(categories)
         return f"Актуальные категории для сопоставления: {categories_string}"
