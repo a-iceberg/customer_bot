@@ -31,6 +31,7 @@ class save_phone_to_request_args(BaseModel):
 
 
 class create_request_args(BaseModel):
+    category: str = Field(description="appeal_category")
     address: str = Field(description="address")
     phone: str = Field(description="phone")
 
@@ -168,8 +169,10 @@ class ChatAgent:
         self.logger.info("Телефон пользователя был сохранен в заявку")
         return "Телефон пользователя был сохранен в заявку"
 
-    def create_request(self, address, phone):
-        self.logger.info(f"create_request address: {address} phone: {phone}")
+    def create_request(self, category, address, phone):
+        self.logger.info(
+            f"create_request category: {category} address: {address} phone: {phone}"
+        )
         token = os.environ.get("1С_TOKEN", "")
 
         with open("./data/template.json", "r", encoding="utf-8") as f:
@@ -180,6 +183,7 @@ class ChatAgent:
         params["order"]["address"]["geopoint"]["latitude"] = 0
         params["order"]["uslugi_id"] = str(uuid4())
 
+        params["order"]["services"]["service_id"] = category
         params["order"]["client"]["phone"] = phone
         params["order"]["address"]["name"] = address
         self.logger.info(f"Parametrs: {params}")
