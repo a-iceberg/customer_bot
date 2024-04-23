@@ -16,5 +16,4 @@ services:
       - LANGCHAIN_PROJECT=customer_cc_vlad_test
     volumes:
       - ./data:/app/data
-    # command: ["gunicorn", "bot:app", "--workers", "1", "--worker-class", "uvicorn.workers.UvicornWorker", "--bind", "0.0.0.0:88", "--timeout", "1800"]
-    command: ["/bin/sh", "-c", "if [ ! -f /app/data/keys.json ]; then echo '{\"LANGCHAIN_API_KEY\": \"\", \"OPENAI_API_KEY\": \"\", \"ANTHROPIC_API_KEY\": \"\", \"1С_TOKEN\": \"\"}' > /app/data/keys.json; fi && exec gunicorn 'bot:app' --workers 1 --worker-class 'uvicorn.workers.UvicornWorker' --bind '0.0.0.0:88' --timeout 1800"]
+    command: ["gunicorn", "bot:app", "--workers", "1", "--worker-class", "uvicorn.workers.UvicornWorker", "--bind", "0.0.0.0:88", "--timeout", "1800"]
