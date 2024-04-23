@@ -183,7 +183,7 @@ class ChatAgent:
         params["order"]["address"]["geopoint"]["latitude"] = 0
         params["order"]["uslugi_id"] = str(uuid4())
 
-        params["order"]["services"]["service_id"] = category
+        params["order"]["services"][0]["service_id"] = category
         params["order"]["client"]["phone"] = phone
         params["order"]["address"]["name"] = address
         self.logger.info(f"Parametrs: {params}")
