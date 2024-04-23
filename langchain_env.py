@@ -13,6 +13,10 @@ from uuid import uuid4
 from file_service import FileService
 
 
+class save_category_to_request_args(BaseModel):
+    category: str = Field(description="appeal_category")
+
+
 class save_gps_to_request_args(BaseModel):
     latitude: float = Field(description="latitude")
     longitude: float = Field(description="longitude")
@@ -61,6 +65,25 @@ class ChatAgent:
         )
         tools = []
 
+        # Tool: get_categories_tool
+        get_categories_tool = StructuredTool.from_function(
+            func=self.get_categories,
+            name="Получение категорий",
+            description="Предоставляет актуальный перечень категорий типа обращения. Используйте перед запросом у пользователя причины, категории обращения для последующего соотнесения полученной информации с этим перечнем.",
+            return_direct=False,
+        )
+        tools.append(get_categories_tool)
+
+        # Tool: save_category_tool
+        save_category_tool = StructuredTool.from_function(
+            coroutine=self.save_category_to_request,
+            name="Сохранение категории обращения",
+            description="Сохраняет подходящую под запрос пользователя категорию обращения из списка в заявку. Вам следует предоставить только непосредственно саму category в качестве параметра.",
+            args_schema=save_category_to_request_args,
+            return_direct=False,
+        )
+        tools.append(save_category_tool)
+
         # Tool: save_gps_tool
         save_gps_tool = StructuredTool.from_function(
             coroutine=self.save_gps_to_request,
@@ -108,6 +131,18 @@ class ChatAgent:
             verbose=True,
             handle_parsing_errors=True,
         )
+
+    def get_categories(self):
+        with open("./data/repar_cat.txt", "r", encoding="utf-8") as f:
+            categories = f.read().splitlines()
+        categories_string = ", ".join(categories)
+        return f"Актуальные категории для сопоставления: {categories_string}"
+
+    async def save_category_to_request(self, category):
+        self.logger.info(f"save_category_to_request category: {category}")
+        await self.request_service.save_to_request(self.chat_id, category, "category")
+        self.logger.info("Категория обращения была сохранена в заявку")
+        return "Категория обращения была сохранена в заявку"
 
     async def save_gps_to_request(self, latitude, longitude):
         self.logger.info(
