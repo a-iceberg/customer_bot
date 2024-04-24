@@ -1,6 +1,6 @@
 {
     "order": {
-        "uslugi_id": "0",
+        "uslugi_id": "1000",
         "services": [
             {
                 "service_id": "Ремонт холодильника",
@@ -11,7 +11,8 @@
             }
         ],
         "status": "created",
-        "duration_minutes": 30,
+        "delay_minutes": 0,
+        "duration_minutes": 0,
         "desired_dt": "2021-08-13T05:57:14.122Z",
         "employees": [],
         "payment_type": "card",
