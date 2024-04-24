@@ -1,19 +1,13 @@
 {
     "order": {
-        "uslugi_id": "1999",
+        "uslugi_id": "0",
         "services": [
             {
                 "service_id": "Ремонт холодильника",
                 "amount": 0,
                 "label": "Тест",
                 "price": "900",
-                "additionals": [
-                    {
-                        "id": "demontazh_vstroennoi_tekhniki",
-                        "amount": 1,
-                        "price": "300"
-                    }
-                ]
+                "additionals": []
             }
         ],
         "status": "created",
