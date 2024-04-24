@@ -233,7 +233,7 @@ class ChatAgent:
         self.logger.info("Бренд и модель техники были сохранены в заявку")
         return "Бренд и модель техники были сохранены в заявку"
 
-    async def save_model_to_request(self, circs):
+    async def save_circs_to_request(self, circs):
         self.logger.info(f"save_circs_to_request model: {circs}")
         await self.request_service.save_to_request(self.chat_id, circs, "comment")
         self.logger.info("Обстоятельства обращения были сохранены в заявку")
