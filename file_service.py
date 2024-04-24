@@ -108,19 +108,23 @@ class FileService:
         )
         if date_override is None:
             message_date = py_time.strftime("%Y-%m-%d-%H-%M-%S", py_time.localtime())
-            parsed_time = py_time.strptime(message_date, "%Y-%m-%d-%H-%M-%S")
-            unix_timestamp = int(py_time.mktime(parsed_time))
         else:
-            unix_timestamp = date_override
             message_date = py_time.strftime(
-                "%Y-%m-%d-%H-%M-%S", py_time.localtime(unix_timestamp)
+                "%Y-%m-%d-%H-%M-%S", py_time.localtime(date_override)
             )
-        log_file_name = f"{unix_timestamp}_{message_type}.json"
+        log_file_name = f"{message_type}.json"
 
         request_dir = self.file_path(chat_id)
         Path(request_dir).mkdir(parents=True, exist_ok=True)
 
         full_path = os.path.join(request_dir, log_file_name)
+        if Path(full_path).exists() and message_type == "comment":
+            async with aiofiles.open(full_path, "r") as log_file:
+                data = await log_file.read()
+                existing_data = json.loads(data)
+                existing_text = existing_data.get("text", "")
+                message_text = existing_text + " " + message_text
+
         async with aiofiles.open(full_path, "w") as log_file:
             await log_file.write(
                 json.dumps(
@@ -149,12 +153,16 @@ class FileService:
                         request_items["category"] = message["text"]
                     elif message["type"] == "phone":
                         request_items["phone"] = message["text"]
-                    elif message["type"] == "location":
-                        request_items["location"] = message["text"]
+                    elif message["type"] == "latitude":
+                        request_items["latitude"] = message["text"]
+                    elif message["type"] == "longitude":
+                        request_items["longitude"] = message["text"]
                     elif message["type"] == "address":
                         request_items["address"] = message["text"]
                     elif message["type"] == "date":
                         request_items["date"] = message["text"]
+                    elif message["type"] == "comment":
+                        request_items["comment"] = message["text"]
             except Exception as e:
                 self.logger.error(f"Error reading request file {item}: {e}")
                 # Remove problematic file

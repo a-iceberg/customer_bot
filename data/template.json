@@ -13,7 +13,7 @@
         "status": "created",
         "delay_minutes": 0,
         "duration_minutes": 0,
-        "desired_dt": "2021-08-13T05:57Z",
+        "desired_dt": "2024-04-01T00:00Z",
         "employees": [],
         "payment_type": "card",
         "client": {
@@ -23,8 +23,8 @@
         "address": {
             "uri": "",
             "geopoint": {
-                "longitude": 0,
-                "latitude": 0
+                "longitude": 37.618561,
+                "latitude": 55.760221
             },
             "name": "Москва, Театральная площадь, д.1"
         },
