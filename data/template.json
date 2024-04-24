@@ -13,7 +13,7 @@
         "status": "created",
         "delay_minutes": 0,
         "duration_minutes": 0,
-        "desired_dt": "2021-08-13T05:57:14.122Z",
+        "desired_dt": "2021-08-13T05:57Z",
         "employees": [],
         "payment_type": "card",
         "client": {

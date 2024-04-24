@@ -30,6 +30,10 @@ class save_phone_to_request_args(BaseModel):
     phone: str = Field(description="phone")
 
 
+class save_date_to_request_args(BaseModel):
+    date: str = Field(description="date and time")
+
+
 class create_request_args(BaseModel):
     category: str = Field(description="appeal_category")
     address: str = Field(description="address")
@@ -79,7 +83,7 @@ class ChatAgent:
         save_category_tool = StructuredTool.from_function(
             coroutine=self.save_category_to_request,
             name="Сохранение категории обращения",
-            description="Сохраняет подходящую под запрос пользователя категорию обращения из списка в заявку. Вам следует предоставить только непосредственно саму category в качестве параметра.",
+            description="Сохраняет подходящую под запрос пользователя категорию обращения из списка в заявку. Нужно соотнести и выбрать только из тех, что в списке. Вам следует предоставить только непосредственно саму category в качестве параметра.",
             args_schema=save_category_to_request_args,
             return_direct=False,
         )
@@ -114,6 +118,16 @@ class ChatAgent:
             return_direct=False,
         )
         tools.append(save_phone_tool)
+
+        # Tool: save_date_tool
+        save_date_tool = StructuredTool.from_function(
+            coroutine=self.save_date_to_request,
+            name="Сохранение даты визита",
+            description="Сохраняет желаемые дату и время в заявку. Вам следует предоставить только непосредственно сам date в строгом формате 'yyyy-mm-ddTHH:MMZ' из всего сообщения в качестве параметра.",
+            args_schema=save_date_to_request_args,
+            return_direct=False,
+        )
+        tools.append(save_date_tool)
 
         # Tool: request_tool
         request_tool = StructuredTool.from_function(
@@ -164,10 +178,16 @@ class ChatAgent:
     async def save_phone_to_request(self, phone):
         self.logger.info(f"save_phone_to_request phone: {phone}")
         await self.request_service.save_to_request(
-            self.chat_id, "".join(re.findall(r"[+\d]", phone)), "phone"
+            self.chat_id, "".join(re.findall(r"[\d]", phone)), "phone"
         )
         self.logger.info("Телефон пользователя был сохранен в заявку")
         return "Телефон пользователя был сохранен в заявку"
+
+    async def save_date_to_request(self, date):
+        self.logger.info(f"save_date_to_request date: {date}")
+        await self.request_service.save_to_request(self.chat_id, date, "date")
+        self.logger.info("Дата и время посещения были сохранены в заявку")
+        return "Дата и время посещения были сохранены в заявку"
 
     def create_request(self, category, address, phone):
         self.logger.info(
