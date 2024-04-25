@@ -149,8 +149,8 @@ class FileService:
             try:
                 with open(full_path, "r") as file:
                     message = json.load(file)
-                    if message["type"] == "category":
-                        request_items["category"] = message["text"]
+                    if message["type"] == "direction":
+                        request_items["direction"] = message["text"]
                     elif message["type"] == "phone":
                         request_items["phone"] = message["text"]
                     elif message["type"] == "latitude":
