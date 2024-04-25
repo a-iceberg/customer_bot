@@ -123,7 +123,7 @@ class FileService:
                 data = await log_file.read()
                 existing_data = json.loads(data)
                 existing_text = existing_data.get("text", "")
-                message_text = existing_text + " " + message_text
+                message_text = existing_text + ". " + message_text
 
         async with aiofiles.open(full_path, "w") as log_file:
             await log_file.write(

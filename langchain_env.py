@@ -43,9 +43,13 @@ class save_circs_to_request_args(BaseModel):
 
 
 class create_request_args(BaseModel):
-    category: str = Field(description="appeal_category")
+    direction: str = Field(description="appeal_direction")
+    latitude: float = Field(description="latitude")
+    longitude: float = Field(description="longitude")
     address: str = Field(description="address")
     phone: str = Field(description="phone")
+    date: str = Field(description="date")
+    comment: str = Field(description="comment")
 
 
 class ChatAgent:
@@ -231,13 +235,17 @@ class ChatAgent:
 
     async def save_model_to_request(self, model):
         self.logger.info(f"save_model_to_request model: {model}")
-        await self.request_service.save_to_request(self.chat_id, model, "comment")
+        await self.request_service.save_to_request(
+            self.chat_id, f"Модель: {model}", "comment"
+        )
         self.logger.info("Бренд и модель техники были сохранены в заявку")
         return "Бренд и модель техники были сохранены в заявку"
 
     async def save_circs_to_request(self, circs):
         self.logger.info(f"save_circs_to_request model: {circs}")
-        await self.request_service.save_to_request(self.chat_id, circs, "comment")
+        await self.request_service.save_to_request(
+            self.chat_id, f"Обстоятельства обращения: {circs}", "comment"
+        )
         self.logger.info("Обстоятельства обращения были сохранены в заявку")
         return "Обстоятельства обращения были сохранены в заявку"
 
