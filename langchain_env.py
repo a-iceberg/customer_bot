@@ -13,8 +13,8 @@ from uuid import uuid4
 from file_service import FileService
 
 
-class save_category_to_request_args(BaseModel):
-    category: str = Field(description="appeal_category")
+class save_direction_to_request_args(BaseModel):
+    direction: str = Field(description="appeal_direction")
 
 
 class save_gps_to_request_args(BaseModel):
@@ -78,24 +78,24 @@ class ChatAgent:
         )
         tools = []
 
-        # Tool: get_categories_tool
-        get_categories_tool = StructuredTool.from_function(
-            func=self.get_categories,
-            name="Получение категорий",
-            description="Предоставляет актуальный перечень категорий типа обращения. Используйте перед запросом у пользователя причины, категории обращения для последующего соотнесения полученной информации с этим перечнем.",
+        # Tool: get_directions_tool
+        get_directions_tool = StructuredTool.from_function(
+            func=self.get_directions,
+            name="Получение направлений",
+            description="Предоставляет актуальный перечень направлений обращения / ремонта. Используйте перед запросом у пользователя причины, категории обращения для последующего соотнесения полученной информации с этим перечнем.",
             return_direct=False,
         )
-        tools.append(get_categories_tool)
+        tools.append(get_directions_tool)
 
-        # Tool: save_category_tool
-        save_category_tool = StructuredTool.from_function(
-            coroutine=self.save_category_to_request,
-            name="Сохранение категории обращения",
-            description="Сохраняет подходящую под запрос пользователя категорию обращения из списка в заявку. Нужно соотнести и выбрать только из тех, что в списке. Вам следует предоставить только непосредственно саму category в качестве параметра.",
-            args_schema=save_category_to_request_args,
+        # Tool: save_direction_tool
+        save_direction_tool = StructuredTool.from_function(
+            coroutine=self.save_direction_to_request,
+            name="Сохранение направления обращения",
+            description="Сохраняет подходящее под запрос пользователя направление обращения из списка в заявку. Нужно соотнести запрос и выбрать подходящее только из тех, что в списке. Вам следует предоставить только непосредственно сам direction в качестве параметра.",
+            args_schema=save_direction_to_request_args,
             return_direct=False,
         )
-        tools.append(save_category_tool)
+        tools.append(save_direction_tool)
 
         # Tool: save_gps_tool
         save_gps_tool = StructuredTool.from_function(
@@ -175,17 +175,17 @@ class ChatAgent:
             handle_parsing_errors=True,
         )
 
-    def get_categories(self):
-        with open("./data/repair_cat.txt", "r", encoding="utf-8") as f:
-            categories = f.read().splitlines()
-        categories_string = ", ".join(categories)
-        return f"Актуальные категории для сопоставления: {categories_string}"
+    def get_directions(self):
+        with open("./data/repair_dir.txt", "r", encoding="utf-8") as f:
+            directions = f.read().splitlines()
+        directions_string = ", ".join(directions)
+        return f"Актуальные направления обращения / ремонта для сопоставления: {directions_string}"
 
-    async def save_category_to_request(self, category):
-        self.logger.info(f"save_category_to_request category: {category}")
-        await self.request_service.save_to_request(self.chat_id, category, "category")
-        self.logger.info("Категория обращения была сохранена в заявку")
-        return "Категория обращения была сохранена в заявку"
+    async def save_direction_to_request(self, direction):
+        self.logger.info(f"save_direction_to_request direction: {direction}")
+        await self.request_service.save_to_request(self.chat_id, direction, "direction")
+        self.logger.info("Направление обращения было сохранено в заявку")
+        return "Направление обращения было сохранено в заявку"
 
     async def save_gps_to_request(self, latitude, longitude):
         self.logger.info(
@@ -203,12 +203,14 @@ class ChatAgent:
         self.logger.info(f"save_address_to_request address: {address}")
         geolocator = Nominatim(user_agent="my_app")
         location = geolocator.geocode(address)
-        await self.request_service.save_to_request(
-            self.chat_id, location.latitude, "latitude"
-        )
-        await self.request_service.save_to_request(
-            self.chat_id, location.longitude, "longitude"
-        )
+        if location:
+            latitude = location.latitude
+            longitude = location.longitude
+        else:
+            latitude = 55.900678
+            longitude = 37.528109
+        await self.request_service.save_to_request(self.chat_id, latitude, "latitude")
+        await self.request_service.save_to_request(self.chat_id, longitude, "longitude")
         await self.request_service.save_to_request(self.chat_id, address, "address")
         self.logger.info("Адрес пользователя был сохранен в заявку")
         return "Адрес пользователя был сохранен в заявку"
@@ -240,10 +242,10 @@ class ChatAgent:
         return "Обстоятельства обращения были сохранены в заявку"
 
     def create_request(
-        self, category, latitude, longitude, address, phone, date, comment
+        self, direction, latitude, longitude, address, phone, date, comment
     ):
         self.logger.info(
-            f"create_request category: {category} address: {address} phone: {phone}"
+            f"create_request direction: {direction} latitude: {latitude} longitude: {longitude} address: {address} phone: {phone} date: {date} comment: {comment}"
         )
         token = os.environ.get("1С_TOKEN", "")
 
@@ -253,7 +255,7 @@ class ChatAgent:
         params["order"]["client"]["display_name"] = "Владислав"
         params["order"]["uslugi_id"] = str(uuid4())
 
-        params["order"]["services"][0]["service_id"] = category
+        params["order"]["services"][0]["service_id"] = direction
         params["order"]["client"]["phone"] = phone
         params["order"]["address"]["geopoint"]["latitude"] = latitude
         params["order"]["address"]["geopoint"]["longitude"] = longitude

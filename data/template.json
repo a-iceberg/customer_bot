@@ -3,10 +3,10 @@
         "uslugi_id": "1000",
         "services": [
             {
-                "service_id": "Ремонт холодильника",
+                "service_id": "Холодильники",
                 "amount": 0,
                 "label": "Тест",
-                "price": "900",
+                "price": "1000",
                 "additionals": []
             }
         ],
@@ -26,7 +26,7 @@
                 "longitude": 37.618561,
                 "latitude": 55.760221
             },
-            "name": "Москва, Театральная площадь, д.1"
+            "name": "Москва, Театральная площадь, 1"
         },
         "comment": "string",
         "revision": 0
