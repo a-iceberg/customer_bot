@@ -230,8 +230,8 @@ class ChatAgent:
     async def save_date_to_request(self, date):
         self.logger.info(f"save_date_to_request date: {date}")
         await self.request_service.save_to_request(self.chat_id, date, "date")
-        self.logger.info("Дата и время посещения были сохранены в заявку")
-        return "Дата и время посещения были сохранены в заявку"
+        self.logger.info("Дата посещения была сохранена в заявку")
+        return "Дата посещения была сохранена в заявку"
 
     async def save_model_to_request(self, model):
         self.logger.info(f"save_model_to_request model: {model}")
