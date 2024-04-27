@@ -141,7 +141,9 @@ class Application:
                 return (
                     bot.send_message(self.chat_id, bot_response)
                     if bot_response[0] != "{"
-                    else self.empty_response
+                    else bot.send_message(
+                        self.chat_id, "Пожалуйста, повторите ещё раз, не понял вас."
+                    )
                 )
 
 
