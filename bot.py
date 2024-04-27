@@ -138,7 +138,11 @@ class Application:
 
                 self.logger.info("Replying in " + str(self.chat_id))
                 self.logger.info(f"Answer: {bot_response}")
-                return bot.send_message(self.chat_id, bot_response)
+                return (
+                    bot.send_message(self.chat_id, bot_response)
+                    if bot_response[0] != "{"
+                    else self.empty_response
+                )
 
 
 application = Application()
