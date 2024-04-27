@@ -13,6 +13,10 @@ from uuid import uuid4
 from file_service import FileService
 
 
+class save_direction_to_request_args(BaseModel):
+    direction: str = Field(description="appeal_direction")
+
+
 class save_gps_to_request_args(BaseModel):
     latitude: float = Field(description="latitude")
     longitude: float = Field(description="longitude")
@@ -26,9 +30,26 @@ class save_phone_to_request_args(BaseModel):
     phone: str = Field(description="phone")
 
 
+class save_date_to_request_args(BaseModel):
+    date: str = Field(description="date")
+
+
+# class save_model_to_request_args(BaseModel):
+#     model: str = Field(description="brand and model")
+
+
+# class save_circs_to_request_args(BaseModel):
+#     circs: str = Field(description="circumstances")
+
+
 class create_request_args(BaseModel):
+    direction: str = Field(description="appeal_direction")
+    latitude: float = Field(description="latitude")
+    longitude: float = Field(description="longitude")
     address: str = Field(description="address")
     phone: str = Field(description="phone")
+    date: str = Field(description="date")
+    # comment: str = Field(description="comment")
 
 
 class ChatAgent:
@@ -61,6 +82,25 @@ class ChatAgent:
         )
         tools = []
 
+        # Tool: get_directions_tool
+        get_directions_tool = StructuredTool.from_function(
+            func=self.get_directions,
+            name="Получение направлений",
+            description="Предоставляет актуальный перечень направлений обращения / ремонта. ОБЯЗАТЕЛЬНО ИСПОЛЬЗУЙТЕ инструмент ОДИН раз в начале диалога ДО приветствия пользователя для возможности соотнесения последующей информации с этим перечнем.",
+            return_direct=False,
+        )
+        tools.append(get_directions_tool)
+
+        # Tool: save_direction_tool
+        save_direction_tool = StructuredTool.from_function(
+            coroutine=self.save_direction_to_request,
+            name="Сохранение направления обращения",
+            description="Сохраняет подходящее под запрос пользователя направление обращения из имеющегося списка направлений в заявку. Нужно соотнести запрос и выбрать подходящее только из тех, что в этом списке. Вам следует предоставить только непосредственно сам direction из списка в качестве параметра.",
+            args_schema=save_direction_to_request_args,
+            return_direct=False,
+        )
+        tools.append(save_direction_tool)
+
         # Tool: save_gps_tool
         save_gps_tool = StructuredTool.from_function(
             coroutine=self.save_gps_to_request,
@@ -91,6 +131,36 @@ class ChatAgent:
         )
         tools.append(save_phone_tool)
 
+        # Tool: save_date_tool
+        save_date_tool = StructuredTool.from_function(
+            coroutine=self.save_date_to_request,
+            name="Сохранение даты визита",
+            description="Сохраняет желаемую дату визита в заявку. Вам следует предоставить в инструмент только непосредственно сам date в формате 'yyyy-mm-ddT00:00Z' из всего полученного сообщения в качестве параметра. ОЖИДАЙТЕ же и ЗАПРАШИВАЙТЕ дату от пользователя в ЛЮБОМ свободном формате, а НЕ в том, что выше. Главное используйте сами потом в указанном, отформатировав при необходимости.",
+            args_schema=save_date_to_request_args,
+            return_direct=False,
+        )
+        tools.append(save_date_tool)
+
+        # # Tool: save_model_tool
+        # save_model_tool = StructuredTool.from_function(
+        #     coroutine=self.save_model_to_request,
+        #     name="Сохранение бренда и модели",
+        #     description="Сохраняет бренд и модель техники в заявку. Вам следует предоставить только непосредственно сам model, содержащий и бренд, и модель, из всего сообщения в качестве одного параметра.",
+        #     args_schema=save_model_to_request_args,
+        #     return_direct=False,
+        # )
+        # tools.append(save_model_tool)
+
+        # # Tool: save_circs_tool
+        # save_circs_tool = StructuredTool.from_function(
+        #     coroutine=self.save_circs_to_request,
+        #     name="Сохранение обстоятельств обращения",
+        #     description="Сохраняет дополнительные полезные обстоятельства обращения в заявку. Вам следует предоставить только непосредственно сами circs из всего сообщения в качестве параметра.",
+        #     args_schema=save_circs_to_request_args,
+        #     return_direct=False,
+        # )
+        # tools.append(save_circs_tool)
+
         # Tool: request_tool
         request_tool = StructuredTool.from_function(
             func=self.create_request,
@@ -109,18 +179,42 @@ class ChatAgent:
             handle_parsing_errors=True,
         )
 
+    def get_directions(self):
+        with open("./data/repair_dir.txt", "r", encoding="utf-8") as f:
+            directions = f.read().splitlines()
+        directions_string = ", ".join(directions)
+        return f"Актуальные направления обращения / ремонта для сопоставления: {directions_string}"
+
+    async def save_direction_to_request(self, direction):
+        self.logger.info(f"save_direction_to_request direction: {direction}")
+        await self.request_service.save_to_request(self.chat_id, direction, "direction")
+        self.logger.info("Направление обращения было сохранено в заявку")
+        return "Направление обращения было сохранено в заявку"
+
     async def save_gps_to_request(self, latitude, longitude):
         self.logger.info(
             f"save_gps_to_request latitude: {latitude} longitude: {longitude}"
         )
         geolocator = Nominatim(user_agent="my_app")
         address = geolocator.reverse(f"{latitude}, {longitude}").address
+        await self.request_service.save_to_request(self.chat_id, latitude, "latitude")
+        await self.request_service.save_to_request(self.chat_id, longitude, "longitude")
         await self.request_service.save_to_request(self.chat_id, address, "address")
         self.logger.info("Адрес пользователя был сохранен в заявку")
         return "Адрес пользователя был сохранен в заявку"
 
     async def save_address_to_request(self, address):
         self.logger.info(f"save_address_to_request address: {address}")
+        geolocator = Nominatim(user_agent="my_app")
+        location = geolocator.geocode(address)
+        if location:
+            latitude = location.latitude
+            longitude = location.longitude
+        else:
+            latitude = 55.900678
+            longitude = 37.528109
+        await self.request_service.save_to_request(self.chat_id, latitude, "latitude")
+        await self.request_service.save_to_request(self.chat_id, longitude, "longitude")
         await self.request_service.save_to_request(self.chat_id, address, "address")
         self.logger.info("Адрес пользователя был сохранен в заявку")
         return "Адрес пользователя был сохранен в заявку"
@@ -128,25 +222,52 @@ class ChatAgent:
     async def save_phone_to_request(self, phone):
         self.logger.info(f"save_phone_to_request phone: {phone}")
         await self.request_service.save_to_request(
-            self.chat_id, "".join(re.findall(r"[+\d]", phone)), "phone"
+            self.chat_id, "".join(re.findall(r"[\d]", phone)), "phone"
         )
         self.logger.info("Телефон пользователя был сохранен в заявку")
         return "Телефон пользователя был сохранен в заявку"
 
-    def create_request(self, address, phone):
-        self.logger.info(f"create_request address: {address} phone: {phone}")
+    async def save_date_to_request(self, date):
+        self.logger.info(f"save_date_to_request date: {date}")
+        await self.request_service.save_to_request(self.chat_id, date, "date")
+        self.logger.info("Дата посещения была сохранена в заявку")
+        return "Дата посещения была сохранена в заявку"
+
+    # async def save_model_to_request(self, model):
+    #     self.logger.info(f"save_model_to_request model: {model}")
+    #     await self.request_service.save_to_request(
+    #         self.chat_id, f"Модель: {model}", "comment"
+    #     )
+    #     self.logger.info("Бренд и модель техники были сохранены в заявку")
+    #     return "Бренд и модель техники были сохранены в заявку"
+
+    # async def save_circs_to_request(self, circs):
+    #     self.logger.info(f"save_circs_to_request model: {circs}")
+    #     await self.request_service.save_to_request(
+    #         self.chat_id, f"Обстоятельства обращения: {circs}", "comment"
+    #     )
+    #     self.logger.info("Обстоятельства обращения были сохранены в заявку")
+    #     return "Обстоятельства обращения были сохранены в заявку"
+
+    def create_request(self, direction, latitude, longitude, address, phone, date):
+        self.logger.info(
+            f"create_request direction: {direction} latitude: {latitude} longitude: {longitude} address: {address} phone: {phone} date: {date}"
+        )
         token = os.environ.get("1С_TOKEN", "")
 
         with open("./data/template.json", "r", encoding="utf-8") as f:
             params = json.load(f)
 
         params["order"]["client"]["display_name"] = "Владислав"
-        params["order"]["address"]["geopoint"]["longitude"] = 0
-        params["order"]["address"]["geopoint"]["latitude"] = 0
         params["order"]["uslugi_id"] = str(uuid4())
 
+        params["order"]["services"][0]["service_id"] = direction
         params["order"]["client"]["phone"] = phone
+        params["order"]["address"]["geopoint"]["latitude"] = latitude
+        params["order"]["address"]["geopoint"]["longitude"] = longitude
         params["order"]["address"]["name"] = address
+        params["order"]["desired_dt"] = date
+        # params["order"]["comment"] = comment
         self.logger.info(f"Parametrs: {params}")
 
         request_data = {"token": token, "params": params}

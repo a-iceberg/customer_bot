@@ -1,37 +1,32 @@
 {
     "order": {
-        "uslugi_id": "1999",
+        "uslugi_id": "1000",
         "services": [
             {
-                "service_id": "Ремонт холодильника",
+                "service_id": "Холодильники",
                 "amount": 0,
                 "label": "Тест",
-                "price": "900",
-                "additionals": [
-                    {
-                        "id": "demontazh_vstroennoi_tekhniki",
-                        "amount": 1,
-                        "price": "300"
-                    }
-                ]
+                "price": "1000",
+                "additionals": []
             }
         ],
         "status": "created",
-        "duration_minutes": 30,
-        "desired_dt": "2021-08-13T05:57:14.122Z",
+        "delay_minutes": 0,
+        "duration_minutes": 0,
+        "desired_dt": "2024-04-01T00:00Z",
         "employees": [],
         "payment_type": "card",
         "client": {
-            "display_name": "Алвар Аалто",
+            "display_name": "Владислав",
             "phone": "81234567890"
         },
         "address": {
-            "uri": "ymapsbm1://geo?ll=37.622504%2C55.753215&spn=1.164423%2C0.878654&text=%D0%9C%D0%BE%D1%81%D0%BA%D0%B2%D0%B0",
+            "uri": "",
             "geopoint": {
                 "longitude": 37.618561,
                 "latitude": 55.760221
             },
-            "name": "Москва, Театральная площадь, д.1"
+            "name": "Москва, Театральная площадь, 1"
         },
         "comment": "string",
         "revision": 0
