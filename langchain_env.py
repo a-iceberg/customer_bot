@@ -34,8 +34,8 @@ class save_date_to_request_args(BaseModel):
     date: str = Field(description="date")
 
 
-class save_model_to_request_args(BaseModel):
-    model: str = Field(description="brand and model")
+# class save_model_to_request_args(BaseModel):
+#     model: str = Field(description="brand and model")
 
 
 # class save_circs_to_request_args(BaseModel):
@@ -49,7 +49,7 @@ class create_request_args(BaseModel):
     address: str = Field(description="address")
     phone: str = Field(description="phone")
     date: str = Field(description="date")
-    comment: str = Field(description="comment")
+    # comment: str = Field(description="comment")
 
 
 class ChatAgent:
@@ -141,15 +141,15 @@ class ChatAgent:
         )
         tools.append(save_date_tool)
 
-        # Tool: save_model_tool
-        save_model_tool = StructuredTool.from_function(
-            coroutine=self.save_model_to_request,
-            name="Сохранение бренда и модели",
-            description="Сохраняет бренд и модель техники в заявку. Вам следует предоставить только непосредственно сам model, содержащий и бренд, и модель, из всего сообщения в качестве одного параметра.",
-            args_schema=save_model_to_request_args,
-            return_direct=False,
-        )
-        tools.append(save_model_tool)
+        # # Tool: save_model_tool
+        # save_model_tool = StructuredTool.from_function(
+        #     coroutine=self.save_model_to_request,
+        #     name="Сохранение бренда и модели",
+        #     description="Сохраняет бренд и модель техники в заявку. Вам следует предоставить только непосредственно сам model, содержащий и бренд, и модель, из всего сообщения в качестве одного параметра.",
+        #     args_schema=save_model_to_request_args,
+        #     return_direct=False,
+        # )
+        # tools.append(save_model_tool)
 
         # # Tool: save_circs_tool
         # save_circs_tool = StructuredTool.from_function(
@@ -233,13 +233,13 @@ class ChatAgent:
         self.logger.info("Дата посещения была сохранена в заявку")
         return "Дата посещения была сохранена в заявку"
 
-    async def save_model_to_request(self, model):
-        self.logger.info(f"save_model_to_request model: {model}")
-        await self.request_service.save_to_request(
-            self.chat_id, f"Модель: {model}", "comment"
-        )
-        self.logger.info("Бренд и модель техники были сохранены в заявку")
-        return "Бренд и модель техники были сохранены в заявку"
+    # async def save_model_to_request(self, model):
+    #     self.logger.info(f"save_model_to_request model: {model}")
+    #     await self.request_service.save_to_request(
+    #         self.chat_id, f"Модель: {model}", "comment"
+    #     )
+    #     self.logger.info("Бренд и модель техники были сохранены в заявку")
+    #     return "Бренд и модель техники были сохранены в заявку"
 
     # async def save_circs_to_request(self, circs):
     #     self.logger.info(f"save_circs_to_request model: {circs}")
@@ -249,11 +249,9 @@ class ChatAgent:
     #     self.logger.info("Обстоятельства обращения были сохранены в заявку")
     #     return "Обстоятельства обращения были сохранены в заявку"
 
-    def create_request(
-        self, direction, latitude, longitude, address, phone, date, comment
-    ):
+    def create_request(self, direction, latitude, longitude, address, phone, date):
         self.logger.info(
-            f"create_request direction: {direction} latitude: {latitude} longitude: {longitude} address: {address} phone: {phone} date: {date} comment: {comment}"
+            f"create_request direction: {direction} latitude: {latitude} longitude: {longitude} address: {address} phone: {phone} date: {date}"
         )
         token = os.environ.get("1С_TOKEN", "")
 
@@ -269,7 +267,7 @@ class ChatAgent:
         params["order"]["address"]["geopoint"]["longitude"] = longitude
         params["order"]["address"]["name"] = address
         params["order"]["desired_dt"] = date
-        params["order"]["comment"] = comment
+        # params["order"]["comment"] = comment
         self.logger.info(f"Parametrs: {params}")
 
         request_data = {"token": token, "params": params}
