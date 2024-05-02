@@ -78,7 +78,12 @@ class Application:
 
             elif user_message != "/start" and user_message != "/reset":
                 request = await self.request_service.read_request(self.chat_id)
-                now = time.strftime("%Y-%m-%d-%H-%M", time.localtime())
+                try:
+                    now = time.strftime(
+                        "%Y-%m-%d-%H-%M", time.localtime(message["date"])
+                    )
+                except:
+                    now = time.strftime("%Y-%m-%d-%H-%M", time.localtime())
 
                 message_text = f"""Текущие дата и время - {now}. Вы - сотрудник колл-центра сервисного центра по ремонту бытовой техники.
                 Ваша первочередная итоговая цель - для создания заявки запросить сообщениями у пользователя, ТОЛЬКО если он уже НЕ предоставил их сам ранее в диалоге, ПО ОДНОМУ сообщению:
