@@ -2,6 +2,7 @@ import os
 import time
 import logging
 from uuid import uuid4
+from pathlib import Path
 
 import telebot
 from openai import OpenAI
@@ -112,6 +113,7 @@ class Application:
                 audio_path = os.path.join(
                     self.config_manager.get("audio_dir"), str(self.chat_id)
                 )
+                Path(audio_path).mkdir(parents=True, exist_ok=True)
                 file_path = os.path.join(audio_path, file_name)
                 with open(file_path, "wb") as f:
                     f.write(file_bytes)
