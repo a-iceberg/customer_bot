@@ -240,38 +240,6 @@ class Application:
                 chunk_paths.append(chunk_filename)
             return chunk_paths
 
-        # def transcribe_chunk(audio_path, api_key):
-        #     client = OpenAI(api_key=api_key)
-        #     with open(audio_path, "rb") as audio_file:
-        #         response = client.audio.transcriptions.create(
-        #             file=audio_file, model="whisper-1", response_format="text"
-        #         )
-        #     return response
-
-        # def recognize_whisper(audio_path, api_key):
-        #     chunk_paths = split_audio_ffmpeg(audio_path)
-        #     full_text = ""
-
-        #     for idx, chunk_path in enumerate(chunk_paths):
-        #         self.logger.info(f"Processing chunk {idx+1} of {len(chunk_paths)}")
-        #         chunk_audio = AudioSegment.from_file(chunk_path)
-        #         text = transcribe_chunk(chunk_path, api_key)
-        #         full_text += text
-        #         os.remove(chunk_path)
-
-        #     return full_text
-
-        # def transcribe_audio_file(audio_path):
-        #     OPENAI_API_KEY = os.environ.get("OPENAI_API_KEY", "")
-        #     self.logger.info("Transcribing audio file..")
-        #     text = recognize_whisper(audio_path, OPENAI_API_KEY)
-
-        #     self.logger.info("Removing audio file..")
-        #     os.remove(audio_path)
-        #     self.logger.info("Transcription length: " + str(len(text)))
-
-        #     return text
-
         def transcribe_audio_file(audio_path):
             OPENAI_API_KEY = os.environ.get("OPENAI_API_KEY", "")
             client = OpenAI(api_key=OPENAI_API_KEY)
