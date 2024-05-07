@@ -1,5 +1,6 @@
 {
     "chats_dir": "./data/chats/",
+    "audio_dir": "./data/audio/",
     "request_dir": "./data/requests/",
     "model": "gpt-4-1106-preview",
     "temperature": 0.1,

@@ -160,3 +160,7 @@ cython_debug/
 #.idea/
 
 **keys.json
+**..wav
+**..mp3
+**..m4a
+**..ogg
