@@ -252,7 +252,10 @@ class Application:
                 chunk_audio = AudioSegment.from_file(chunk_path)
                 with open(chunk_path, "rb") as audio_file:
                     text = client.audio.transcriptions.create(
-                        file=audio_file, model="whisper-1", response_format="text"
+                        file=audio_file,
+                        model="whisper-1",
+                        language="ru",
+                        response_format="text",
                     )
                 full_text += text
                 os.remove(chunk_path)
