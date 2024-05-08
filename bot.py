@@ -217,7 +217,7 @@ class Application:
                 self.logger.info(f"Answer: {bot_response}")
                 return (
                     bot.send_message(self.chat_id, bot_response)
-                    if bot_response[0] != "{"
+                    if not bot_response.startswith("{")
                     else bot.send_message(
                         self.chat_id, "Пожалуйста, повторите ещё раз, не понял вас."
                     )
