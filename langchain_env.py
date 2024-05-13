@@ -274,10 +274,7 @@ class ChatAgent:
         url = f"{self.config['base_url']}/create_order"
 
         r = requests.post(
-            url,
-            json=request_data,
-            headers={"Content-Type": "application/json"},
-            verify=False,
+            url, json=request_data, headers={"Content-Type": "application/json"}
         )
         self.logger.info(f"Result:\n{r.status_code}\n{r.text}")
 
