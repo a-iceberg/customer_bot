@@ -89,7 +89,7 @@ class ChatAgent:
             description="Предоставляет актуальный перечень направлений обращения / ремонта. ОБЯЗАТЕЛЬНО ИСПОЛЬЗУЙТЕ инструмент ОДИН раз в начале диалога ДО приветствия пользователя для возможности соотнесения последующей информации с этим перечнем.",
             return_direct=False,
         )
-        tools.append(get_directions_tool)
+        # tools.append(get_directions_tool)
 
         # Tool: save_direction_tool
         save_direction_tool = StructuredTool.from_function(
