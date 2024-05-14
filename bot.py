@@ -144,6 +144,20 @@ class Application:
             else:
                 return self.empty_response
 
+            if user_message == "/start":
+                welcome_message = (
+                    "Здраствуйте, это сервисный центр. Чем могу вам помочь? "
+                )
+                bot.send_message(self.chat_id, welcome_message)
+                await self.chat_history_service.save_to_chat_history(
+                    self.chat_id,
+                    welcome_message,
+                    message["message_id"],
+                    "AIMessage",
+                    message["from"]["first_name"],
+                    "llm",
+                )
+
             if user_message == "/reset":
                 self.chat_history_service.delete_chat_history(self.chat_id)
                 bot.send_message(self.chat_id, "История чата была очищена")
