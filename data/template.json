@@ -26,7 +26,11 @@
                 "longitude": 37.618561,
                 "latitude": 55.760221
             },
-            "name": "Москва, Театральная площадь, 1"
+            "name": "Москва, Театральная площадь, 1",
+            "floor": "1",
+            "entrance": "1",
+            "apartment": "1",
+            "intercom": "1234"
         },
         "comment": "string",
         "revision": 0

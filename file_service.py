@@ -159,6 +159,8 @@ class FileService:
                         request_items["longitude"] = message["text"]
                     elif message["type"] == "address":
                         request_items["address"] = message["text"]
+                    elif message["type"] == "address_line_2":
+                        request_items["address_line_2"] = message["text"]
                     elif message["type"] == "date":
                         request_items["date"] = message["text"]
                     elif message["type"] == "comment":

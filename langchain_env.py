@@ -26,6 +26,10 @@ class save_address_to_request_args(BaseModel):
     address: str = Field(description="address")
 
 
+class save_address_line_2_to_request_args(BaseModel):
+    address: str = Field(description="address_line_2")
+
+
 class save_phone_to_request_args(BaseModel):
     phone: str = Field(description="phone")
 
@@ -120,6 +124,16 @@ class ChatAgent:
             return_direct=False,
         )
         tools.append(save_address_tool)
+
+        # Tool: save_address_line_2_tool
+        save_address_line_2_tool = StructuredTool.from_function(
+            coroutine=self.save_address_line_2_to_request,
+            name="Сохранение 2 линии адреса",
+            description="Сохраняет полученнную дополнительную информацию по адресу в заявку. Вам следует предоставить из всего сообщения непосредственно apartment, entrance, floor и intercom из всего сообщения в качестве параметров. Если какие-то параметры не были предоставлены пользователем, передавайте их в инструмент со значением пустой строки - ''",
+            args_schema=save_address_line_2_to_request_args,
+            return_direct=False,
+        )
+        tools.append(save_address_line_2_tool)
 
         # Tool: save_phone_tool
         save_phone_tool = StructuredTool.from_function(
@@ -219,6 +233,14 @@ class ChatAgent:
         self.logger.info("Адрес пользователя был сохранен в заявку")
         return "Адрес пользователя был сохранен в заявку"
 
+    async def save_address_line_2_to_request(self, address_line_2):
+        self.logger.info(f"save_address_line_2_to_request address: {address_line_2}")
+        await self.request_service.save_to_request(
+            self.chat_id, address_line_2, "address_line_2"
+        )
+        self.logger.info("Вторая линия адреса пользователя была сохранена в заявку")
+        return "Вторая линия адреса пользователя была сохранена в заявку"
+
     async def save_phone_to_request(self, phone):
         self.logger.info(f"save_phone_to_request phone: {phone}")
         await self.request_service.save_to_request(
@@ -249,7 +271,19 @@ class ChatAgent:
     #     self.logger.info("Обстоятельства обращения были сохранены в заявку")
     #     return "Обстоятельства обращения были сохранены в заявку"
 
-    def create_request(self, direction, latitude, longitude, address, phone, date):
+    def create_request(
+        self,
+        direction,
+        date,
+        phone,
+        latitude,
+        longitude,
+        address,
+        apartment="",
+        entrance="",
+        floor="",
+        intercom="",
+    ):
         self.logger.info(
             f"create_request direction: {direction} latitude: {latitude} longitude: {longitude} address: {address} phone: {phone} date: {date}"
         )
@@ -266,6 +300,10 @@ class ChatAgent:
         params["order"]["address"]["geopoint"]["latitude"] = latitude
         params["order"]["address"]["geopoint"]["longitude"] = longitude
         params["order"]["address"]["name"] = address
+        params["order"]["address"]["floor"] = floor
+        params["order"]["address"]["entrance"] = entrance
+        params["order"]["address"]["apartment"] = apartment
+        params["order"]["address"]["intercom"] = intercom
         params["order"]["desired_dt"] = date
         # params["order"]["comment"] = comment
         self.logger.info(f"Parametrs: {params}")
@@ -274,7 +312,10 @@ class ChatAgent:
         url = f"{self.config['base_url']}/create_order"
 
         r = requests.post(
-            url, json=request_data, headers={"Content-Type": "application/json"}
+            url,
+            json=request_data,
+            headers={"Content-Type": "application/json"},
+            verify=False,
         )
         self.logger.info(f"Result:\n{r.status_code}\n{r.text}")
 
