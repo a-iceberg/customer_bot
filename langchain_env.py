@@ -48,11 +48,11 @@ class save_date_to_request_args(BaseModel):
 
 class create_request_args(BaseModel):
     direction: str = Field(description="appeal_direction")
+    date: str = Field(description="date")
+    phone: str = Field(description="phone")
     latitude: float = Field(description="latitude")
     longitude: float = Field(description="longitude")
     address: str = Field(description="address")
-    phone: str = Field(description="phone")
-    date: str = Field(description="date")
     apartment: str = Field(description="apartment")
     entrance: str = Field(description="entrance")
     floor: str = Field(description="floor")
@@ -300,6 +300,7 @@ class ChatAgent:
         params["order"]["uslugi_id"] = str(uuid4())
 
         params["order"]["services"][0]["service_id"] = direction
+        params["order"]["desired_dt"] = date
         params["order"]["client"]["phone"] = phone
         params["order"]["address"]["geopoint"]["latitude"] = latitude
         params["order"]["address"]["geopoint"]["longitude"] = longitude
@@ -308,7 +309,6 @@ class ChatAgent:
         params["order"]["address"]["entrance"] = entrance
         params["order"]["address"]["apartment"] = apartment
         params["order"]["address"]["intercom"] = intercom
-        params["order"]["desired_dt"] = date
         # params["order"]["comment"] = comment
         self.logger.info(f"Parametrs: {params}")
 
