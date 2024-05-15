@@ -27,7 +27,7 @@ class save_address_to_request_args(BaseModel):
 
 
 class save_address_line_2_to_request_args(BaseModel):
-    address: str = Field(description="address_line_2")
+    address_line_2: str = Field(description="address_line_2")
 
 
 class save_phone_to_request_args(BaseModel):
@@ -53,6 +53,10 @@ class create_request_args(BaseModel):
     address: str = Field(description="address")
     phone: str = Field(description="phone")
     date: str = Field(description="date")
+    apartment: str = Field(description="apartment")
+    entrance: str = Field(description="entrance")
+    floor: str = Field(description="floor")
+    intercom: str = Field(description="intercom")
     # comment: str = Field(description="comment")
 
 
@@ -129,7 +133,7 @@ class ChatAgent:
         save_address_line_2_tool = StructuredTool.from_function(
             coroutine=self.save_address_line_2_to_request,
             name="Сохранение 2 линии адреса",
-            description="Сохраняет полученнную дополнительную информацию по адресу в заявку. Вам следует предоставить из всего сообщения непосредственно apartment, entrance, floor и intercom из всего сообщения в качестве параметров. Если какие-то параметры не были предоставлены пользователем, передавайте их в инструмент со значением пустой строки - ''",
+            description="Сохраняет полученнную дополнительную информацию по адресу в заявку. Вам следует предоставить только непосредственно сам address_line_2 из всего сообщения в качестве параметра.",
             args_schema=save_address_line_2_to_request_args,
             return_direct=False,
         )
@@ -179,7 +183,7 @@ class ChatAgent:
         request_tool = StructuredTool.from_function(
             func=self.create_request,
             name="Создание заявки",
-            description="Создает полностью заполненную заявку в 1С. Вам следует предоставить значения ключей request в качестве параметров.",
+            description="Создает полностью заполненную заявку в 1С. Вам следует предоставить просто значения ключей request в качестве параметров, кроме address_line_2. Из его значения выделите отдельно при наличии непосредственно значения apartment, entrance, floor и intercom из всего address_line_2 в качестве остальных параметров. Если какие-то из этих параметров не были предоставлены пользователем, передавайте их в инструмент со значением пустой строки - ''",
             args_schema=create_request_args,
             return_direct=False,
         )
