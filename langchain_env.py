@@ -4,7 +4,9 @@ from langchain_openai import ChatOpenAI
 from pydantic.v1 import BaseModel, Field
 import os
 import re
-from langchain.agents import initialize_agent, AgentType
+# from langchain.agents import initialize_agent, AgentType
+from langchain.agents import AgentExecutor, create_tool_calling_agent
+from langchain_core.prompts import ChatPromptTemplate
 from geopy.geocoders import Nominatim
 import requests
 import json
@@ -193,13 +195,24 @@ class ChatAgent:
         )
         tools.append(request_tool)
 
-        self.agent = initialize_agent(
-            tools,
-            llm,
-            agent=AgentType.STRUCTURED_CHAT_ZERO_SHOT_REACT_DESCRIPTION,
-            verbose=True,
-            handle_parsing_errors=True,
+        # self.agent = initialize_agent(
+        #     tools,
+        #     llm,
+        #     agent=AgentType.STRUCTURED_CHAT_ZERO_SHOT_REACT_DESCRIPTION,
+        #     verbose=True,
+        #     handle_parsing_errors=True,
+        # )
+
+        prompt = ChatPromptTemplate.from_messages(
+            [
+                ("system", "{system_prompt}"),
+                ("placeholder", "{chat_history}"),
+                ("human", "{input}"),
+                ("placeholder", "{agent_scratchpad}"),
+            ]
         )
+        agent = create_tool_calling_agent(llm, tools, prompt)
+        self.agent_executor = AgentExecutor(agent=agent, tools=tools, verbose=True)
 
     def get_directions(self):
         with open("./data/repair_dir.txt", "r", encoding="utf-8") as f:
