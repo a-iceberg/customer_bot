@@ -246,7 +246,7 @@ chat_id текущего пользователя - {self.chat_id}"""
                         "input": user_message,
                         "chat_history": chat_history,
                     }
-                )["output"]
+                )
                 await self.chat_history_service.save_to_chat_history(
                     self.chat_id,
                     user_message,
@@ -257,7 +257,7 @@ chat_id текущего пользователя - {self.chat_id}"""
                 )
                 await self.chat_history_service.save_to_chat_history(
                     self.chat_id,
-                    bot_response,
+                    bot_response["output"],
                     message["message_id"],
                     "AIMessage",
                     message["from"]["first_name"],
@@ -265,10 +265,10 @@ chat_id текущего пользователя - {self.chat_id}"""
                 )
 
                 self.logger.info("Replying in " + str(self.chat_id))
-                self.logger.info(f"Answer: {bot_response}")
+                self.logger.info(f"Answer: {bot_response["output"]}")
                 return (
-                    bot.send_message(self.chat_id, bot_response)
-                    if not bot_response.startswith("{")
+                    bot.send_message(self.chat_id, bot_response["output"])
+                    if not bot_response["output"].startswith("{")
                     else bot.send_message(
                         self.chat_id, "Пожалуйста, повторите ещё раз, не понял вас."
                     )
