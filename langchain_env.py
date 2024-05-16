@@ -14,27 +14,33 @@ from file_service import FileService
 
 
 class save_direction_to_request_args(BaseModel):
+    chat_id: int = Field(description="chat_id")
     direction: str = Field(description="appeal_direction")
 
 
 class save_gps_to_request_args(BaseModel):
+    chat_id: int = Field(description="chat_id")
     latitude: float = Field(description="latitude")
     longitude: float = Field(description="longitude")
 
 
 class save_address_to_request_args(BaseModel):
+    chat_id: int = Field(description="chat_id")
     address: str = Field(description="address")
 
 
 class save_address_line_2_to_request_args(BaseModel):
+    chat_id: int = Field(description="chat_id")
     address_line_2: str = Field(description="address_line_2")
 
 
 class save_phone_to_request_args(BaseModel):
+    chat_id: int = Field(description="chat_id")
     phone: str = Field(description="phone")
 
 
 class save_date_to_request_args(BaseModel):
+    chat_id: int = Field(description="chat_id")
     date: str = Field(description="date")
 
 
@@ -61,9 +67,8 @@ class create_request_args(BaseModel):
 
 
 class ChatAgent:
-    def __init__(
-        self, model, temperature, request_dir, base_url, logger, bot_instance, chat_id
-    ):
+
+    def __init__(self, model, temperature, request_dir, base_url, logger, bot_instance):
         self.logger = logger
         self.logger.info(
             f"ChatAgent init with model: {model} and temperature: {temperature}"
@@ -76,7 +81,6 @@ class ChatAgent:
         }
         self.agent = None
         self.bot_instance = bot_instance
-        self.chat_id = chat_id
 
         self.request_service = FileService(self.config["request_dir"], logger)
 
@@ -103,7 +107,7 @@ class ChatAgent:
         save_direction_tool = StructuredTool.from_function(
             coroutine=self.save_direction_to_request,
             name="Сохранение направления обращения",
-            description="Сохраняет подходящее под запрос пользователя направление обращения из имеющегося списка направлений в заявку. Нужно соотнести запрос и выбрать подходящее только из тех, что в этом списке. Вам следует предоставить только непосредственно сам direction из списка в качестве параметра.",
+            description="Сохраняет подходящее под запрос пользователя направление обращения из имеющегося списка направлений в заявку. Нужно соотнести запрос и выбрать подходящее только из тех, что в этом списке. Вам следует предоставить chat_id и непосредственно сам direction из списка в качестве параметра.",
             args_schema=save_direction_to_request_args,
             return_direct=False,
         )
@@ -113,7 +117,7 @@ class ChatAgent:
         save_gps_tool = StructuredTool.from_function(
             coroutine=self.save_gps_to_request,
             name="Сохранение GPS-координат",
-            description="Сохраняет адрес на основании полученнных GPS-координат в заявку. Вам следует предоставить значения latitude и longitude в качестве параметров.",
+            description="Сохраняет адрес на основании полученнных GPS-координат в заявку. Вам следует предоставить значения chat_id, latitude и longitude в качестве параметров.",
             args_schema=save_gps_to_request_args,
             return_direct=False,
         )
@@ -123,7 +127,7 @@ class ChatAgent:
         save_address_tool = StructuredTool.from_function(
             coroutine=self.save_address_to_request,
             name="Сохранение адреса",
-            description="Сохраняет полученнный адрес в заявку. Вам следует предоставить только непосредственно сам address из всего сообщения в качестве параметра.",
+            description="Сохраняет полученнный адрес в заявку. Вам следует предоставить chat_id и непосредственно сам address из всего сообщения в качестве параметра.",
             args_schema=save_address_to_request_args,
             return_direct=False,
         )
@@ -133,7 +137,7 @@ class ChatAgent:
         save_address_line_2_tool = StructuredTool.from_function(
             coroutine=self.save_address_line_2_to_request,
             name="Сохранение 2 линии адреса",
-            description="Сохраняет полученнную дополнительную информацию по адресу в заявку. Вам следует предоставить только непосредственно сам address_line_2 из всего сообщения в качестве параметра.",
+            description="Сохраняет полученнную дополнительную информацию по адресу в заявку. Вам следует предоставить chat_id и непосредственно сам address_line_2 из всего сообщения в качестве параметра.",
             args_schema=save_address_line_2_to_request_args,
             return_direct=False,
         )
@@ -143,7 +147,7 @@ class ChatAgent:
         save_phone_tool = StructuredTool.from_function(
             coroutine=self.save_phone_to_request,
             name="Сохранение телефона",
-            description="Сохраняет полученнный телефон в заявку. Вам следует предоставить только непосредственно сам phone из всего сообщения в качестве параметра.",
+            description="Сохраняет полученнный телефон в заявку. Вам следует предоставить chat_id и непосредственно сам phone из всего сообщения в качестве параметра.",
             args_schema=save_phone_to_request_args,
             return_direct=False,
         )
@@ -153,7 +157,7 @@ class ChatAgent:
         save_date_tool = StructuredTool.from_function(
             coroutine=self.save_date_to_request,
             name="Сохранение даты визита",
-            description="Сохраняет полученную дату визита в заявку. Вам следует самим предоставить в инструмент только непосредственно сам date в формате 'yyyy-mm-ddT00:00Z' из всего полученного сообщения в качестве параметра. ОЖИДАЙТЕ же и ПРИНИМАЙТЕ дату от пользователя в ЛЮБОМ свободном формате (например, 'сегодня' или 'завтра'), а НЕ в том, что выше. Главное используйте сами потом в указанном, отформатировав при необходимости.",
+            description="Сохраняет полученную дату визита в заявку. Вам следует самим предоставить в инструмент chat_id и непосредственно сам date в формате 'yyyy-mm-ddT00:00Z' из всего полученного сообщения в качестве параметра. ОЖИДАЙТЕ же и ПРИНИМАЙТЕ дату от пользователя в ЛЮБОМ свободном формате (например, 'сегодня' или 'завтра'), а НЕ в том, что выше. Главное используйте сами потом в указанном, отформатировав при необходимости.",
             args_schema=save_date_to_request_args,
             return_direct=False,
         )
@@ -203,25 +207,25 @@ class ChatAgent:
         directions_string = ", ".join(directions)
         return f"Актуальные направления обращения / ремонта для сопоставления: {directions_string}"
 
-    async def save_direction_to_request(self, direction):
+    async def save_direction_to_request(self, chat_id, direction):
         self.logger.info(f"save_direction_to_request direction: {direction}")
-        await self.request_service.save_to_request(self.chat_id, direction, "direction")
+        await self.request_service.save_to_request(chat_id, direction, "direction")
         self.logger.info("Направление обращения было сохранено в заявку")
         return "Направление обращения было сохранено в заявку"
 
-    async def save_gps_to_request(self, latitude, longitude):
+    async def save_gps_to_request(self, chat_id, latitude, longitude):
         self.logger.info(
             f"save_gps_to_request latitude: {latitude} longitude: {longitude}"
         )
         geolocator = Nominatim(user_agent="my_app")
         address = geolocator.reverse(f"{latitude}, {longitude}").address
-        await self.request_service.save_to_request(self.chat_id, latitude, "latitude")
-        await self.request_service.save_to_request(self.chat_id, longitude, "longitude")
-        await self.request_service.save_to_request(self.chat_id, address, "address")
+        await self.request_service.save_to_request(chat_id, latitude, "latitude")
+        await self.request_service.save_to_request(chat_id, longitude, "longitude")
+        await self.request_service.save_to_request(chat_id, address, "address")
         self.logger.info("Адрес пользователя был сохранен в заявку")
         return "Адрес пользователя был сохранен в заявку"
 
-    async def save_address_to_request(self, address):
+    async def save_address_to_request(self, chat_id, address):
         self.logger.info(f"save_address_to_request address: {address}")
         geolocator = Nominatim(user_agent="my_app")
         location = geolocator.geocode(address)
@@ -231,31 +235,31 @@ class ChatAgent:
         else:
             latitude = 55.900678
             longitude = 37.528109
-        await self.request_service.save_to_request(self.chat_id, latitude, "latitude")
-        await self.request_service.save_to_request(self.chat_id, longitude, "longitude")
-        await self.request_service.save_to_request(self.chat_id, address, "address")
+        await self.request_service.save_to_request(chat_id, latitude, "latitude")
+        await self.request_service.save_to_request(chat_id, longitude, "longitude")
+        await self.request_service.save_to_request(chat_id, address, "address")
         self.logger.info("Адрес пользователя был сохранен в заявку")
         return "Адрес пользователя был сохранен в заявку"
 
-    async def save_address_line_2_to_request(self, address_line_2):
+    async def save_address_line_2_to_request(self, chat_id, address_line_2):
         self.logger.info(f"save_address_line_2_to_request address: {address_line_2}")
         await self.request_service.save_to_request(
-            self.chat_id, address_line_2, "address_line_2"
+            chat_id, address_line_2, "address_line_2"
         )
         self.logger.info("Вторая линия адреса пользователя была сохранена в заявку")
         return "Вторая линия адреса пользователя была сохранена в заявку"
 
-    async def save_phone_to_request(self, phone):
+    async def save_phone_to_request(self, chat_id, phone):
         self.logger.info(f"save_phone_to_request phone: {phone}")
         await self.request_service.save_to_request(
-            self.chat_id, "".join(re.findall(r"[\d]", phone)), "phone"
+            chat_id, "".join(re.findall(r"[\d]", phone)), "phone"
         )
         self.logger.info("Телефон пользователя был сохранен в заявку")
         return "Телефон пользователя был сохранен в заявку"
 
-    async def save_date_to_request(self, date):
+    async def save_date_to_request(self, chat_id, date):
         self.logger.info(f"save_date_to_request date: {date}")
-        await self.request_service.save_to_request(self.chat_id, date, "date")
+        await self.request_service.save_to_request(chat_id, date, "date")
         self.logger.info("Дата посещения была сохранена в заявку")
         return "Дата посещения была сохранена в заявку"
 
@@ -297,7 +301,7 @@ class ChatAgent:
             params = json.load(f)
 
         params["order"]["client"]["display_name"] = "Владислав"
-        params["order"]["uslugi_id"] = str(uuid4())
+        params["order"]["uslugi_id"] = str(uuid4()).replace("-", "")
 
         params["order"]["services"][0]["service_id"] = direction
         params["order"]["desired_dt"] = date
