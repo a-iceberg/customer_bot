@@ -265,7 +265,7 @@ chat_id текущего пользователя - {self.chat_id}"""
                 )
 
                 self.logger.info("Replying in " + str(self.chat_id))
-                self.logger.info(f"Answer: {bot_response["output"]}")
+                self.logger.info(f"Answer: {bot_response['output']}")
                 return (
                     bot.send_message(self.chat_id, bot_response["output"])
                     if not bot_response["output"].startswith("{")

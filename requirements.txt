@@ -8,5 +8,5 @@ langchain_openai==0.1.6
 langchain_anthropic==0.1.7
 geopy==2.4.1
 pydantic==2.6.4
-openai==1.16.2
+openai==1.24.0
 pydub==0.25.1
