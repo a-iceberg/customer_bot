@@ -108,7 +108,7 @@ class ChatAgent:
         # Tool: save_direction_tool
         save_direction_tool = StructuredTool.from_function(
             coroutine=self.save_direction_to_request,
-            name="Saving direction",
+            name="Saving_direction",
             description="Сохраняет подходящее под запрос пользователя направление обращения из имеющегося списка направлений в заявку. Нужно соотнести запрос и выбрать подходящее только из тех, что в этом списке. Вам следует предоставить chat_id и непосредственно сам direction из списка в качестве параметра.",
             args_schema=save_direction_to_request_args,
             return_direct=False,
@@ -118,7 +118,7 @@ class ChatAgent:
         # Tool: save_gps_tool
         save_gps_tool = StructuredTool.from_function(
             coroutine=self.save_gps_to_request,
-            name="Saving GPS-coordinates",
+            name="Saving_GPS-coordinates",
             description="Сохраняет адрес на основании полученнных GPS-координат в заявку. Вам следует предоставить значения chat_id, latitude и longitude в качестве параметров.",
             args_schema=save_gps_to_request_args,
             return_direct=False,
@@ -128,7 +128,7 @@ class ChatAgent:
         # Tool: save_address_tool
         save_address_tool = StructuredTool.from_function(
             coroutine=self.save_address_to_request,
-            name="Saving address",
+            name="Saving_address",
             description="Сохраняет полученнный адрес в заявку. Вам следует предоставить chat_id и непосредственно сам address из всего сообщения в качестве параметра.",
             args_schema=save_address_to_request_args,
             return_direct=False,
@@ -138,7 +138,7 @@ class ChatAgent:
         # Tool: save_address_line_2_tool
         save_address_line_2_tool = StructuredTool.from_function(
             coroutine=self.save_address_line_2_to_request,
-            name="Saving address line 2",
+            name="Saving_address_line_2",
             description="Сохраняет полученнную дополнительную информацию по адресу в заявку. Вам следует предоставить chat_id и непосредственно сам address_line_2 из всего сообщения в качестве параметра.",
             args_schema=save_address_line_2_to_request_args,
             return_direct=False,
@@ -148,7 +148,7 @@ class ChatAgent:
         # Tool: save_phone_tool
         save_phone_tool = StructuredTool.from_function(
             coroutine=self.save_phone_to_request,
-            name="Saving phone number",
+            name="Saving_phone_number",
             description="Сохраняет полученнный телефон в заявку. Вам следует предоставить chat_id и непосредственно сам phone из всего сообщения в качестве параметра.",
             args_schema=save_phone_to_request_args,
             return_direct=False,
@@ -158,7 +158,7 @@ class ChatAgent:
         # Tool: save_date_tool
         save_date_tool = StructuredTool.from_function(
             coroutine=self.save_date_to_request,
-            name="Saving visit date",
+            name="Saving_visit_date",
             description="Сохраняет полученную дату визита в заявку. Вам следует самим предоставить в инструмент chat_id и непосредственно сам date в формате 'yyyy-mm-ddT00:00Z' из всего полученного сообщения в качестве параметра. ОЖИДАЙТЕ же и ПРИНИМАЙТЕ дату от пользователя в ЛЮБОМ свободном формате (например, 'сегодня' или 'завтра'), а НЕ в том, что выше. Главное используйте сами потом в указанном, отформатировав при необходимости.",
             args_schema=save_date_to_request_args,
             return_direct=False,
@@ -188,7 +188,7 @@ class ChatAgent:
         # Tool: request_tool
         request_tool = StructuredTool.from_function(
             func=self.create_request,
-            name="Request creation",
+            name="Request_creation",
             description="Создает полностью заполненную заявку в 1С. Вам следует предоставить просто значения ключей request в качестве параметров, кроме address_line_2. Из его значения выделите отдельно при наличии непосредственно сами численно-буквенные значения apartment, entrance, floor и intercom (т.е. без слов) из всего address_line_2 в качестве остальных параметров. Если какие-то из этих параметров не были предоставлены пользователем, передавайте их в инструмент со значением пустой строки - ''",
             args_schema=create_request_args,
             return_direct=False,
