@@ -17,7 +17,7 @@ from file_service import FileService
 
 class save_direction_to_request_args(BaseModel):
     chat_id: int = Field(description="chat_id")
-    direction: str = Field(description="appeal_direction")
+    direction: str = Field(description="direction")
 
 
 class save_gps_to_request_args(BaseModel):
