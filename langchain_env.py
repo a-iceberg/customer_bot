@@ -81,7 +81,7 @@ class ChatAgent:
             "request_dir": request_dir,
             "base_url": base_url,
         }
-        self.agent = None
+        self.agent_executor = None
         self.bot_instance = bot_instance
 
         self.request_service = FileService(self.config["request_dir"], logger)
