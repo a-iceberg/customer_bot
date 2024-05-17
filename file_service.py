@@ -80,20 +80,18 @@ class FileService:
 
         return chat_history
 
-    def delete_chat_history(self, chat_id: str):
-        """Deletes the chat history folder and all its content."""
-        chat_log_path = Path(self.file_path(chat_id))
-        if chat_log_path.exists() and chat_log_path.is_dir():
+    def delete_files(self, chat_id: str):
+        """Deletes folder and all its content."""
+        log_path = Path(self.file_path(chat_id))
+        if log_path.exists() and log_path.is_dir():
             try:
-                shutil.rmtree(chat_log_path)
-                self.logger.info(f"Deleted chat history for chat_id: {chat_id}")
+                shutil.rmtree(log_path)
+                self.logger.info(f"Deleted files for chat_id: {chat_id}")
             except Exception as e:
-                self.logger.error(
-                    f"Error deleting chat history for chat_id: {chat_id}: {e}"
-                )
+                self.logger.error(f"Error deleting files for chat_id: {chat_id}: {e}")
         else:
             self.logger.info(
-                f"No chat history found for chat_id: {chat_id}, nothing to delete."
+                f"No files found for chat_id: {chat_id}, nothing to delete."
             )
 
     async def save_to_request(
