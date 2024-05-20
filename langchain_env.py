@@ -55,7 +55,7 @@ class save_date_to_request_args(BaseModel):
 
 
 class create_request_args(BaseModel):
-    direction: str = Field(description="appeal_direction")
+    direction: str = Field(description="direction")
     date: str = Field(description="date")
     phone: str = Field(description="phone")
     latitude: float = Field(description="latitude")
