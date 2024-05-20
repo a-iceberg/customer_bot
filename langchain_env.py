@@ -13,6 +13,7 @@ import json
 from uuid import uuid4
 
 from file_service import FileService
+from onec_request import OneC_Request
 
 
 class save_direction_to_request_args(BaseModel):
@@ -70,7 +71,9 @@ class create_request_args(BaseModel):
 
 class ChatAgent:
 
-    def __init__(self, model, temperature, request_dir, base_url, logger, bot_instance):
+    def __init__(
+        self, model, temperature, request_dir, base_url, clients, logger, bot_instance
+    ):
         self.logger = logger
         self.logger.info(
             f"ChatAgent init with model: {model} and temperature: {temperature}"
@@ -80,6 +83,7 @@ class ChatAgent:
             "temperature": temperature,
             "request_dir": request_dir,
             "base_url": base_url,
+            "clients": clients,
         }
         self.agent_executor = None
         self.bot_instance = bot_instance
@@ -189,7 +193,7 @@ class ChatAgent:
         request_tool = StructuredTool.from_function(
             func=self.create_request,
             name="Request_creation",
-            description="Создает полностью заполненную заявку в 1С. Вам следует предоставить по отдельности сами значения ключей словаря (request) с текущей заявкой из вашего системного промпта в качестве соответствующих параметров инструмента, кроме ключа address_line_2. Из его же значения выделите и передайте отдельно при наличии непосредственно сами численно-буквенные значения apartment, entrance, floor и intercom (т.е. без слов) из всего address_line_2 в качестве остальных соответствующих параметров инструмента. Если какие-то из этих параметров не были предоставлены пользователем, передавайте их в инструмент со значением пустой строки - ''",
+            description="Создает полностью заполненную заявку в 1С и по возможности определяет её номер. Вам следует предоставить по отдельности сами значения ключей словаря (request) с текущей заявкой из вашего системного промпта в качестве соответствующих параметров инструмента, кроме ключа address_line_2. Из его же значения выделите и передайте отдельно при наличии непосредственно сами численно-буквенные значения apartment, entrance, floor и intercom (т.е. без слов) из всего address_line_2 в качестве остальных соответствующих параметров инструмента. Если какие-то из этих параметров не были предоставлены пользователем, передавайте их в инструмент со значением пустой строки - ''",
             args_schema=create_request_args,
             return_direct=False,
         )
@@ -309,6 +313,8 @@ class ChatAgent:
             f"create_request direction: {direction} latitude: {latitude} longitude: {longitude} address: {address} phone: {phone} date: {date}"
         )
         token = os.environ.get("1С_TOKEN", "")
+        login = os.environ.get("1C_LOGIN", "")
+        password = os.environ.get("1C_PASSWORD", "")
 
         with open("./data/template.json", "r", encoding="utf-8") as f:
             params = json.load(f)
@@ -340,7 +346,24 @@ class ChatAgent:
         )
         self.logger.info(f"Result:\n{r.status_code}\n{r.text}")
 
+        query_params = {
+            "Идентификатор": "bid_info",
+            "НомерПартнера": params["order"]["uslugi_id"],
+        }
+        query_params = json.dumps(query_params, ensure_ascii=False)
+
+        onec_request = OneC_Request(login, password, self.config["clients"])
+        results = onec_request.execute_query(query_params)
+        request_number = None
+        for key, value in results.items():
+            if value.size > 0:
+                request_number = value[0]
+                break
+
         if r.status_code == 200:
-            return "Заявка была создана"
+            if request_number:
+                return f"Заявка была создана с номером {request_number}"
+            else:
+                return "Заявка была создана"
         else:
             return f"Ошибка при создании заявки: {r.text}"
