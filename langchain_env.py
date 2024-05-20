@@ -353,12 +353,18 @@ class ChatAgent:
         query_params = json.dumps(query_params, ensure_ascii=False)
 
         onec_request = OneC_Request(login, password, self.config["clients"])
-        results = onec_request.execute_query(query_params)
+
+        self.logger.info(f"{query_params}\n{login}\n{password}\n{self.config["clients"]}")
+
         request_number = None
-        for key, value in results.items():
-            if value.size > 0:
-                request_number = value[0]
-                break
+        try:
+            results = onec_request.execute_query(query_params)
+            for key, value in results.items():
+                if value.size > 0:
+                    request_number = value[0]
+                    break
+        except Exception as e:
+            self.logger.error(f"Error in receiving request number: {e}")
 
         if r.status_code == 200:
             if request_number:
