@@ -252,7 +252,7 @@ chat_id текущего пользователя - {self.chat_id}"""
                         temperature=self.config_manager.get("temperature"),
                         request_dir=self.config_manager.get("request_dir"),
                         base_url=self.config_manager.get("base_url"),
-                        clients=self.config_manager.get("clients"),
+                        clients=self.config_manager.get("clients_path"),
                         logger=self.logger,
                         bot_instance=bot,
                     )
