@@ -353,9 +353,6 @@ class ChatAgent:
         query_params = json.dumps(query_params, ensure_ascii=False)
 
         onec_request = OneC_Request(login, password, self.config["clients"])
-
-        self.logger.info(f"{query_params}\n{login}\n{password}\n{self.config["clients"]}")
-
         request_number = None
         try:
             results = onec_request.execute_query(query_params)
