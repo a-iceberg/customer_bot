@@ -175,16 +175,6 @@ class ChatAgent:
         )
         tools.append(save_comment_tool)
 
-        # # Tool: save_circs_tool
-        # save_circs_tool = StructuredTool.from_function(
-        #     coroutine=self.save_circs_to_request,
-        #     name="Сохранение обстоятельств обращения",
-        #     description="Сохраняет дополнительные полезные обстоятельства обращения в заявку. Вам следует предоставить только непосредственно сами circs из всего сообщения в качестве параметра.",
-        #     args_schema=save_circs_to_request_args,
-        #     return_direct=False,
-        # )
-        # tools.append(save_circs_tool)
-
         # Tool: request_tool
         request_tool = StructuredTool.from_function(
             func=self.create_request,
@@ -281,14 +271,6 @@ class ChatAgent:
         await self.request_service.save_to_request(chat_id, comment, "comment")
         self.logger.info("Комментарий был сохранен в заявку")
         return "Комментарий был сохранен в заявку"
-
-    # async def save_circs_to_request(self, circs):
-    #     self.logger.info(f"save_circs_to_request model: {circs}")
-    #     await self.request_service.save_to_request(
-    #         self.chat_id, f"Обстоятельства обращения: {circs}", "comment"
-    #     )
-    #     self.logger.info("Обстоятельства обращения были сохранены в заявку")
-    #     return "Обстоятельства обращения были сохранены в заявку"
 
     def create_request(
         self,
