@@ -60,7 +60,7 @@ class Application:
             message = await request.json()
             end_time = time.time()
             self.logger.info(f"Message handled in {end_time - start_time} sec")
- 
+
             self.chat_id = message["chat"]["id"]
             self.logger.info(message)
 
@@ -291,10 +291,11 @@ chat_id текущего пользователя - {self.chat_id}"""
                 self.logger.info("Replying in " + str(self.chat_id))
                 self.logger.info(f"Answer: {bot_response['output']}")
                 return (
-                    start_time = time.time(),
-                    bot.send_message(self.chat_id, bot_response["output"]) if not bot_response["output"].startswith("{") else bot.send_message(self.chat_id, "Пожалуйста, повторите ещё раз, не понял вас."),
-                    end_time = time.time(),
-                    self.logger.info(f"Bot answered in {end_time - start_time} sec")
+                    bot.send_message(self.chat_id, bot_response["output"])
+                    if not bot_response["output"].startswith("{")
+                    else bot.send_message(
+                        self.chat_id, "Пожалуйста, повторите ещё раз, не понял вас."
+                    )
                 )
 
         def split_audio_ffmpeg(audio_path, chunk_length=10 * 60):
