@@ -48,6 +48,7 @@ class save_date_to_request_args(BaseModel):
 
 
 class save_comment_to_request_args(BaseModel):
+    chat_id: int = Field(description="chat_id")
     comment: str = Field(description="comment")
 
 
