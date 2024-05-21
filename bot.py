@@ -58,7 +58,7 @@ class Application:
             self.logger.info("handle_message")
             start_time = time.time()
             message = await request.json()
-            end_time = time.time
+            end_time = time.time()
             self.logger.info(f"Message handled in {end_time - start_time} sec")
  
             self.chat_id = message["chat"]["id"]
@@ -269,7 +269,7 @@ chat_id текущего пользователя - {self.chat_id}"""
                         "chat_history": chat_history,
                     }
                 )
-                end_time = time.time
+                end_time = time.time()
                 self.logger.info(f"LLM responced in {end_time - start_time} sec")
                 await self.chat_history_service.save_to_chat_history(
                     self.chat_id,
@@ -290,7 +290,12 @@ chat_id текущего пользователя - {self.chat_id}"""
 
                 self.logger.info("Replying in " + str(self.chat_id))
                 self.logger.info(f"Answer: {bot_response['output']}")
-                return start_time = time.time(), bot.send_message(self.chat_id, bot_response["output"]) if not bot_response["output"].startswith("{") else bot.send_message(self.chat_id, "Пожалуйста, повторите ещё раз, не понял вас."), end_time = time.time, self.logger.info(f"Bot answered in {end_time - start_time} sec")
+                return (
+                    start_time = time.time(),
+                    bot.send_message(self.chat_id, bot_response["output"]) if not bot_response["output"].startswith("{") else bot.send_message(self.chat_id, "Пожалуйста, повторите ещё раз, не понял вас."),
+                    end_time = time.time(),
+                    self.logger.info(f"Bot answered in {end_time - start_time} sec")
+                )
 
         def split_audio_ffmpeg(audio_path, chunk_length=10 * 60):
             cmd_duration = f"ffprobe -v error -show_entries format=duration -of default=noprint_wrappers=1:nokey=1 {audio_path}"
