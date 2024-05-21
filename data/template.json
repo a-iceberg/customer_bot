@@ -32,7 +32,7 @@
             "apartment": "1",
             "intercom": "1234"
         },
-        "comment": "string",
+        "comment": "",
         "revision": 0
     }
 }
