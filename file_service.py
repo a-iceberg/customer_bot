@@ -163,6 +163,8 @@ class FileService:
                         request_items["date"] = message["text"]
                     elif message["type"] == "comment":
                         request_items["comment"] = message["text"]
+                    elif message["type"] == "name":
+                        request_items["name"] = message["text"]
             except Exception as e:
                 self.logger.error(f"Error reading request file {item}: {e}")
                 # Remove problematic file

@@ -52,7 +52,13 @@ class save_comment_to_request_args(BaseModel):
     comment: str = Field(description="comment")
 
 
+class save_name_to_request_args(BaseModel):
+    chat_id: int = Field(description="chat_id")
+    name: str = Field(description="name")
+
+
 class create_request_args(BaseModel):
+    name: str = Field(description="name")
     direction: str = Field(description="direction")
     date: str = Field(description="date")
     phone: str = Field(description="phone")
@@ -64,6 +70,7 @@ class create_request_args(BaseModel):
     floor: str = Field(description="floor")
     intercom: str = Field(description="intercom")
     comment: str = Field(description="comment")
+    name: str = Field(description="name")
 
 
 class ChatAgent:
@@ -176,6 +183,16 @@ class ChatAgent:
         )
         tools.append(save_comment_tool)
 
+        # Tool: save_name_tool
+        save_name_tool = StructuredTool.from_function(
+            coroutine=self.save_name_to_request,
+            name="Saving_name",
+            description="Сохраняет имя пользователя в заявку. Используйте, только если имя выглядит как настоящее человеческое. Вам следует предоставить chat_id и непосредственно само name в качестве параметров.",
+            args_schema=save_name_to_request_args,
+            return_direct=False,
+        )
+        tools.append(save_name_tool)
+
         # Tool: request_tool
         request_tool = StructuredTool.from_function(
             func=self.create_request,
@@ -273,6 +290,12 @@ class ChatAgent:
         self.logger.info("Комментарий был сохранен в заявку")
         return "Комментарий был сохранен в заявку"
 
+    async def save_name_to_request(self, chat_id, name):
+        self.logger.info(f"save_name_to_request name: {name}")
+        await self.request_service.save_to_request(chat_id, name, "name")
+        self.logger.info("Имя пользователя было сохранено в заявку")
+        return "Имя пользователя было сохранено в заявку"
+
     def create_request(
         self,
         direction,
@@ -286,6 +309,7 @@ class ChatAgent:
         floor="",
         intercom="",
         comment="",
+        name="Имя",
     ):
         token = os.environ.get("1С_TOKEN", "")
         login = os.environ.get("1C_LOGIN", "")
@@ -294,7 +318,7 @@ class ChatAgent:
         with open("./data/template.json", "r", encoding="utf-8") as f:
             params = json.load(f)
 
-        params["order"]["client"]["display_name"] = "Владислав"
+        params["order"]["client"]["display_name"] = name
         params["order"]["uslugi_id"] = str(uuid4()).replace("-", "")
 
         params["order"]["services"][0]["service_id"] = direction
