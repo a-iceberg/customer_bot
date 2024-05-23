@@ -76,7 +76,15 @@ class create_request_args(BaseModel):
 class ChatAgent:
 
     def __init__(
-        self, model, temperature, request_dir, order_url, clients, logger, bot_instance
+        self,
+        model,
+        temperature,
+        request_dir,
+        order_url,
+        get_url,
+        clients,
+        logger,
+        bot_instance,
     ):
         self.logger = logger
         self.logger.info(
@@ -87,6 +95,7 @@ class ChatAgent:
             "temperature": temperature,
             "request_dir": request_dir,
             "order_url": order_url,
+            "get_url": get_url,
             "clients": clients,
         }
         self.agent_executor = None

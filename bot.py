@@ -260,6 +260,7 @@ chat_id текущего пользователя - {self.chat_id}"""
                         self.config_manager.get("temperature"),
                         self.config_manager.get("request_dir"),
                         self.config_manager.get("order_url"),
+                        self.config_manager.get("get_url"),
                         self.config_manager.get("clients_paths"),
                         self.logger,
                         bot,
