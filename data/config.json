@@ -4,8 +4,9 @@
     "request_dir": "./data/vlad/requests/",
     "model": "gpt-4o-2024-05-13",
     "temperature": 0.6,
-    "base_url": "https://service.icecorp.ru:7403",
-    "clients_path": {
+    "order_url": "https://service.icecorp.ru:7403",
+    "get_url": "https://service.icecorp.ru:7405",
+    "clients_paths": {
         "msk": "http://10.2.4.123/productionMSK/ws/OuterQuery?wsdl",
         "spb": "http://10.2.4.123/productionSPB/ws/OuterQuery?wsdl",
         "region": "http://10.2.4.123/productionNNOV/ws/OuterQuery?wsdl"

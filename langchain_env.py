@@ -13,7 +13,7 @@ import json
 from uuid import uuid4
 
 from file_service import FileService
-from onec_request import OneC_Request
+# from onec_request import OneC_Request
 
 
 class save_direction_to_request_args(BaseModel):
@@ -76,7 +76,7 @@ class create_request_args(BaseModel):
 class ChatAgent:
 
     def __init__(
-        self, model, temperature, request_dir, base_url, clients, logger, bot_instance
+        self, model, temperature, request_dir, order_url, clients, logger, bot_instance
     ):
         self.logger = logger
         self.logger.info(
@@ -86,7 +86,7 @@ class ChatAgent:
             "model": model,
             "temperature": temperature,
             "request_dir": request_dir,
-            "base_url": base_url,
+            "order_url": order_url,
             "clients": clients,
         }
         self.agent_executor = None
@@ -335,34 +335,42 @@ class ChatAgent:
         self.logger.info(f"Parametrs: {params}")
 
         request_data = {"token": token, "params": params}
-        url = f"{self.config['base_url']}/create_order"
+        order_url = f"{self.config['order_url']}/create_order"
+        get_url = f"{self.config['get_url']}/ws"
 
-        r = requests.post(
-            url, json=request_data, headers={"Content-Type": "application/json"}
+        order = requests.post(
+            order_url, json=request_data, headers={"Content-Type": "application/json"}
         )
-        self.logger.info(f"Result:\n{r.status_code}\n{r.text}")
+        self.logger.info(f"Result:\n{order.status_code}\n{order.text}")
 
         query_params = {
             "Идентификатор": "bid_info",
             "НомерПартнера": params["order"]["uslugi_id"],
         }
-        query_params = json.dumps(query_params, ensure_ascii=False)
+        config_data = {
+            "clientPath": self.config["clients"],
+            "login": login,
+            "password": password,
+        }
+        # query_params = json.dumps(query_params, ensure_ascii=False)
+        # onec_request = OneC_Request(login, password, self.config["clients"])
 
-        onec_request = OneC_Request(login, password, self.config["clients"])
         request_number = None
         try:
-            results = onec_request.execute_query(query_params)
+            results = requests.post(
+                get_url, json={"config": config_data, "query_params": query_params}
+            )
             for key, value in results.items():
-                if value.size > 0:
-                    request_number = value[0]
+                if value["id"].values.size > 0:
+                    request_number = value["id"].values[0]
                     break
         except Exception as e:
             self.logger.error(f"Error in receiving request number: {e}")
 
-        if r.status_code == 200:
+        if order.status_code == 200:
             if request_number:
                 return f"Заявка была создана с номером {request_number}"
             else:
                 return "Заявка была создана"
         else:
-            return f"Ошибка при создании заявки: {r.text}"
+            return f"Ошибка при создании заявки: {order.text}"

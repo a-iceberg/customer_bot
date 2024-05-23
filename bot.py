@@ -36,7 +36,7 @@ class Application:
         return JSONResponse(content={"type": "text", "body": str(text)})
 
     def set_keys(self):
-        cm = ConfigManager("./data/keys.json")
+        cm = ConfigManager("./data/auth.json")
 
         os.environ["LANGCHAIN_API_KEY"] = cm.get("LANGCHAIN_API_KEY", "")
         os.environ["OPENAI_API_KEY"] = cm.get("OPENAI_API_KEY", "")
@@ -44,7 +44,7 @@ class Application:
         os.environ["1С_TOKEN"] = cm.get("1С_TOKEN", "")
         os.environ["1C_LOGIN"] = cm.get("1C_LOGIN", "")
         os.environ["1C_PASSWORD"] = cm.get("1C_PASSWORD", "")
-        self.logger.info("Keys set successfully")
+        self.logger.info("Auth data set successfully")
 
     def setup_logging(self):
         logging.basicConfig(level=logging.INFO)
@@ -256,13 +256,13 @@ chat_id текущего пользователя - {self.chat_id}"""
 
                 if self.chat_agent is None:
                     self.chat_agent = ChatAgent(
-                        model=self.config_manager.get("model"),
-                        temperature=self.config_manager.get("temperature"),
-                        request_dir=self.config_manager.get("request_dir"),
-                        base_url=self.config_manager.get("base_url"),
-                        clients=self.config_manager.get("clients_path"),
-                        logger=self.logger,
-                        bot_instance=bot,
+                        self.config_manager.get("model"),
+                        self.config_manager.get("temperature"),
+                        self.config_manager.get("request_dir"),
+                        self.config_manager.get("order_url"),
+                        self.config_manager.get("clients_paths"),
+                        self.logger,
+                        bot,
                     )
                     self.chat_agent.initialize_agent()
                 start_time = time.time()
