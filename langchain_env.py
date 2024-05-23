@@ -346,7 +346,7 @@ class ChatAgent:
         self.logger.info(f"Parametrs: {params}")
 
         request_data = {"token": token, "params": params}
-        order_url = f"{self.config['order_url']}/hs"
+        order_url = f"{self.config['order_url']}/order"
         get_url = f"{self.config['get_url']}/ws"
 
         order = requests.post(
