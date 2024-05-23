@@ -366,9 +366,13 @@ class ChatAgent:
 
         request_number = None
         try:
-            results = requests.post(
-                get_url, json={"config": config_data, "params": query_params}
-            ).json()
+            results = (
+                requests.post(
+                    get_url, json={"config": config_data, "params": query_params}
+                )
+                .json()
+                .result
+            )
             self.logger.info(f"results: {results}")
             for value in results.values():
                 if len(value) > 0:
