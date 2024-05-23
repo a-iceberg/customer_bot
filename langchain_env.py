@@ -229,7 +229,9 @@ class ChatAgent:
             ]
         )
         agent = create_tool_calling_agent(llm, tools, prompt)
-        self.agent_executor = AgentExecutor(agent=agent, tools=tools, verbose=True)
+        self.agent_executor = AgentExecutor(
+            agent=agent, tools=tools, verbose=True, handle_parsing_errors=True
+        )
 
     # def get_directions(self):
     #     with open("./data/repair_dir.txt", "r", encoding="utf-8") as f:
@@ -344,7 +346,7 @@ class ChatAgent:
         self.logger.info(f"Parametrs: {params}")
 
         request_data = {"token": token, "params": params}
-        order_url = f"{self.config['order_url']}/create_order"
+        order_url = f"{self.config['order_url']}/hs"
         get_url = f"{self.config['get_url']}/ws"
 
         order = requests.post(
