@@ -326,6 +326,12 @@ class ChatAgent:
         login = os.environ.get("1C_LOGIN", "")
         password = os.environ.get("1C_PASSWORD", "")
 
+        data = {
+            "clientPath": {"crm": "http://10.2.4.141/Test_CRM/hs/yandex/v1/order"},
+            "login": login,
+            "password": password,
+        }
+
         with open("./data/template.json", "r", encoding="utf-8") as f:
             params = json.load(f)
 
@@ -345,12 +351,12 @@ class ChatAgent:
         params["order"]["comment"] = comment
         self.logger.info(f"Parametrs: {params}")
 
-        request_data = {"token": token, "params": params}
-        order_url = f"{self.config['order_url']}/order"
+        # request_data = {"token": token, "params": params}
+        order_url = f"{self.config['order_url']}/hs"
         get_url = f"{self.config['get_url']}/ws"
 
         order = requests.post(
-            order_url, json=request_data, headers={"Content-Type": "application/json"}
+            order_url, json={"config": data, "params": params, "token": token}
         )
         self.logger.info(f"Result:\n{order.status_code}\n{order.text}")
 
