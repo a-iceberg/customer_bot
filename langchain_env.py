@@ -377,6 +377,7 @@ class ChatAgent:
             self.logger.error(f"Error in receiving request number: {e}")
 
         if order.status_code == 200:
+            self.logger.info(f"number: {request_number}")
             if request_number:
                 return f"Заявка была создана с номером {request_number}"
             else:
