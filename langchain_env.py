@@ -368,10 +368,10 @@ class ChatAgent:
         try:
             results = requests.post(
                 get_url, json={"config": config_data, "query_params": query_params}
-            ).text
-            for key, value in results.items():
-                if value["id"].values.size > 0:
-                    request_number = value["id"].values[0]
+            ).json()
+            for value in results.values():
+                if len(value) > 0:
+                    request_number = value[0]["id"]
                     break
         except Exception as e:
             self.logger.error(f"Error in receiving request number: {e}")
