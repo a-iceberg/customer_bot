@@ -186,7 +186,7 @@ class ChatAgent:
         save_name_tool = StructuredTool.from_function(
             coroutine=self.save_name_to_request,
             name="Saving_name",
-            description="Сохраняет имя пользователя в заявку. Используйте, только если имя выглядит как настоящее человеческое. Вам следует предоставить chat_id и непосредственно само name в качестве параметров.",
+            description="Сохраняет имя пользователя в заявку. Используйте, только если имеющееся у вас или запрошенное имя выглядит как настоящее человеческое. Но в таком случае обязательно! Вам следует предоставить chat_id и непосредственно само name в качестве параметров.",
             args_schema=save_name_to_request_args,
             return_direct=False,
         )
