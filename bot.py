@@ -262,6 +262,7 @@ class Application:
 
                 self.logger.info("Replying in " + str(self.chat_id))
                 self.logger.info(f"Answer: {bot_response}")
+                
                 # return (
                     # bot.send_message(self.chat_id, bot_response)
                     # if not bot_response.startswith("{")
@@ -269,10 +270,11 @@ class Application:
                     #     self.chat_id, "Пожалуйста, повторите ещё раз, не понял вас."
                     # )
                 # )
-                if isinstance(bot_response, dict) and 'text' in bot_response:
-                    return bot.send_message(self.chat_id, bot_response['text'])
-                else:
-                    return bot.send_message(self.chat_id, "Извините, не очень понимаю. Не могли бы вы пояснить.") # TODO: Это лучше переделать на повторный запрос к LLM
+                # if isinstance(bot_response, dict) and 'text' in bot_response:
+                #     return bot.send_message(self.chat_id, bot_response['text'])
+                # else:
+                #     return bot.send_message(self.chat_id, "Извините, не очень понимаю. Не могли бы вы пояснить.") # TODO: Это лучше переделать на повторный запрос к LLM
+                return (bot.send_message(self.chat_id, bot_response))
 
         def split_audio_ffmpeg(audio_path, chunk_length=10 * 60):
             cmd_duration = f"ffprobe -v error -show_entries format=duration -of default=noprint_wrappers=1:nokey=1 {audio_path}"
