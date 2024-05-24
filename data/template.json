@@ -17,7 +17,7 @@
         "employees": [],
         "payment_type": "card",
         "client": {
-            "display_name": "Владислав",
+            "display_name": "Не названо",
             "phone": "81234567890"
         },
         "address": {
@@ -32,7 +32,7 @@
             "apartment": "1",
             "intercom": "1234"
         },
-        "comment": "string",
+        "comment": "",
         "revision": 0
     }
 }

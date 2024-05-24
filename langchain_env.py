@@ -4,7 +4,9 @@ from langchain_openai import ChatOpenAI
 from pydantic.v1 import BaseModel, Field
 import os
 import re
-from langchain.agents import initialize_agent, AgentType
+# from langchain.agents import initialize_agent, AgentType
+from langchain.agents import AgentExecutor, create_tool_calling_agent
+from langchain_core.prompts import ChatPromptTemplate
 from geopy.geocoders import Nominatim
 import requests
 import json
@@ -15,7 +17,7 @@ from file_service import FileService
 
 class save_direction_to_request_args(BaseModel):
     chat_id: int = Field(description="chat_id")
-    direction: str = Field(description="appeal_direction")
+    direction: str = Field(description="direction")
 
 
 class save_gps_to_request_args(BaseModel):
@@ -44,16 +46,19 @@ class save_date_to_request_args(BaseModel):
     date: str = Field(description="date")
 
 
-# class save_model_to_request_args(BaseModel):
-#     model: str = Field(description="brand and model")
+class save_comment_to_request_args(BaseModel):
+    chat_id: int = Field(description="chat_id")
+    comment: str = Field(description="comment")
 
 
-# class save_circs_to_request_args(BaseModel):
-#     circs: str = Field(description="circumstances")
+class save_name_to_request_args(BaseModel):
+    chat_id: int = Field(description="chat_id")
+    name: str = Field(description="name")
 
 
 class create_request_args(BaseModel):
-    direction: str = Field(description="appeal_direction")
+    name: str = Field(description="name")
+    direction: str = Field(description="direction")
     date: str = Field(description="date")
     phone: str = Field(description="phone")
     latitude: float = Field(description="latitude")
@@ -63,12 +68,23 @@ class create_request_args(BaseModel):
     entrance: str = Field(description="entrance")
     floor: str = Field(description="floor")
     intercom: str = Field(description="intercom")
-    # comment: str = Field(description="comment")
+    comment: str = Field(description="comment")
+    name: str = Field(description="name")
 
 
 class ChatAgent:
 
-    def __init__(self, model, temperature, request_dir, base_url, logger, bot_instance):
+    def __init__(
+        self,
+        model,
+        temperature,
+        request_dir,
+        order_url,
+        get_url,
+        clients,
+        logger,
+        bot_instance,
+    ):
         self.logger = logger
         self.logger.info(
             f"ChatAgent init with model: {model} and temperature: {temperature}"
@@ -77,9 +93,11 @@ class ChatAgent:
             "model": model,
             "temperature": temperature,
             "request_dir": request_dir,
-            "base_url": base_url,
+            "order_url": order_url,
+            "get_url": get_url,
+            "clients": clients,
         }
-        self.agent = None
+        self.agent_executor = None
         self.bot_instance = bot_instance
 
         self.request_service = FileService(self.config["request_dir"], logger)
@@ -94,20 +112,11 @@ class ChatAgent:
         )
         tools = []
 
-        # Tool: get_directions_tool
-        get_directions_tool = StructuredTool.from_function(
-            func=self.get_directions,
-            name="Получение направлений",
-            description="Предоставляет актуальный перечень направлений обращения / ремонта. ОБЯЗАТЕЛЬНО ИСПОЛЬЗУЙТЕ инструмент ОДИН раз в начале диалога ДО приветствия пользователя для возможности соотнесения последующей информации с этим перечнем.",
-            return_direct=False,
-        )
-        # tools.append(get_directions_tool)
-
         # Tool: save_direction_tool
         save_direction_tool = StructuredTool.from_function(
             coroutine=self.save_direction_to_request,
-            name="Сохранение направления обращения",
-            description="Сохраняет подходящее под запрос пользователя направление обращения из имеющегося списка направлений в заявку. Нужно соотнести запрос и выбрать подходящее только из тех, что в этом списке. Вам следует предоставить chat_id и непосредственно сам direction из списка в качестве параметра.",
+            name="Saving_direction",
+            description="Сохраняет подходящее под запрос пользователя направление обращения из имеющегося списка направлений в заявку. Нужно соотнести запрос и выбрать подходящее только из тех, что в этом списке. Вам следует предоставить chat_id и непосредственно сам direction из списка в качестве параметров.",
             args_schema=save_direction_to_request_args,
             return_direct=False,
         )
@@ -116,7 +125,7 @@ class ChatAgent:
         # Tool: save_gps_tool
         save_gps_tool = StructuredTool.from_function(
             coroutine=self.save_gps_to_request,
-            name="Сохранение GPS-координат",
+            name="Saving_GPS-coordinates",
             description="Сохраняет адрес на основании полученнных GPS-координат в заявку. Вам следует предоставить значения chat_id, latitude и longitude в качестве параметров.",
             args_schema=save_gps_to_request_args,
             return_direct=False,
@@ -126,8 +135,8 @@ class ChatAgent:
         # Tool: save_address_tool
         save_address_tool = StructuredTool.from_function(
             coroutine=self.save_address_to_request,
-            name="Сохранение адреса",
-            description="Сохраняет полученнный адрес в заявку. Вам следует предоставить chat_id и непосредственно сам address из всего сообщения в качестве параметра.",
+            name="Saving_address",
+            description="Сохраняет полученнный адрес в заявку. Вам следует предоставить chat_id и непосредственно сам address из всего сообщения в качестве параметров.",
             args_schema=save_address_to_request_args,
             return_direct=False,
         )
@@ -136,8 +145,8 @@ class ChatAgent:
         # Tool: save_address_line_2_tool
         save_address_line_2_tool = StructuredTool.from_function(
             coroutine=self.save_address_line_2_to_request,
-            name="Сохранение 2 линии адреса",
-            description="Сохраняет полученнную дополнительную информацию по адресу в заявку. Вам следует предоставить chat_id и непосредственно сам address_line_2 из всего сообщения в качестве параметра.",
+            name="Saving_address_line_2",
+            description="Сохраняет полученнную дополнительную информацию по адресу в заявку. Вам следует предоставить chat_id и непосредственно сам address_line_2 из всего сообщения в качестве параметов.",
             args_schema=save_address_line_2_to_request_args,
             return_direct=False,
         )
@@ -146,8 +155,8 @@ class ChatAgent:
         # Tool: save_phone_tool
         save_phone_tool = StructuredTool.from_function(
             coroutine=self.save_phone_to_request,
-            name="Сохранение телефона",
-            description="Сохраняет полученнный телефон в заявку. Вам следует предоставить chat_id и непосредственно сам phone из всего сообщения в качестве параметра.",
+            name="Saving_phone_number",
+            description="Сохраняет полученнный телефон в заявку. Вам следует предоставить chat_id и непосредственно сам phone из всего сообщения в качестве параметов.",
             args_schema=save_phone_to_request_args,
             return_direct=False,
         )
@@ -156,56 +165,63 @@ class ChatAgent:
         # Tool: save_date_tool
         save_date_tool = StructuredTool.from_function(
             coroutine=self.save_date_to_request,
-            name="Сохранение даты визита",
-            description="Сохраняет полученную дату визита в заявку. Вам следует самим предоставить в инструмент chat_id и непосредственно сам date в формате 'yyyy-mm-ddT00:00Z' из всего полученного сообщения в качестве параметра. ОЖИДАЙТЕ же и ПРИНИМАЙТЕ дату от пользователя в ЛЮБОМ свободном формате (например, 'сегодня' или 'завтра'), а НЕ в том, что выше. Главное используйте сами потом в указанном, отформатировав при необходимости.",
+            name="Saving_visit_date",
+            description="Сохраняет полученную дату визита в заявку. Вам следует самим предоставить в инструмент chat_id и непосредственно сам date в формате 'yyyy-mm-ddT00:00Z' из всего полученного сообщения в качестве параметров. ОЖИДАЙТЕ же и ПРИНИМАЙТЕ дату от пользователя в ЛЮБОМ свободном формате (например, 'сегодня' или 'завтра'), а НЕ в том, что выше. Главное используйте сами потом в указанном, отформатировав при необходимости.",
             args_schema=save_date_to_request_args,
             return_direct=False,
         )
         tools.append(save_date_tool)
 
-        # # Tool: save_model_tool
-        # save_model_tool = StructuredTool.from_function(
-        #     coroutine=self.save_model_to_request,
-        #     name="Сохранение бренда и модели",
-        #     description="Сохраняет бренд и модель техники в заявку. Вам следует предоставить только непосредственно сам model, содержащий и бренд, и модель, из всего сообщения в качестве одного параметра.",
-        #     args_schema=save_model_to_request_args,
-        #     return_direct=False,
-        # )
-        # tools.append(save_model_tool)
+        # Tool: save_comment_tool
+        save_comment_tool = StructuredTool.from_function(
+            coroutine=self.save_comment_to_request,
+            name="Saving_comment",
+            description="Сохраняет полезные по вашему мнению комментарии пользователя в заявку. Вам следует предоставить chat_id и непосредственно сам comment в качестве параметров.",
+            args_schema=save_comment_to_request_args,
+            return_direct=False,
+        )
+        tools.append(save_comment_tool)
 
-        # # Tool: save_circs_tool
-        # save_circs_tool = StructuredTool.from_function(
-        #     coroutine=self.save_circs_to_request,
-        #     name="Сохранение обстоятельств обращения",
-        #     description="Сохраняет дополнительные полезные обстоятельства обращения в заявку. Вам следует предоставить только непосредственно сами circs из всего сообщения в качестве параметра.",
-        #     args_schema=save_circs_to_request_args,
-        #     return_direct=False,
-        # )
-        # tools.append(save_circs_tool)
+        # Tool: save_name_tool
+        save_name_tool = StructuredTool.from_function(
+            coroutine=self.save_name_to_request,
+            name="Saving_name",
+            description="Сохраняет имя пользователя в заявку. Используйте, только если имя выглядит как настоящее человеческое. Вам следует предоставить chat_id и непосредственно само name в качестве параметров.",
+            args_schema=save_name_to_request_args,
+            return_direct=False,
+        )
+        tools.append(save_name_tool)
 
         # Tool: request_tool
         request_tool = StructuredTool.from_function(
             func=self.create_request,
-            name="Создание заявки",
-            description="Создает полностью заполненную заявку в 1С. Вам следует предоставить просто значения ключей request в качестве параметров, кроме address_line_2. Из его значения выделите отдельно при наличии непосредственно сами численно-буквенные значения apartment, entrance, floor и intercom (т.е. без слов) из всего address_line_2 в качестве остальных параметров. Если какие-то из этих параметров не были предоставлены пользователем, передавайте их в инструмент со значением пустой строки - ''",
+            name="Request_creation",
+            description="Создает полностью заполненную заявку в 1С и по возможности определяет её номер. Вам следует предоставить по отдельности сами значения ключей словаря (request) с текущей заявкой из вашего системного промпта в качестве соответствующих параметров инструмента, кроме ключа address_line_2. Из его же значения выделите и передайте отдельно при наличии непосредственно сами численно-буквенные значения apartment, entrance, floor и intercom (т.е. без слов) из всего address_line_2 в качестве остальных соответствующих параметров инструмента. Если какие-то из параметров не были предоставлены пользователем, передавайте их в инструмент со значением пустой строки - ''",
             args_schema=create_request_args,
             return_direct=False,
         )
         tools.append(request_tool)
 
-        self.agent = initialize_agent(
-            tools,
-            llm,
-            agent=AgentType.STRUCTURED_CHAT_ZERO_SHOT_REACT_DESCRIPTION,
-            verbose=True,
-            handle_parsing_errors=True,
-        )
+        # self.agent = initialize_agent(
+        #     tools,
+        #     llm,
+        #     agent=AgentType.STRUCTURED_CHAT_ZERO_SHOT_REACT_DESCRIPTION,
+        #     verbose=True,
+        #     handle_parsing_errors=True,
+        # )
 
-    def get_directions(self):
-        with open("./data/repair_dir.txt", "r", encoding="utf-8") as f:
-            directions = f.read().splitlines()
-        directions_string = ", ".join(directions)
-        return f"Актуальные направления обращения / ремонта для сопоставления: {directions_string}"
+        prompt = ChatPromptTemplate.from_messages(
+            [
+                ("system", "{system_prompt}"),
+                ("placeholder", "{chat_history}"),
+                ("human", "{input}"),
+                ("placeholder", "{agent_scratchpad}"),
+            ]
+        )
+        agent = create_tool_calling_agent(llm, tools, prompt)
+        self.agent_executor = AgentExecutor(
+            agent=agent, tools=tools, verbose=True, handle_parsing_errors=True
+        )
 
     async def save_direction_to_request(self, chat_id, direction):
         self.logger.info(f"save_direction_to_request direction: {direction}")
@@ -263,21 +279,17 @@ class ChatAgent:
         self.logger.info("Дата посещения была сохранена в заявку")
         return "Дата посещения была сохранена в заявку"
 
-    # async def save_model_to_request(self, model):
-    #     self.logger.info(f"save_model_to_request model: {model}")
-    #     await self.request_service.save_to_request(
-    #         self.chat_id, f"Модель: {model}", "comment"
-    #     )
-    #     self.logger.info("Бренд и модель техники были сохранены в заявку")
-    #     return "Бренд и модель техники были сохранены в заявку"
+    async def save_comment_to_request(self, chat_id, comment):
+        self.logger.info(f"save_comment_to_request comment: {comment}")
+        await self.request_service.save_to_request(chat_id, comment, "comment")
+        self.logger.info("Комментарий был сохранен в заявку")
+        return "Комментарий был сохранен в заявку"
 
-    # async def save_circs_to_request(self, circs):
-    #     self.logger.info(f"save_circs_to_request model: {circs}")
-    #     await self.request_service.save_to_request(
-    #         self.chat_id, f"Обстоятельства обращения: {circs}", "comment"
-    #     )
-    #     self.logger.info("Обстоятельства обращения были сохранены в заявку")
-    #     return "Обстоятельства обращения были сохранены в заявку"
+    async def save_name_to_request(self, chat_id, name):
+        self.logger.info(f"save_name_to_request name: {name}")
+        await self.request_service.save_to_request(chat_id, name, "name")
+        self.logger.info("Имя пользователя было сохранено в заявку")
+        return "Имя пользователя было сохранено в заявку"
 
     def create_request(
         self,
@@ -291,16 +303,23 @@ class ChatAgent:
         entrance="",
         floor="",
         intercom="",
+        comment="",
+        name="Не названо",
     ):
-        self.logger.info(
-            f"create_request direction: {direction} latitude: {latitude} longitude: {longitude} address: {address} phone: {phone} date: {date}"
-        )
         token = os.environ.get("1С_TOKEN", "")
+        login = os.environ.get("1C_LOGIN", "")
+        password = os.environ.get("1C_PASSWORD", "")
+
+        data = {
+            "clientPath": {"crm": "http://10.2.4.141/Test_CRM/hs/yandex/v1/order"},
+            "login": login,
+            "password": password,
+        }
 
         with open("./data/template.json", "r", encoding="utf-8") as f:
             params = json.load(f)
 
-        params["order"]["client"]["display_name"] = "Владислав"
+        params["order"]["client"]["display_name"] = name
         params["order"]["uslugi_id"] = str(uuid4()).replace("-", "")
 
         params["order"]["services"][0]["service_id"] = direction
@@ -313,21 +332,45 @@ class ChatAgent:
         params["order"]["address"]["entrance"] = entrance
         params["order"]["address"]["apartment"] = apartment
         params["order"]["address"]["intercom"] = intercom
-        # params["order"]["comment"] = comment
+        params["order"]["comment"] = comment
         self.logger.info(f"Parametrs: {params}")
 
-        request_data = {"token": token, "params": params}
-        url = f"{self.config['base_url']}/create_order"
+        order_url = f"{self.config['order_url']}/hs"
+        get_url = f"{self.config['get_url']}/ws"
 
-        r = requests.post(
-            url,
-            json=request_data,
-            headers={"Content-Type": "application/json"},
-            verify=False,
+        order = requests.post(
+            order_url, json={"config": data, "params": params, "token": token}
         )
-        self.logger.info(f"Result:\n{r.status_code}\n{r.text}")
+        self.logger.info(f"Result:\n{order.status_code}\n{order.text}")
 
-        if r.status_code == 200:
-            return "Заявка была создана"
+        query_params = {
+            "Идентификатор": "bid_info",
+            "НомерПартнера": params["order"]["uslugi_id"],
+        }
+        config_data = {
+            "clientPath": self.config["clients"],
+            "login": login,
+            "password": password,
+        }
+
+        request_number = None
+        try:
+            results = requests.post(
+                get_url, json={"config": config_data, "params": query_params}
+            ).json()["result"]
+            self.logger.info(f"results: {results}")
+            for value in results.values():
+                if len(value) > 0:
+                    request_number = value[0]["id"]
+                    break
+        except Exception as e:
+            self.logger.error(f"Error in receiving request number: {e}")
+
+        if order.status_code == 200:
+            self.logger.info(f"number: {request_number}")
+            if request_number:
+                return f"Заявка была создана с номером {request_number}"
+            else:
+                return "Заявка была создана"
         else:
-            return f"Ошибка при создании заявки: {r.text}"
+            return f"Ошибка при создании заявки: {order.text}"
