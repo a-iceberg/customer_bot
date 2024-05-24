@@ -165,7 +165,7 @@ class Application:
                 )
 
             if user_message == "/reset":
-                self.chat_history_service.delete_chat_history(self.chat_id)
+                self.chat_history_service.delete_files(self.chat_id)
                 bot.send_message(
                     self.chat_id, "История сообщений чата была очищена для бота"
                 )
