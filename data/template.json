@@ -17,7 +17,7 @@
         "employees": [],
         "payment_type": "card",
         "client": {
-            "display_name": "Имя",
+            "display_name": "Не названо",
             "phone": "81234567890"
         },
         "address": {

@@ -13,7 +13,6 @@ import json
 from uuid import uuid4
 
 from file_service import FileService
-# from onec_request import OneC_Request
 
 
 class save_direction_to_request_args(BaseModel):
@@ -112,15 +111,6 @@ class ChatAgent:
             temperature=self.config["temperature"],
         )
         tools = []
-
-        # # Tool: get_directions_tool
-        # get_directions_tool = StructuredTool.from_function(
-        #     func=self.get_directions,
-        #     name="Получение направлений",
-        #     description="Предоставляет актуальный перечень направлений обращения / ремонта. ОБЯЗАТЕЛЬНО ИСПОЛЬЗУЙТЕ инструмент ОДИН раз в начале диалога ДО приветствия пользователя для возможности соотнесения последующей информации с этим перечнем.",
-        #     return_direct=False,
-        # )
-        # tools.append(get_directions_tool)
 
         # Tool: save_direction_tool
         save_direction_tool = StructuredTool.from_function(
@@ -233,12 +223,6 @@ class ChatAgent:
             agent=agent, tools=tools, verbose=True, handle_parsing_errors=True
         )
 
-    # def get_directions(self):
-    #     with open("./data/repair_dir.txt", "r", encoding="utf-8") as f:
-    #         directions = f.read().splitlines()
-    #     directions_string = ", ".join(directions)
-    #     return f"Актуальные направления обращения / ремонта для сопоставления: {directions_string}"
-
     async def save_direction_to_request(self, chat_id, direction):
         self.logger.info(f"save_direction_to_request direction: {direction}")
         await self.request_service.save_to_request(chat_id, direction, "direction")
@@ -320,7 +304,7 @@ class ChatAgent:
         floor="",
         intercom="",
         comment="",
-        name="Имя",
+        name="Не названо",
     ):
         token = os.environ.get("1С_TOKEN", "")
         login = os.environ.get("1C_LOGIN", "")
@@ -351,7 +335,6 @@ class ChatAgent:
         params["order"]["comment"] = comment
         self.logger.info(f"Parametrs: {params}")
 
-        # request_data = {"token": token, "params": params}
         order_url = f"{self.config['order_url']}/hs"
         get_url = f"{self.config['get_url']}/ws"
 
@@ -369,8 +352,6 @@ class ChatAgent:
             "login": login,
             "password": password,
         }
-        # query_params = json.dumps(query_params, ensure_ascii=False)
-        # onec_request = OneC_Request(login, password, self.config["clients"])
 
         request_number = None
         try:
