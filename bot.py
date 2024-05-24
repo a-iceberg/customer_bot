@@ -56,10 +56,7 @@ class Application:
         @self.app.post("/message")
         async def handle_message(request: Request, authorization: str = Header(None)):
             self.logger.info("handle_message")
-            start_time = time.time()
             message = await request.json()
-            end_time = time.time()
-            self.logger.info(f"Message handled in {end_time - start_time} sec")
 
             self.chat_id = message["chat"]["id"]
             self.logger.info(message)
@@ -260,14 +257,14 @@ chat_id текущего пользователя - {self.chat_id}"""
                         self.config_manager.get("model"),
                         self.config_manager.get("temperature"),
                         self.config_manager.get("request_dir"),
-                        self.config_manager.get("order_url"),
-                        self.config_manager.get("get_url"),
-                        self.config_manager.get("clients_paths"),
+                        self.config_manager.get("proxy_url"),
+                        self.config_manager.get("order_path"),
+                        self.config_manager.get("ws_paths"),
                         self.logger,
                         bot,
                     )
                     self.chat_agent.initialize_agent()
-                start_time = time.time()
+
                 bot_response = await self.chat_agent.agent_executor.ainvoke(
                     {
                         "system_prompt": system_prompt,
@@ -275,8 +272,6 @@ chat_id текущего пользователя - {self.chat_id}"""
                         "chat_history": chat_history,
                     }
                 )
-                end_time = time.time()
-                self.logger.info(f"LLM responced in {end_time - start_time} sec")
                 await self.chat_history_service.save_to_chat_history(
                     self.chat_id,
                     user_message,

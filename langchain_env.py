@@ -79,9 +79,9 @@ class ChatAgent:
         model,
         temperature,
         request_dir,
-        order_url,
-        get_url,
-        clients,
+        proxy_url,
+        order_path,
+        ws_paths,
         logger,
         bot_instance,
     ):
@@ -93,9 +93,9 @@ class ChatAgent:
             "model": model,
             "temperature": temperature,
             "request_dir": request_dir,
-            "order_url": order_url,
-            "get_url": get_url,
-            "clients": clients,
+            "proxy_url": proxy_url,
+            "order_path": order_path,
+            "ws_paths": ws_paths,
         }
         self.agent_executor = None
         self.bot_instance = bot_instance
@@ -310,53 +310,50 @@ class ChatAgent:
         login = os.environ.get("1C_LOGIN", "")
         password = os.environ.get("1C_PASSWORD", "")
 
-        data = {
-            "clientPath": {"crm": "http://10.2.4.141/Test_CRM/hs/yandex/v1/order"},
+        with open("./data/template.json", "r", encoding="utf-8") as f:
+            order_params = json.load(f)
+
+        order_params["order"]["client"]["display_name"] = name
+        order_params["order"]["uslugi_id"] = str(uuid4()).replace("-", "")
+
+        order_params["order"]["services"][0]["service_id"] = direction
+        order_params["order"]["desired_dt"] = date
+        order_params["order"]["client"]["phone"] = phone
+        order_params["order"]["address"]["geopoint"]["latitude"] = latitude
+        order_params["order"]["address"]["geopoint"]["longitude"] = longitude
+        order_params["order"]["address"]["name"] = address
+        order_params["order"]["address"]["floor"] = floor
+        order_params["order"]["address"]["entrance"] = entrance
+        order_params["order"]["address"]["apartment"] = apartment
+        order_params["order"]["address"]["intercom"] = intercom
+        order_params["order"]["comment"] = comment
+        self.logger.info(f"Parametrs: {order_params}")
+
+        ws_params = {
+            "Идентификатор": "bid_info",
+            "НомерПартнера": order_params["order"]["uslugi_id"],
+        }
+        order_url = f"{self.config['proxy_url']}/hs"
+        ws_url = f"{self.config['proxy_url']}/ws"
+
+        order_data = {
+            "clientPath": self.config["order_path"],
             "login": login,
             "password": password,
         }
-
-        with open("./data/template.json", "r", encoding="utf-8") as f:
-            params = json.load(f)
-
-        params["order"]["client"]["display_name"] = name
-        params["order"]["uslugi_id"] = str(uuid4()).replace("-", "")
-
-        params["order"]["services"][0]["service_id"] = direction
-        params["order"]["desired_dt"] = date
-        params["order"]["client"]["phone"] = phone
-        params["order"]["address"]["geopoint"]["latitude"] = latitude
-        params["order"]["address"]["geopoint"]["longitude"] = longitude
-        params["order"]["address"]["name"] = address
-        params["order"]["address"]["floor"] = floor
-        params["order"]["address"]["entrance"] = entrance
-        params["order"]["address"]["apartment"] = apartment
-        params["order"]["address"]["intercom"] = intercom
-        params["order"]["comment"] = comment
-        self.logger.info(f"Parametrs: {params}")
-
-        order_url = f"{self.config['order_url']}/hs"
-        get_url = f"{self.config['get_url']}/ws"
+        ws_data = order_data
+        ws_data["clientPath"] = self.config["ws_paths"]
 
         order = requests.post(
-            order_url, json={"config": data, "params": params, "token": token}
+            order_url,
+            json={"config": order_data, "params": order_params, "token": token},
         )
         self.logger.info(f"Result:\n{order.status_code}\n{order.text}")
-
-        query_params = {
-            "Идентификатор": "bid_info",
-            "НомерПартнера": params["order"]["uslugi_id"],
-        }
-        config_data = {
-            "clientPath": self.config["clients"],
-            "login": login,
-            "password": password,
-        }
 
         request_number = None
         try:
             results = requests.post(
-                get_url, json={"config": config_data, "params": query_params}
+                ws_url, json={"config": ws_data, "params": ws_params}
             ).json()["result"]
             self.logger.info(f"results: {results}")
             for value in results.values():
