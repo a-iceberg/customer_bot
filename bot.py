@@ -295,13 +295,9 @@ chat_id текущего пользователя - {self.chat_id}"""
 
                 self.logger.info("Replying in " + str(self.chat_id))
                 self.logger.info(f"Answer: {bot_response['output']}")
-                return (
-                    bot.send_message(self.chat_id, bot_response["output"])
-                    if not bot_response["output"].startswith("{")
-                    else bot.send_message(
-                        self.chat_id, "Пожалуйста, повторите ещё раз, не понял вас."
-                    )
-                )
+                return bot.send_message(self.chat_id, bot_response["output"])
+                # if not bot_response["output"].startswith("{")
+                # else bot.send_message(self.chat_id, "Пожалуйста, повторите ещё раз, не понял вас.")
 
         def split_audio_ffmpeg(audio_path, chunk_length=10 * 60):
             cmd_duration = f"ffprobe -v error -show_entries format=duration -of default=noprint_wrappers=1:nokey=1 {audio_path}"
