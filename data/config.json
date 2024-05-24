@@ -1,7 +1,7 @@
 {
-    "chats_dir": "./data/vlad/chats/",
-    "audio_dir": "./data/vlad/audio/",
-    "request_dir": "./data/vlad/requests/",
+    "chats_dir": "./data/chats/",
+    "audio_dir": "./data/audio/",
+    "request_dir": "./data/requests/",
     "model": "gpt-4o-2024-05-13",
     "temperature": 0.6,
     "proxy_url": "https://service.icecorp.ru:7405",
