@@ -176,7 +176,7 @@ class ChatAgent:
         save_comment_tool = StructuredTool.from_function(
             coroutine=self.save_comment_to_request,
             name="Saving_comment",
-            description="Сохраняет полезные по вашему мнению комментарии пользователя в заявку. Вам следует предоставить chat_id и непосредственно сам comment в качестве параметров.",
+            description="Сохраняет полезные по вашему мнению комментарии пользователя в заявку. НИ в коем случае нельзя передавать здесь информацию по точному адресу или телефону клиента. Вам следует предоставить chat_id и непосредственно сам comment в качестве параметров.",
             args_schema=save_comment_to_request_args,
             return_direct=False,
         )
@@ -186,7 +186,7 @@ class ChatAgent:
         save_name_tool = StructuredTool.from_function(
             coroutine=self.save_name_to_request,
             name="Saving_name",
-            description="Сохраняет имя пользователя в заявку. Используйте, только если имеющееся у вас или запрошенное имя выглядит как настоящее человеческое. Но в таком случае обязательно! Вам следует предоставить chat_id и непосредственно само name в качестве параметров.",
+            description="Сохраняет имя пользователя в заявку. Используйте обязательно, только если имеющееся у вас или запрошенное имя выглядит как настоящее человеческое. Вам следует предоставить chat_id и непосредственно само name в качестве параметров.",
             args_schema=save_name_to_request_args,
             return_direct=False,
         )
