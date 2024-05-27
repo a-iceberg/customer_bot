@@ -4,7 +4,7 @@ services:
   customer_bot_cc_test:
     container_name: customer_bot_cc_test
     ports:
-      - "7406:88"
+      - "7408:88"
     restart: unless-stopped
     build:
       context: .
