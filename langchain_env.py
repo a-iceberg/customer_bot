@@ -304,7 +304,7 @@ class ChatAgent:
                         {
                             "role": "assistant",
                             "content": "проход под аркой домофон, этаж, квартира, подъезд, дополнительный телефон",
-                        }
+                        },
                         {"role": "user", "content": comment},
                     ]
                 )
