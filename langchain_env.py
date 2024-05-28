@@ -309,6 +309,8 @@ class ChatAgent:
                     ]
                 )
         comment = response.choices[0].message.content
+        pattern = re.compile(r"([+]?[\d]?\d{3}.*?\d{3}.*?\d{2}.*?\d{2})|подъезд|этаж|эт|квартир|кв|домофон|код", re.IGNORECASE)
+        comment = re.sub(pattern, '', comment)
 
         await self.request_service.save_to_request(chat_id, comment, "comment")
         self.logger.info("Комментарий был сохранен в заявку")
