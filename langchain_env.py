@@ -136,7 +136,7 @@ class ChatAgent:
         save_address_tool = StructuredTool.from_function(
             coroutine=self.save_address_to_request,
             name="Saving_address",
-            description="Сохраняет полученнный адрес в заявку. Вам следует предоставить chat_id и непосредственно сам address из всего сообщения в качестве параметров.",
+            description="Сохраняет полученнный адрес в заявку. При сохранении убедитесь, что у вас есть все обязательные поля адреса. Вам следует предоставить chat_id и непосредственно сам address из всего сообщения в качестве параметров.",
             args_schema=save_address_to_request_args,
             return_direct=False,
         )
@@ -344,21 +344,15 @@ class ChatAgent:
             "clientPath": self.config["order_path"],
             "login": login,
             "password": password,
-        }   
-        ws_data = {
-            "clientPath": self.config["ws_paths"],
-            "login": login,
-            "password": password,
         }
-        
-        self.logger.info(f"order_data: {order_data}")
-
         order = requests.post(
             order_url,
             json={"config": order_data, "params": order_params, "token": token},
         )
         self.logger.info(f"Result:\n{order.status_code}\n{order.text}")
 
+        ws_data = order_data
+        ws_data["clientPath"] = self.config["ws_paths"]
         request_number = None
         try:
             results = requests.post(
