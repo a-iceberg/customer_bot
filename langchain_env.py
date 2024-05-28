@@ -286,32 +286,6 @@ class ChatAgent:
 
     async def save_comment_to_request(self, chat_id, comment):
         self.logger.info(f"save_comment_to_request comment: {comment}")
-
-        client = OpenAI(api_key=os.environ.get("OPENAI_API_KEY", ""))
-        model = "gpt-3.5-turbo-0125"
-        response = client.chat.completions.create(
-                    model=model,
-                    seed=654321,
-                    messages=[
-                        {
-                            "role": "system",
-                            "content": "Вы - сотрудник по сохранности конфиденциальных данных. В передаваемом вами тексте никогда не должно быть никакой следующей информации: любых номеров телефонов; значений подъезда, этажа, квартиры, домофона. Возвращайте в ответе полученный текст с УБРАННОЙ всей перечисленной выше информацией, а не ваш ответ с размышлениями.",
-                        },
-                        {
-                            "role": "user",
-                            "content": "проход под аркой домофон 45к7809в, этаж 10, квартира 45, подъезд 3, дополнительный телефон 89760932378",
-                        },
-                        {
-                            "role": "assistant",
-                            "content": "проход под аркой домофон, этаж, квартира, подъезд, дополнительный телефон",
-                        },
-                        {"role": "user", "content": comment},
-                    ]
-                )
-        comment = response.choices[0].message.content
-        pattern = re.compile(r"([+]?[\d]?\d{3}.*?\d{3}.*?\d{2}.*?\d{2})|подъезд|этаж|эт|квартир|кв|домофон|код", re.IGNORECASE)
-        comment = re.sub(pattern, '', comment)
-
         await self.request_service.save_to_request(chat_id, comment, "comment")
         self.logger.info("Комментарий был сохранен в заявку")
         return "Комментарий был сохранен в заявку"
@@ -344,20 +318,50 @@ class ChatAgent:
         with open("./data/template.json", "r", encoding="utf-8") as f:
             order_params = json.load(f)
 
-        order_params["order"]["client"]["display_name"] = name
         order_params["order"]["uslugi_id"] = str(uuid4()).replace("-", "")
-
+        order_params["order"]["client"]["display_name"] = name
         order_params["order"]["services"][0]["service_id"] = direction
         order_params["order"]["desired_dt"] = date
         order_params["order"]["client"]["phone"] = phone
-        order_params["order"]["address"]["geopoint"]["latitude"] = latitude
-        order_params["order"]["address"]["geopoint"]["longitude"] = longitude
         order_params["order"]["address"]["name"] = address
         order_params["order"]["address"]["floor"] = floor
         order_params["order"]["address"]["entrance"] = entrance
         order_params["order"]["address"]["apartment"] = apartment
         order_params["order"]["address"]["intercom"] = intercom
+
+        client = OpenAI(api_key=os.environ.get("OPENAI_API_KEY", ""))
+        model = "gpt-3.5-turbo-0125"
+        response = client.chat.completions.create(
+            model=model,
+            seed=654321,
+            messages=[
+                {
+                    "role": "system",
+                    "content": "Вы - сотрудник по сохранности конфиденциальных данных. В передаваемом вами тексте никогда не должно быть никакой следующей информации: любых номеров телефонов; значений подъезда, этажа, квартиры, домофона. Возвращайте в ответе полученный текст с УБРАННОЙ всей перечисленной выше информацией, а не ваш ответ с размышлениями.",
+                },
+                {
+                    "role": "user",
+                    "content": "проход под аркой домофон 45к7809в, этаж 10, квартира 45, подъезд 3, дополнительный телефон 89760932378",
+                },
+                {
+                    "role": "assistant",
+                    "content": "проход под аркой домофон, этаж, квартира, подъезд, дополнительный телефон",
+                },
+                {"role": "user", "content": comment},
+            ]
+        )
+        comment = response.choices[0].message.content
+        pattern = re.compile(r"([+]?[\d]?\d{3}.*?\d{3}.*?\d{2}.*?\d{2})|подъезд|этаж|эт|квартир|кв|домофон|код", re.IGNORECASE)
+        comment = re.sub(pattern, '', comment)
+
+        if latitude == 0:
+            latitude = ''
+        if longitude == 0:
+            longitude = ''
+
         order_params["order"]["comment"] = comment
+        order_params["order"]["address"]["geopoint"]["latitude"] = latitude
+        order_params["order"]["address"]["geopoint"]["longitude"] = longitude        
         self.logger.info(f"Parametrs: {order_params}")
 
         ws_params = {
