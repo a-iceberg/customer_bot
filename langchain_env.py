@@ -344,9 +344,14 @@ class ChatAgent:
             "clientPath": self.config["order_path"],
             "login": login,
             "password": password,
+        }   
+        ws_data = {
+            "clientPath": self.config["ws_paths"],
+            "login": login,
+            "password": password,
         }
-        ws_data = order_data
-        ws_data["clientPath"] = self.config["ws_paths"]
+        
+        self.logger.info(f"order_data: {order_data}")
 
         order = requests.post(
             order_url,
