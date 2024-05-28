@@ -244,7 +244,11 @@ class ChatAgent:
     async def save_address_to_request(self, chat_id, address):
         self.logger.info(f"save_address_to_request address: {address}")
         geolocator = Nominatim(user_agent="my_app")
-        location = geolocator.geocode(address)
+        location = None
+        try:
+            location = geolocator.geocode(address)
+        except:
+            self.logger.error(f"Failed to get coordinates for {address}")
         if location:
             latitude = location.latitude
             longitude = location.longitude
