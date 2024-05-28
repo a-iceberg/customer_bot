@@ -1,6 +1,7 @@
 from langchain.tools.base import StructuredTool
 # from langchain_anthropic import ChatAnthropic
 from langchain_openai import ChatOpenAI
+from openai import OpenAI
 from pydantic.v1 import BaseModel, Field
 import os
 import re
@@ -285,6 +286,22 @@ class ChatAgent:
 
     async def save_comment_to_request(self, chat_id, comment):
         self.logger.info(f"save_comment_to_request comment: {comment}")
+
+        client = OpenAI(api_key=os.environ.get("OPENAI_API_KEY", ""))
+        model = "gpt-3.5-turbo-1106"
+        response = client.chat.completions.create(
+                    model=model,
+                    seed=654321,
+                    messages=[
+                        {
+                            "role": "system",
+                            "content": "В полученном вами тексте не должно быть следующей информации: любых номеров телефонов; подъезда, этажа, квартиры, домофона. Возвращайте полученный текст без данной информации.",
+                        },
+                        {"role": "user", "content": comment},
+                    ]
+                )
+        comment = response.choices[0].message.content
+
         await self.request_service.save_to_request(chat_id, comment, "comment")
         self.logger.info("Комментарий был сохранен в заявку")
         return "Комментарий был сохранен в заявку"
