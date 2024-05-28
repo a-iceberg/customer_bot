@@ -58,6 +58,7 @@ class save_name_to_request_args(BaseModel):
 
 
 class create_request_args(BaseModel):
+    chat_id: int = Field(description="chat_id")
     name: str = Field(description="name")
     direction: str = Field(description="direction")
     date: str = Field(description="date")
@@ -197,7 +198,7 @@ class ChatAgent:
         request_tool = StructuredTool.from_function(
             func=self.create_request,
             name="Request_creation",
-            description="Создает полностью заполненную заявку в 1С и по возможности определяет её номер. Вам следует предоставить по отдельности сами значения ключей словаря (request) с текущей заявкой из вашего системного промпта в качестве соответствующих параметров инструмента, кроме ключа address_line_2. Из его же значения выделите и передайте отдельно при наличии непосредственно сами численно-буквенные значения apartment, entrance, floor и intercom (т.е. без слов) из всего address_line_2 в качестве остальных соответствующих параметров инструмента. Если какие-то из параметров не были предоставлены пользователем, передавайте их в инструмент со значением пустой строки - ''",
+            description="Создает полностью заполненную заявку в 1С и по возможности определяет её номер. Вам следует предоставить chat_id и по отдельности сами значения ключей словаря (request) с текущей заявкой из вашего системного промпта в качестве соответствующих параметров инструмента, кроме ключа address_line_2. Из его же значения выделите и передайте отдельно при наличии непосредственно сами численно-буквенные значения apartment, entrance, floor и intercom (т.е. без слов) из всего address_line_2 в качестве остальных соответствующих параметров инструмента. Если какие-то из параметров не были предоставлены пользователем, передавайте их в инструмент со значением пустой строки - ''",
             args_schema=create_request_args,
             return_direct=False,
         )
@@ -298,6 +299,7 @@ class ChatAgent:
 
     def create_request(
         self,
+        chat_id,
         direction,
         date,
         phone,
@@ -399,6 +401,7 @@ class ChatAgent:
 
         if order.status_code == 200:
             self.logger.info(f"number: {request_number}")
+            self.request_service.delete_files(chat_id)
             if request_number:
                 return f"Заявка была создана с номером {request_number}"
             else:
