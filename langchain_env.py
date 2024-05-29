@@ -358,9 +358,9 @@ class ChatAgent:
         comment = re.sub(pattern, '', comment)
 
         if latitude == 0:
-            latitude = ''
+            latitude = 55.760221
         if longitude == 0:
-            longitude = ''
+            longitude = 37.618561
 
         order_params["order"]["comment"] = comment
         order_params["order"]["address"]["geopoint"]["latitude"] = latitude
