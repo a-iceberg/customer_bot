@@ -121,6 +121,9 @@ class ChatAgent:
             description="Сохраняет подходящее под запрос пользователя направление обращения из имеющегося списка направлений в заявку. Нужно соотнести запрос и выбрать подходящее только из тех, что в этом списке. Вам следует предоставить chat_id и непосредственно сам direction из списка в качестве параметров.",
             args_schema=save_direction_to_request_args,
             return_direct=False,
+            handle_tool_error=True,
+            handle_validation_error=True,
+            verbose=True,
         )
         tools.append(save_direction_tool)
 
@@ -131,6 +134,9 @@ class ChatAgent:
             description="Сохраняет адрес на основании полученнных GPS-координат в заявку. Вам следует предоставить значения chat_id, latitude и longitude в качестве параметров.",
             args_schema=save_gps_to_request_args,
             return_direct=False,
+            handle_tool_error=True,
+            handle_validation_error=True,
+            verbose=True,
         )
         tools.append(save_gps_tool)
 
@@ -141,6 +147,9 @@ class ChatAgent:
             description="Сохраняет полученнный адрес в заявку. При сохранении убедитесь, что у вас есть все обязательные поля адреса (город, улица, дом). Вам следует предоставить chat_id и непосредственно сам address из всего сообщения в качестве параметров.",
             args_schema=save_address_to_request_args,
             return_direct=False,
+            handle_tool_error=True,
+            handle_validation_error=True,
+            verbose=True,
         )
         tools.append(save_address_tool)
 
@@ -151,6 +160,9 @@ class ChatAgent:
             description="Сохраняет полученнную дополнительную информацию по адресу в заявку. Вам следует предоставить chat_id и непосредственно сам address_line_2 из всего сообщения в качестве параметов.",
             args_schema=save_address_line_2_to_request_args,
             return_direct=False,
+            handle_tool_error=True,
+            handle_validation_error=True,
+            verbose=True,
         )
         tools.append(save_address_line_2_tool)
 
@@ -161,6 +173,9 @@ class ChatAgent:
             description="Сохраняет полученнный телефон в заявку. Вам следует предоставить chat_id и непосредственно сам phone из всего сообщения в качестве параметов.",
             args_schema=save_phone_to_request_args,
             return_direct=False,
+            handle_tool_error=True,
+            handle_validation_error=True,
+            verbose=True,
         )
         tools.append(save_phone_tool)
 
@@ -171,6 +186,9 @@ class ChatAgent:
             description="Сохраняет нужную дату визита в заявку. Вам следует самим предоставить в инструмент chat_id и непосредственно сам date в формате 'yyyy-mm-ddT00:00Z' из всего полученного сообщения или же определённую вами самостоятельно по умолчанию в качестве параметров. ОЖИДАЙТЕ же и ПРИНИМАЙТЕ дату от пользователя в ЛЮБОМ свободном формате (например, 'сегодня' или 'завтра'), а НЕ в том, что выше. Главное используйте сами потом в указанном, отформатировав при необходимости.",
             args_schema=save_date_to_request_args,
             return_direct=False,
+            handle_tool_error=True,
+            handle_validation_error=True,
+            verbose=True,
         )
         tools.append(save_date_tool)
 
@@ -181,6 +199,9 @@ class ChatAgent:
             description="Сохраняет полезные по вашему мнению комментарии пользователя в заявку. Ни в коем случае НЕЛЬЗЯ передавать здесь информацию, содержающую детали адреса (квартира, подъезд и т.п.) или ЛЮБЫЕ телефоны клиента, даже если он просит, в таком случае НЕ используйте этот инструмент. Вам следует предоставить chat_id и непосредственно сам comment в качестве параметров.",
             args_schema=save_comment_to_request_args,
             return_direct=False,
+            handle_tool_error=True,
+            handle_validation_error=True,
+            verbose=True,
         )
         tools.append(save_comment_tool)
 
@@ -191,6 +212,9 @@ class ChatAgent:
             description="Сохраняет имя пользователя в заявку. Используйте ОБЯЗАТЕЛЬНО, но только если имеющееся у вас или запрошенное имя выглядит как настоящее человеческое. Вам следует предоставить chat_id и непосредственно само name в качестве параметров.",
             args_schema=save_name_to_request_args,
             return_direct=False,
+            handle_tool_error=True,
+            handle_validation_error=True,
+            verbose=True,
         )
         tools.append(save_name_tool)
 
@@ -201,6 +225,9 @@ class ChatAgent:
             description="Создает полностью заполненную заявку в 1С и по возможности определяет её номер. Вам следует предоставить chat_id и по отдельности сами значения ключей словаря (request) с текущей заявкой из вашего системного промпта в качестве соответствующих параметров инструмента, кроме ключа address_line_2. Из его же значения выделите и передайте отдельно при наличии непосредственно сами численно-буквенные значения apartment, entrance, floor и intercom (т.е. без слов) из всего address_line_2 в качестве остальных соответствующих параметров инструмента. Если какие-то из параметров не были предоставлены пользователем, передавайте их в инструмент со значением пустой строки - ''",
             args_schema=create_request_args,
             return_direct=False,
+            handle_tool_error=True,
+            handle_validation_error=True,
+            verbose=True,
         )
         tools.append(request_tool)
 
