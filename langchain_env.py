@@ -433,7 +433,7 @@ class ChatAgent:
         self.logger.info(f"Parametrs: {order_params}")
 
         ws_params = {
-            "Идентификатор": "bid_info",
+            "Идентификатор": "new_bid_number",
             "НомерПартнера": order_params["order"]["uslugi_id"],
         }
         order_url = f"{self.config['proxy_url']}/hs"
