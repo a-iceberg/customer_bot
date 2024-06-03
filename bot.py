@@ -53,6 +53,10 @@ class Application:
         return logger
 
     def setup_routes(self):
+        @self.app.get("/test")
+        def test():
+            return self.text_response("ok") 
+
         @self.app.post("/message")
         async def handle_message(request: Request, authorization: str = Header(None)):
             self.logger.info("handle_message")
