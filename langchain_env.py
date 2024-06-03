@@ -254,18 +254,18 @@ class ChatAgent:
         # )
         # tools.append(change_request_tool)
 
-        # # Tool: request_selection_tool
-        # request_selection_tool = StructuredTool.from_function(
-        #     func=self.request_selection,
-        #     name="Request_selection",
-        #     description="Находит и предоставляет пользователю список его текущих заявок для выбора, чтобы определить контекст всего диалога. Вам следует предоставить chat_id в качестве параметра.",
-        #     args_schema=request_selection_args,
-        #     return_direct=False,
-        #     handle_tool_error=True,
-        #     handle_validation_error=True,
-        #     verbose=True,
-        # )
-        # tools.append(request_selection_tool)
+        # Tool: request_selection_tool
+        request_selection_tool = StructuredTool.from_function(
+            func=self.request_selection,
+            name="Request_selection",
+            description="Находит и предоставляет пользователю список его текущих заявок для выбора, чтобы определить контекст всего диалога, если речь идёт уже о каких-либо прошлых заявках, а не об оформлении новой. Вам следует предоставить chat_id в качестве параметра.",
+            args_schema=request_selection_args,
+            return_direct=False,
+            handle_tool_error=True,
+            handle_validation_error=True,
+            verbose=True,
+        )
+        tools.append(request_selection_tool)
 
         # self.agent = initialize_agent(
         #     tools,
@@ -384,7 +384,7 @@ class ChatAgent:
         with open("./data/template.json", "r", encoding="utf-8") as f:
             order_params = json.load(f)
 
-        order_params["order"]["uslugi_id"] = str(uuid4()).replace("-", "")
+        order_params["order"]["uslugi_id"] = str(chat_id) #str(uuid4()).replace("-", "")
         order_params["order"]["client"]["display_name"] = name
         order_params["order"]["services"][0]["service_id"] = direction
         order_params["order"]["desired_dt"] = date
@@ -474,3 +474,38 @@ class ChatAgent:
                 return "Заявка была создана"
         else:
             return f"Ошибка при создании заявки: {order.text}"
+
+    def request_selection(self, chat_id):
+        login = os.environ.get("1C_LOGIN", "")
+        password = os.environ.get("1C_PASSWORD", "")
+
+        ws_url = f"{self.config['proxy_url']}/ws"        
+        ws_params = {
+            "Идентификатор": "bid_numbers",
+            "НомерПартнера": chat_id,
+        }
+        ws_data = {
+            "clientPath": self.config["ws_paths"],
+            "login": login,
+            "password": password,
+        }
+        request_numbers = []
+        try:
+            results = requests.post(
+                ws_url, json={"config": ws_data, "params": ws_params}
+            ).json()["result"]
+            self.logger.info(f"results: {results}")
+            for value in results.values():
+                if len(value) > 0:
+                    request_numbers.append(value[0]["id"])
+                    break
+            self.logger.info(f"request_numbers: {request_numbers}")
+        except Exception as e:
+            self.logger.error(f"Error in receiving request numbers: {e}")
+        if results.status_code == 200:
+            if len(request_numbers) > 0:
+                return f"Номера заявок клиента {request_numbers}"
+            else:
+                return "У пользователя нет существующих заявок"
+        else:
+            return f"Ошибка при получении заявок: {results.text}"
