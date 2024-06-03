@@ -241,31 +241,31 @@ class ChatAgent:
         )
         tools.append(create_request_tool)
 
-        # Tool: change_request_tool
-        change_request_tool = StructuredTool.from_function(
-            func=self.change_request,
-            name="Request_change",
-            description="Изменяет нужные данные / значения полей в уже существующей заявке. Вам следует предоставить chat_id; номер текущей заявки request_number; field_name - подходящее название поля, одно из следующего списка: date, phone, apartment, entrance, floor, intercom, comment; а также само новое значение поля (field_value) в качестве параметров.",
-            args_schema=change_request_args,
-            return_direct=False,
-            handle_tool_error=True,
-            handle_validation_error=True,
-            verbose=True,
-        )
-        tools.append(change_request_tool)
+        # # Tool: change_request_tool
+        # change_request_tool = StructuredTool.from_function(
+        #     func=self.change_request,
+        #     name="Request_change",
+        #     description="Изменяет нужные данные / значения полей в уже существующей заявке. Вам следует предоставить chat_id; номер текущей заявки request_number; field_name - подходящее название поля, одно из следующего списка: date, phone, apartment, entrance, floor, intercom, comment; а также само новое значение поля (field_value) в качестве параметров.",
+        #     args_schema=change_request_args,
+        #     return_direct=False,
+        #     handle_tool_error=True,
+        #     handle_validation_error=True,
+        #     verbose=True,
+        # )
+        # tools.append(change_request_tool)
 
-        # Tool: request_selection_tool
-        request_selection_tool = StructuredTool.from_function(
-            func=self.request_selection,
-            name="Request_selection",
-            description="Находит и предоставляет пользователю список его текущих заявок для выбора, чтобы определить контекст всего диалога. Вам следует предоставить chat_id в качестве параметра.",
-            args_schema=request_selection_args,
-            return_direct=False,
-            handle_tool_error=True,
-            handle_validation_error=True,
-            verbose=True,
-        )
-        tools.append(request_selection_tool)
+        # # Tool: request_selection_tool
+        # request_selection_tool = StructuredTool.from_function(
+        #     func=self.request_selection,
+        #     name="Request_selection",
+        #     description="Находит и предоставляет пользователю список его текущих заявок для выбора, чтобы определить контекст всего диалога. Вам следует предоставить chat_id в качестве параметра.",
+        #     args_schema=request_selection_args,
+        #     return_direct=False,
+        #     handle_tool_error=True,
+        #     handle_validation_error=True,
+        #     verbose=True,
+        # )
+        # tools.append(request_selection_tool)
 
         # self.agent = initialize_agent(
         #     tools,
