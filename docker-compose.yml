@@ -3,8 +3,9 @@ version: '3.8'
 services:
   customer_bot_vlad_test:
     container_name: customer_bot_vlad_test
-    ports:
-      - "7406:86"
+    # ports:
+    #   - "7406:86"
+    network_mode: host
     restart: unless-stopped
     build:
       context: .
