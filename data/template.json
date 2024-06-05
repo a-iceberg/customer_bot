@@ -29,7 +29,13 @@
             "floor": "1",
             "entrance": "1",
             "apartment": "1",
-            "intercom": "1234"
+            "intercom": "1234",
+            "name_components": [
+                {
+                    "kind": "locality",
+                    "name": "Москва"
+                }
+            ]
         },
         "comment": "",
         "revision": 0
