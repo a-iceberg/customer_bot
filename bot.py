@@ -168,7 +168,6 @@ class Application:
                     welcome_message,
                     message["message_id"],
                     "AIMessage",
-                    message["from"]["first_name"],
                     "llm",
                 )
 
@@ -286,6 +285,7 @@ chat_id текущего пользователя - {self.chat_id}"""
                     self.chat_agent = ChatAgent(
                         self.config_manager.get("model"),
                         self.config_manager.get("temperature"),
+                        self.config_manager.get("chats_dir"),
                         self.config_manager.get("request_dir"),
                         self.config_manager.get("proxy_url"),
                         self.config_manager.get("order_path"),
@@ -307,7 +307,6 @@ chat_id текущего пользователя - {self.chat_id}"""
                     user_message,
                     message["message_id"],
                     "HumanMessage",
-                    message["from"]["first_name"],
                     "human",
                 )
                 await self.chat_history_service.save_to_chat_history(
@@ -315,7 +314,6 @@ chat_id текущего пользователя - {self.chat_id}"""
                     bot_response["output"],
                     message["message_id"],
                     "AIMessage",
-                    message["from"]["first_name"],
                     "llm",
                 )
 

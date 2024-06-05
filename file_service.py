@@ -21,7 +21,6 @@ class FileService:
         message_text,
         message_id,
         message_type,
-        user_name,
         event_id="default",
         date_override=None,
     ):
@@ -50,8 +49,7 @@ class FileService:
                         "type": message_type,
                         "text": message_text,
                         "date": message_date,
-                        "message_id": message_id,
-                        "name_of_user": user_name,
+                        "message_id": message_id
                     },
                     ensure_ascii=False,
                 )

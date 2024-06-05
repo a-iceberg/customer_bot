@@ -1,17 +1,19 @@
+import os
+import re
+import time
+import json
+import requests
+
+from openai import OpenAI
+from pydantic.v1 import BaseModel, Field
+from geopy.geocoders import Nominatim
+from telebot.types import ReplyKeyboardMarkup
+
 from langchain.tools.base import StructuredTool
 # from langchain_anthropic import ChatAnthropic
 from langchain_openai import ChatOpenAI
-from openai import OpenAI
-from pydantic.v1 import BaseModel, Field
-import os
-import re
-# from langchain.agents import initialize_agent, AgentType
 from langchain.agents import AgentExecutor, create_tool_calling_agent
 from langchain_core.prompts import ChatPromptTemplate
-from geopy.geocoders import Nominatim
-import requests
-import json
-from uuid import uuid4
 
 from file_service import FileService
 
@@ -90,6 +92,7 @@ class ChatAgent:
         self,
         model,
         temperature,
+        chats_dir,
         request_dir,
         proxy_url,
         order_path,
@@ -104,6 +107,7 @@ class ChatAgent:
         self.config = {
             "model": model,
             "temperature": temperature,
+            "chats_dir": chats_dir,
             "request_dir": request_dir,
             "proxy_url": proxy_url,
             "order_path": order_path,
@@ -112,7 +116,9 @@ class ChatAgent:
         self.agent_executor = None
         self.bot_instance = bot_instance
 
-        self.request_service = FileService(self.config["request_dir"], logger)
+        self.request_service = FileService(self.config["request_dir"], self.logger)
+        self.chat_history_service = FileService(self.config["chats_dir"], self.logger)
+
 
     def initialize_agent(self):
         # llm = ChatAnthropic(
@@ -256,9 +262,9 @@ class ChatAgent:
 
         # Tool: request_selection_tool
         request_selection_tool = StructuredTool.from_function(
-            func=self.request_selection,
+            coroutine=self.request_selection,
             name="Request_selection",
-            description="Находит и предоставляет пользователю список его текущих заявок для выбора, чтобы определить контекст всего диалога, если речь идёт уже о каких-либо прошлых заявках, а не об оформлении новой. Вам следует предоставить chat_id в качестве параметра.",
+            description="Находит и предоставляет пользователю список его текущих заявок для выбора, чтобы определить контекст всего диалога, если речь идёт уже о каких-либо прошлых заявках, а не об оформлении новой. Используйте обязательно всегда, когда вам нужно понять, о какой именно заявке идёт речь, например, когда пользователь хочет изменить или дополнить данные по существующей заявке. Сами вопрос НЕ задавайте, просто используйте инструмент. Вам следует предоставить chat_id в качестве параметра.",
             args_schema=request_selection_args,
             return_direct=False,
             handle_tool_error=True,
@@ -384,7 +390,7 @@ class ChatAgent:
         with open("./data/template.json", "r", encoding="utf-8") as f:
             order_params = json.load(f)
 
-        order_params["order"]["uslugi_id"] = str(chat_id) #str(uuid4()).replace("-", "")
+        order_params["order"]["uslugi_id"] = str(chat_id)+time.strftime("%Y-%m-%d-%H-%M-%S", time.localtime()).replace("-", "")
         order_params["order"]["client"]["display_name"] = name
         order_params["order"]["services"][0]["service_id"] = direction
         order_params["order"]["desired_dt"] = date
@@ -475,14 +481,14 @@ class ChatAgent:
         else:
             return f"Ошибка при создании заявки: {order.text}"
 
-    def request_selection(self, chat_id):
+    async def request_selection(self, chat_id):
         login = os.environ.get("1C_LOGIN", "")
         password = os.environ.get("1C_PASSWORD", "")
 
         ws_url = f"{self.config['proxy_url']}/ws"        
         ws_params = {
             "Идентификатор": "bid_numbers",
-            "НомерПартнера": chat_id,
+            "НомерПартнера": str(chat_id),
         }
         ws_data = {
             "clientPath": self.config["ws_paths"],
@@ -497,15 +503,26 @@ class ChatAgent:
             self.logger.info(f"results: {results}")
             for value in results.values():
                 if len(value) > 0:
-                    request_numbers.append(value[0]["id"])
+                    for request in value:
+                        request_numbers.append(request["id"])
                     break
             self.logger.info(f"request_numbers: {request_numbers}")
         except Exception as e:
             self.logger.error(f"Error in receiving request numbers: {e}")
-        if results.status_code == 200:
-            if len(request_numbers) > 0:
-                return f"Номера заявок клиента {request_numbers}"
-            else:
-                return "У пользователя нет существующих заявок"
+
+        if len(request_numbers) > 0:
+            markup = ReplyKeyboardMarkup(resize_keyboard=True, one_time_keyboard=True)
+            text = "Пожалуйста, выберите, о какой вашей заявке идёт речь:"
+            for number in sorted(request_numbers):
+                markup.add(number)
+            question = self.bot_instance.send_message(chat_id, text, reply_markup=markup)
+            await self.chat_history_service.save_to_chat_history(
+                chat_id,
+                text,
+                question.message_id,
+                "AIMessage",
+                "llm",
+            )
+            return "У пользователя уже был запрошен номер заявки, в рамках которой сейчас идёт диалог"
         else:
-            return f"Ошибка при получении заявок: {results.text}"
+            return "У пользователя нет существующих заявок"
