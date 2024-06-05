@@ -260,18 +260,18 @@ class ChatAgent:
         # )
         # tools.append(change_request_tool)
 
-        # Tool: request_selection_tool
-        request_selection_tool = StructuredTool.from_function(
-            coroutine=self.request_selection,
-            name="Request_selection",
-            description="Находит и предоставляет пользователю список его текущих заявок для выбора, чтобы определить контекст всего диалога, если речь идёт уже о каких-либо прошлых заявках, а не об оформлении новой. Используйте обязательно всегда, когда вам нужно понять, о какой именно заявке идёт речь, например, когда пользователь хочет изменить или дополнить данные по существующей заявке. Сами вопрос НЕ задавайте, просто используйте инструмент. Вам следует предоставить chat_id в качестве параметра.",
-            args_schema=request_selection_args,
-            return_direct=False,
-            handle_tool_error=True,
-            handle_validation_error=True,
-            verbose=True,
-        )
-        tools.append(request_selection_tool)
+        # # Tool: request_selection_tool
+        # request_selection_tool = StructuredTool.from_function(
+        #     coroutine=self.request_selection,
+        #     name="Request_selection",
+        #     description="Находит и предоставляет пользователю список его текущих заявок для выбора, чтобы определить контекст всего диалога, если речь идёт уже о каких-либо прошлых заявках, а не об оформлении новой. Используйте обязательно всегда, когда вам нужно понять, о какой именно заявке идёт речь, например, когда пользователь хочет изменить или дополнить данные по существующей заявке. Сами вопрос НЕ задавайте, просто используйте инструмент. Вам следует предоставить chat_id в качестве параметра.",
+        #     args_schema=request_selection_args,
+        #     return_direct=False,
+        #     handle_tool_error=True,
+        #     handle_validation_error=True,
+        #     verbose=True,
+        # )
+        # tools.append(request_selection_tool)
 
         # self.agent = initialize_agent(
         #     tools,
