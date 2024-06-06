@@ -1,6 +1,6 @@
 {
     "order": {
-        "uslugi_id": "1000",
+        1"uslugi_id": "1000",
         "services": [
             {
                 "service_id": "Холодильники",
@@ -12,24 +12,24 @@
         ],
         "status": "created",
         "duration_minutes": 0,
-        "desired_dt": "2024-04-01T00:00Z",
+        1"desired_dt": "2024-04-01T00:00Z",
         "employees": [],
         "payment_type": "card",
         "client": {
             "display_name": "Не названо",
-            "phone": "81234567890"
+            "phone": ""
         },
         "address": {
             "uri": "",
             "geopoint": {
-                "longitude": 37.618561,
-                "latitude": 55.760221
+                "longitude": 37.532877,
+                "latitude": 55.902519
             },
-            "name": "Москва, Театральная площадь, 1",
-            "floor": "1",
-            "entrance": "1",
-            "apartment": "1",
-            "intercom": "1234",
+            "name": "",
+            "floor": "",
+            "entrance": "",
+            "apartment": "",
+            "intercom": "",
             "name_components": [
                 {
                     "kind": "locality",
@@ -37,7 +37,7 @@
                 }
             ]
         },
-        "comment": "",
+        1"comment": "",
         "revision": 0
     }
 }

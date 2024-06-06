@@ -76,15 +76,16 @@ class create_request_args(BaseModel):
     name: str = Field(description="name")
 
 
+class request_selection_args(BaseModel):
+    chat_id: int = Field(description="chat_id")
+
+
 class change_request_args(BaseModel):
     chat_id: int = Field(description="chat_id")
     request_number: str = Field(description="request_number")
     field_name: str = Field(description="field_name")
     field_value: str = Field(description="field_value")
 
-
-class request_selection_args(BaseModel):
-    chat_id: int = Field(description="chat_id")
 
 class ChatAgent:
 
@@ -237,7 +238,7 @@ class ChatAgent:
         # Tool: create_request_tool
         create_request_tool = StructuredTool.from_function(
             func=self.create_request,
-            name="Request_creation",
+            name="Create_request",
             description="Создает полностью заполненную заявку в 1С и по возможности определяет её номер. Вам следует предоставить chat_id, точное значение города обращения из списка в вашем системном промпте, выбранное на основании города в address, и по отдельности сами значения ключей словаря (request) с текущей заявкой из вашего системного промпта в качестве соответствующих параметров инструмента, кроме ключа address_line_2. Из его же значения выделите и передайте отдельно при наличии непосредственно сами численно-буквенные значения apartment, entrance, floor и intercom (т.е. без слов) из всего address_line_2 в качестве остальных соответствующих параметров инструмента. Если какие-то из параметров не были предоставлены пользователем, передавайте их в инструмент со значением пустой строки - ''",
             args_schema=create_request_args,
             return_direct=False,
@@ -246,19 +247,6 @@ class ChatAgent:
             verbose=True,
         )
         tools.append(create_request_tool)
-
-        # # Tool: change_request_tool
-        # change_request_tool = StructuredTool.from_function(
-        #     func=self.change_request,
-        #     name="Request_change",
-        #     description="Изменяет нужные данные / значения полей в уже существующей заявке. Вам следует предоставить chat_id; номер текущей заявки request_number; field_name - подходящее название поля, одно из следующего списка: date, phone, apartment, entrance, floor, intercom, comment; а также само новое значение поля (field_value) в качестве параметров.",
-        #     args_schema=change_request_args,
-        #     return_direct=False,
-        #     handle_tool_error=True,
-        #     handle_validation_error=True,
-        #     verbose=True,
-        # )
-        # tools.append(change_request_tool)
 
         # Tool: request_selection_tool
         request_selection_tool = StructuredTool.from_function(
@@ -272,6 +260,19 @@ class ChatAgent:
             verbose=True,
         )
         tools.append(request_selection_tool)
+
+        # Tool: change_request_tool
+        change_request_tool = StructuredTool.from_function(
+            func=self.change_request,
+            name="Change_request",
+            description="Изменяет нужные данные / значения полей в уже существующей заявке. Вам следует предоставить chat_id; номер текущей заявки request_number; field_name - подходящее название поля: 'phone' или 'comment'; а также само новое значение поля, полученное от пользователя (field_value) в качестве параметров.",
+            args_schema=change_request_args,
+            return_direct=False,
+            handle_tool_error=True,
+            handle_validation_error=True,
+            verbose=True,
+        )
+        tools.append(change_request_tool)
 
         # self.agent = initialize_agent(
         #     tools,
@@ -526,3 +527,18 @@ class ChatAgent:
             return "У пользователя был запрошен номер заявки, в рамках которой сейчас идёт диалог"
         else:
             return "У пользователя нет существующих заявок"
+    
+    def request_selection(self, chat_id, request_number, field_name, field_value):
+        login = os.environ.get("1C_LOGIN", "")
+        password = os.environ.get("1C_PASSWORD", "")
+
+        ws_url = f"{self.config['proxy_url']}/ws"        
+        ws_params = {
+            "Идентификатор": "bid_numbers",
+            "НомерПартнера": str(chat_id),
+        }
+        ws_data = {
+            "clientPath": self.config["ws_paths"],
+            "login": login,
+            "password": password,
+        }
