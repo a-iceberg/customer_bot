@@ -5,11 +5,11 @@ import json
 import requests
 
 from openai import OpenAI
-from pydantic import BaseModel, Field
+from pydantic.v1 import BaseModel, Field
 from geopy.geocoders import Nominatim
 from telebot.types import ReplyKeyboardMarkup
 
-from langchain.tools.base import StructuredTool
+from langchain_core.tools import StructuredTool
 # from langchain_anthropic import ChatAnthropic
 from langchain_openai import ChatOpenAI
 from langchain.agents import AgentExecutor, create_tool_calling_agent
@@ -266,7 +266,7 @@ class ChatAgent:
             name="Request_selection",
             description="Находит и предоставляет пользователю список его текущих заявок для выбора, чтобы определить контекст всего диалога, если речь идёт уже о каких-либо прошлых заявках, а не об оформлении новой. Используйте однократно, когда вам нужно понять, о какой именно заявке идёт речь, например, когда пользователь хочет изменить или дополнить данные по существующей заявке. Вам следует предоставить chat_id в качестве параметра.",
             args_schema=request_selection_args,
-            return_direct=True,
+            return_direct=False,
             handle_tool_error=True,
             handle_validation_error=True,
             verbose=True,
@@ -512,7 +512,7 @@ class ChatAgent:
 
         if len(request_numbers) > 0:
             markup = ReplyKeyboardMarkup(resize_keyboard=True, one_time_keyboard=True)
-            text = "Пожалуйста, выберите, о какой вашей заявке идёт речь:"
+            text = "Секунду..."
             for number in sorted(request_numbers):
                 markup.add(number)
             question = self.bot_instance.send_message(chat_id, text, reply_markup=markup)
@@ -523,14 +523,6 @@ class ChatAgent:
                 "AIMessage",
                 "llm",
             )
-            return request_numbers
+            return "У пользователя был запрошен номер заявки, в рамках которой сейчас идёт диалог"
         else:
-            text = "Извините, но в данный момент у вас нет активных заявок"
-            await self.chat_history_service.save_to_chat_history(
-                chat_id,
-                text,
-                question.message_id,
-                "AIMessage",
-                "llm",
-            )
-            return text
+            return "У пользователя нет существующих заявок"
