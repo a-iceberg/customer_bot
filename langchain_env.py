@@ -5,7 +5,7 @@ import json
 import requests
 
 from openai import OpenAI
-from pydantic.v1 import BaseModel, Field
+from pydantic import BaseModel, Field
 from geopy.geocoders import Nominatim
 from telebot.types import ReplyKeyboardMarkup
 
@@ -260,18 +260,18 @@ class ChatAgent:
         # )
         # tools.append(change_request_tool)
 
-        # # Tool: request_selection_tool
-        # request_selection_tool = StructuredTool.from_function(
-        #     coroutine=self.request_selection,
-        #     name="Request_selection",
-        #     description="Находит и предоставляет пользователю список его текущих заявок для выбора, чтобы определить контекст всего диалога, если речь идёт уже о каких-либо прошлых заявках, а не об оформлении новой. Используйте обязательно всегда, когда вам нужно понять, о какой именно заявке идёт речь, например, когда пользователь хочет изменить или дополнить данные по существующей заявке. Сами вопрос НЕ задавайте, просто используйте инструмент. Вам следует предоставить chat_id в качестве параметра.",
-        #     args_schema=request_selection_args,
-        #     return_direct=False,
-        #     handle_tool_error=True,
-        #     handle_validation_error=True,
-        #     verbose=True,
-        # )
-        # tools.append(request_selection_tool)
+        # Tool: request_selection_tool
+        request_selection_tool = StructuredTool.from_function(
+            coroutine=self.request_selection,
+            name="Request_selection",
+            description="Находит и предоставляет пользователю список его текущих заявок для выбора, чтобы определить контекст всего диалога, если речь идёт уже о каких-либо прошлых заявках, а не об оформлении новой. Используйте однократно, когда вам нужно понять, о какой именно заявке идёт речь, например, когда пользователь хочет изменить или дополнить данные по существующей заявке. Вам следует предоставить chat_id в качестве параметра.",
+            args_schema=request_selection_args,
+            return_direct=True,
+            handle_tool_error=True,
+            handle_validation_error=True,
+            verbose=True,
+        )
+        tools.append(request_selection_tool)
 
         # self.agent = initialize_agent(
         #     tools,
@@ -523,6 +523,14 @@ class ChatAgent:
                 "AIMessage",
                 "llm",
             )
-            return "У пользователя уже был запрошен номер заявки, в рамках которой сейчас идёт диалог"
+            return request_numbers
         else:
-            return "У пользователя нет существующих заявок"
+            text = "Извините, но в данный момент у вас нет активных заявок"
+            await self.chat_history_service.save_to_chat_history(
+                chat_id,
+                text,
+                question.message_id,
+                "AIMessage",
+                "llm",
+            )
+            return text
