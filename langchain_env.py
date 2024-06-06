@@ -18,7 +18,7 @@ from langchain_core.prompts import ChatPromptTemplate
 from file_service import FileService
 
 
-class save_direction_to_request_args(BaseModel):
+class SaveDirectionToRequestArgs(BaseModel):
     chat_id: int = Field(description="chat_id")
     direction: str = Field(description="direction")
 
@@ -135,7 +135,7 @@ class ChatAgent:
             coroutine=self.save_direction_to_request,
             name="Saving_direction",
             description="Сохраняет подходящее под запрос пользователя направление обращения из имеющегося списка направлений в заявку. Нужно соотнести запрос и выбрать подходящее только из тех, что в этом списке. Вам следует предоставить chat_id и непосредственно сам direction из списка в качестве параметров.",
-            args_schema=save_direction_to_request_args,
+            args_schema=SaveDirectionToRequestArgs,
             return_direct=False,
             handle_tool_error=True,
             handle_validation_error=True,
