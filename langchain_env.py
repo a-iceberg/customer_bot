@@ -4,6 +4,7 @@ import time
 import json
 import requests
 
+from datetime import datetime
 from openai import OpenAI
 from pydantic.v1 import BaseModel, Field
 from geopy.geocoders import Nominatim
@@ -81,7 +82,6 @@ class request_selection_args(BaseModel):
 
 
 class change_request_args(BaseModel):
-    chat_id: int = Field(description="chat_id")
     request_number: str = Field(description="request_number")
     field_name: str = Field(description="field_name")
     field_value: str = Field(description="field_value")
@@ -265,7 +265,7 @@ class ChatAgent:
         change_request_tool = StructuredTool.from_function(
             func=self.change_request,
             name="Change_request",
-            description="Изменяет нужные данные / значения полей в уже существующей заявке. Вам следует предоставить chat_id; номер текущей заявки request_number; field_name - подходящее название поля: 'phone' или 'comment'; а также само новое значение поля, полученное от пользователя (field_value) в качестве параметров.",
+            description="Изменяет нужные данные / значения полей в уже существующей заявке. Допустимо обрабатывать ТОЛЬКО комментарий или телефон. Вам следует предоставить номер текущей заявки request_number; field_name - подходящее название поля: 'comment' или 'phone'; а также само новое значение поля, полученное от пользователя (field_value) в качестве параметров.",
             args_schema=change_request_args,
             return_direct=False,
             handle_tool_error=True,
@@ -412,7 +412,7 @@ class ChatAgent:
             messages=[
                 {
                     "role": "system",
-                    "content": "Вы - сотрудник по сохранности конфиденциальных данных. В передаваемом вами тексте никогда не должно быть никакой следующей информации: любых номеров телефонов; значений подъезда, этажа, квартиры, домофона. Возвращайте в ответе полученный текст с УБРАННОЙ всей перечисленной выше информацией, а не ваш ответ с размышлениями.",
+                    "content": "Вы - сотрудник по сохранности конфиденциальных данных. В передаваемом вами тексте никогда не должно быть никакой следующей информации: любых номеров телефонов; значений подъезда, этажа, квартиры, домофона. Возвращайте в ответе ТОЛЬКО полученный текст с УБРАННОЙ всей перечисленной выше информацией, НИ В КОЕМ СЛУЧАЕ НЕ ваш ответ с размышлениями.",
                 },
                 {
                     "role": "user",
@@ -447,9 +447,7 @@ class ChatAgent:
         ws_url = f"{self.config['proxy_url']}/ws"
 
         order_data = {
-            "clientPath": self.config["order_path"],
-            "login": login,
-            "password": password,
+            "clientPath": self.config["order_path"]
         }
         order = requests.post(
             order_url,
@@ -457,12 +455,15 @@ class ChatAgent:
         )
         self.logger.info(f"Result:\n{order.status_code}\n{order.text}")
 
-        ws_data = order_data
-        ws_data["clientPath"] = self.config["ws_paths"]
+        ws_data = {
+            "clientPath": self.config["ws_paths"],
+            "login": login,
+            "password": password,
+        }
         request_number = None
         try:
             results = requests.post(
-                ws_url, json={"config": ws_data, "params": ws_params}
+                ws_url, json={"config": ws_data, "params": ws_params, "token": token}
             ).json()["result"]
             self.logger.info(f"results: {results}")
             for value in results.values():
@@ -483,6 +484,7 @@ class ChatAgent:
             return f"Ошибка при создании заявки: {order.text}"
 
     async def request_selection(self, chat_id):
+        token = os.environ.get("1С_TOKEN", "")
         login = os.environ.get("1C_LOGIN", "")
         password = os.environ.get("1C_PASSWORD", "")
 
@@ -499,7 +501,7 @@ class ChatAgent:
         request_numbers = []
         try:
             results = requests.post(
-                ws_url, json={"config": ws_data, "params": ws_params}
+                ws_url, json={"config": ws_data, "params": ws_params, "token": token}
             ).json()["result"]
             self.logger.info(f"results: {results}")
             for value in results.values():
@@ -528,17 +530,70 @@ class ChatAgent:
         else:
             return "У пользователя нет существующих заявок"
     
-    def request_selection(self, chat_id, request_number, field_name, field_value):
+    def change_request(self, request_number, field_name, field_value):
+        token = os.environ.get("1С_TOKEN", "")
         login = os.environ.get("1C_LOGIN", "")
         password = os.environ.get("1C_PASSWORD", "")
 
         ws_url = f"{self.config['proxy_url']}/ws"        
         ws_params = {
-            "Идентификатор": "bid_numbers",
-            "НомерПартнера": str(chat_id),
+            "Идентификатор": "data_to_change_bid",
+            "Номер": request_number,
         }
         ws_data = {
             "clientPath": self.config["ws_paths"],
             "login": login,
             "password": password,
         }
+
+        try:
+            results = requests.post(
+                ws_url, json={"config": ws_data, "params": ws_params, "token": token}
+            ).json()["result"]
+            self.logger.info(f"results: {results}")
+            for value in results.values():
+                if len(value) > 0:
+                    partner_number = str(value[0]["id"])
+                    date_received = value[0]["date"]
+                    date = datetime.strptime(date_received, '%d.%m.%Y %H:%M:%S')
+                    date_str = date.strftime('%Y-%m-%dT%H:%MZ')
+                    comment = value[0]["comment"]
+                    break
+            self.logger.info(f"partner_number: {partner_number}")
+            self.logger.info(f"date: {date}")
+            self.logger.info(f"comment: {comment}")
+        except Exception as e:
+            self.logger.error(f"Error in receiving request data: {e}")
+
+        if partner_number and date and comment:
+            with open("./data/template.json", "r", encoding="utf-8") as f:
+                change_params = json.load(f)
+            change_params["order"]["uslugi_id"] = partner_number
+            change_params["order"]["desired_dt"] = date_str
+            change_params["order"]["revision"] = 1
+            if field_name == "comment":
+                change_params["order"]["comment"] = field_value
+                self.logger.info(f"Parametrs: {change_params}")
+            elif field_name == "phone":
+                change_params["order"]["client"]["phone"] = field_value
+                change_params["order"]["comment"] = comment
+                self.logger.info(f"Parametrs: {change_params}")
+            else:
+                self.logger.info(f"Parametrs: {change_params}")
+                return "Получено или сформулировано недопустимое для изменения значение. Доступны только коммментарий или телефон"
+            
+            change_url = f"{self.config['proxy_url']}/exchange"
+            change_data = {
+                "clientPath": self.config["change_path"]
+            }
+            change = requests.put(
+                change_url,
+                json={"config": change_data, "params": change_params, "token": token}
+            )
+            self.logger.info(f"Result:\n{change.status_code}\n{change.text}")
+            if change.status_code == 200:
+                return f"Данные заявки были обновлнены"
+            else:
+                return f"Ошибка при обновлении заявки: {change.text}"
+        else:
+            return "Произошла ошибка при получении данных заявки"
