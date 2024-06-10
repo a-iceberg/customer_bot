@@ -585,7 +585,7 @@ class ChatAgent:
             
             change_url = f"{self.config['proxy_url']}/ex"
             client_path = self.config["change_path"]
-            client_path["crm"] = f"{self.config["change_path"]}/{partner_number}"
+            client_path["crm"] = f"{self.config['change_path']}/{partner_number}"
 
             change_data = {
                 "clientPath": client_path
