@@ -291,6 +291,7 @@ chat_id текущего пользователя - {self.chat_id}"""
                         self.config_manager.get("proxy_url"),
                         self.config_manager.get("order_path"),
                         self.config_manager.get("ws_paths"),
+                        self.config_manager.get("change_path"),
                         self.logger,
                         bot,
                     )

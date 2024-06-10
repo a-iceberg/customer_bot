@@ -98,6 +98,7 @@ class ChatAgent:
         proxy_url,
         order_path,
         ws_paths,
+        change_path,
         logger,
         bot_instance,
     ):
@@ -113,6 +114,7 @@ class ChatAgent:
             "proxy_url": proxy_url,
             "order_path": order_path,
             "ws_paths": ws_paths,
+            "change_path": change_path
         }
         self.agent_executor = None
         self.bot_instance = bot_instance
