@@ -254,7 +254,7 @@ class ChatAgent:
         request_selection_tool = StructuredTool.from_function(
             coroutine=self.request_selection,
             name="Request_selection",
-            description="Находит и предоставляет пользователю список его текущих заявок для выбора, чтобы определить контекст всего диалога, если речь идёт уже о каких-либо прошлых заявках, а не об оформлении новой. Используйте ОБЯЗАТЕЛЬНО и однократно, когда вам нужно понять, о какой именно заявке идёт речь, например всегда, когда пользователь хочет изменить или дополнить данные по существующей заявке. Вам следует предоставить chat_id в качестве параметра.",
+            description="Находит и предоставляет пользователю список его текущих заявок для выбора, чтобы определить контекст всего диалога, если речь идёт уже о каких-либо прошлых заявках, а не об оформлении новой. Используйте ОБЯЗАТЕЛЬНО и ОДНОКРАТНО, когда вам нужно понять, о какой именно заявке идёт речь, например всегда, когда пользователь хочет изменить или дополнить данные по существующей заявке. Вам следует предоставить chat_id в качестве параметра.",
             args_schema=request_selection_args,
             return_direct=False,
             handle_tool_error=True,
@@ -585,7 +585,7 @@ class ChatAgent:
             
             change_url = f"{self.config['proxy_url']}/ex"
             client_path = self.config["change_path"]
-            client_path["crm"] = f"{self.config['change_path']}/{partner_number}"
+            client_path["crm"] = f"{self.config['change_path']['crm']}/{partner_number}"
 
             change_data = {
                 "clientPath": client_path
