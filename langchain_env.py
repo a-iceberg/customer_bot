@@ -510,7 +510,6 @@ class ChatAgent:
                 if len(value) > 0:
                     for request in value:
                         request_numbers.append(request["id"])
-                    break
             self.logger.info(f"request_numbers: {request_numbers}")
         except Exception as e:
             self.logger.error(f"Error in receiving request numbers: {e}")
