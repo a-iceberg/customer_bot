@@ -585,8 +585,11 @@ class ChatAgent:
                 return "Получено или сформулировано недопустимое для изменения значение. Доступны только коммментарий или телефон"
             
             change_url = f"{self.config['proxy_url']}/ex"
+            client_path = self.config["change_path"]
+            client_path["crm"] = f"{client_path['crm']}/{partner_number}"
+
             change_data = {
-                "clientPath": f"{self.config['change_path']}/{partner_number}"
+                "clientPath": client_path
             }
             change = requests.put(
                 change_url,
