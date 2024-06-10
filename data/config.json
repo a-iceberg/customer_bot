@@ -12,5 +12,8 @@
         "msk": "http://10.2.4.141/Test_CallCentr/ws/OuterQuery?wsdl",
         "spb": "http://10.2.4.141/Test_Piter_MRM/ws/OuterQuery?wsdl",
         "reg": "http://10.2.4.141/Test_Region_MRM/ws/OuterQuery?wsdl"
+    },
+    "change_path": {
+        "crm": "https://exchange.iceberg.ru/yandex/v1/order"
     }
 }

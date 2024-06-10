@@ -582,9 +582,9 @@ class ChatAgent:
                 self.logger.info(f"Parametrs: {change_params}")
                 return "Получено или сформулировано недопустимое для изменения значение. Доступны только коммментарий или телефон"
             
-            change_url = f"{self.config['proxy_url']}/exchange"
+            change_url = f"{self.config['proxy_url']}/ex"
             change_data = {
-                "clientPath": self.config["change_path"]
+                "clientPath": f"{self.config['change_path']}/{partner_number}"
             }
             change = requests.put(
                 change_url,
