@@ -19,6 +19,11 @@ from langchain_core.prompts import ChatPromptTemplate
 from file_service import FileService
 
 
+class save_name_to_request_args(BaseModel):
+    chat_id: int = Field(description="chat_id")
+    name: str = Field(description="name")
+
+
 class SaveDirectionToRequestArgs(BaseModel):
     chat_id: int = Field(description="chat_id")
     direction: str = Field(description="direction")
@@ -55,11 +60,6 @@ class save_comment_to_request_args(BaseModel):
     comment: str = Field(description="comment")
 
 
-class save_name_to_request_args(BaseModel):
-    chat_id: int = Field(description="chat_id")
-    name: str = Field(description="name")
-
-
 class create_request_args(BaseModel):
     chat_id: int = Field(description="chat_id")
     city: str = Field(description="city")
@@ -73,8 +73,8 @@ class create_request_args(BaseModel):
     entrance: str = Field(description="entrance")
     floor: str = Field(description="floor")
     intercom: str = Field(description="intercom")
-    comment: str = Field(description="comment")
     name: str = Field(description="name")
+    comment: str = Field(description="comment")
 
 
 class request_selection_args(BaseModel):
@@ -132,6 +132,19 @@ class ChatAgent:
             temperature=self.config["temperature"],
         )
         tools = []
+
+        # Tool: save_name_tool
+        save_name_tool = StructuredTool.from_function(
+            coroutine=self.save_name_to_request,
+            name="Saving_name",
+            description="Сохраняет имя пользователя в заявку. Используйте ОБЯЗАТЕЛЬНО ВСЕГДА, если имеющееся у вас или полученное имя выглядит как настоящее человеческое. Вам следует предоставить chat_id и непосредственно само name в качестве параметров.",
+            args_schema=save_name_to_request_args,
+            return_direct=False,
+            handle_tool_error=True,
+            handle_validation_error=True,
+            verbose=True,
+        )
+        tools.append(save_name_tool)
 
         # Tool: save_direction_tool
         save_direction_tool = StructuredTool.from_function(
@@ -224,19 +237,6 @@ class ChatAgent:
         )
         tools.append(save_comment_tool)
 
-        # Tool: save_name_tool
-        save_name_tool = StructuredTool.from_function(
-            coroutine=self.save_name_to_request,
-            name="Saving_name",
-            description="Сохраняет имя пользователя в заявку. Используйте ОБЯЗАТЕЛЬНО всегда, если имеющееся у вас или полученное имя выглядит как настоящее человеческое. Вам следует предоставить chat_id и непосредственно само name в качестве параметров.",
-            args_schema=save_name_to_request_args,
-            return_direct=False,
-            handle_tool_error=True,
-            handle_validation_error=True,
-            verbose=True,
-        )
-        tools.append(save_name_tool)
-
         # Tool: create_request_tool
         create_request_tool = StructuredTool.from_function(
             func=self.create_request,
@@ -254,7 +254,7 @@ class ChatAgent:
         request_selection_tool = StructuredTool.from_function(
             coroutine=self.request_selection,
             name="Request_selection",
-            description="Находит и предоставляет пользователю список его текущих заявок для выбора, чтобы определить контекст всего диалога, если речь идёт уже о каких-либо прошлых заявках, а не об оформлении новой. Используйте ОБЯЗАТЕЛЬНО и ОДНОКРАТНО, когда вам нужно понять, о какой именно заявке идёт речь, например всегда, когда пользователь хочет изменить или дополнить данные по существующей заявке. Вам следует предоставить chat_id в качестве параметра.",
+            description="Находит и предоставляет пользователю список его текущих заявок для выбора, чтобы определить контекст всего диалога, если речь идёт уже о каких-либо прошлых заявках, а не об оформлении новой. Используйте ОБЯЗАТЕЛЬНО и ОДНОКРАТНО, когда вам нужно понять, о какой именно заявке идёт речь, например всегда, когда пользователь хочет изменить или дополнить данные по существующей заявке. Когда вы уже получили номер заявки, повторно НЕ используйте этото инструмент! Вам следует предоставить chat_id в качестве параметра.",
             args_schema=request_selection_args,
             return_direct=False,
             handle_tool_error=True,
@@ -267,7 +267,7 @@ class ChatAgent:
         change_request_tool = StructuredTool.from_function(
             func=self.change_request,
             name="Change_request",
-            description="Изменяет нужные данные / значения полей в уже существующей заявке. Допустимо обрабатывать ТОЛЬКО комментарий или телефон. Вам следует предоставить номер текущей заявки request_number; field_name - подходящее название поля: 'comment' или 'phone'; а также само новое значение поля, полученное от пользователя (field_value) в качестве параметров.",
+            description="Изменяет нужные данные / значения полей в уже существующей заявке. Допустимо обрабатывать ТОЛЬКО комментарий или телефон. Для редактирования уже созданных заявок используйте только этот инструмент! Вам следует предоставить номер текущей заявки request_number; field_name - подходящее название поля: 'comment' или 'phone'; а также само новое значение поля, полученное от пользователя (field_value) в качестве параметров.",
             args_schema=change_request_args,
             return_direct=False,
             handle_tool_error=True,
@@ -296,6 +296,12 @@ class ChatAgent:
         self.agent_executor = AgentExecutor(
             agent=agent, tools=tools, verbose=True, handle_parsing_errors=True, early_stopping_method="generate", max_iterations=20
         )
+
+    async def save_name_to_request(self, chat_id, name):
+        self.logger.info(f"save_name_to_request name: {name}")
+        await self.request_service.save_to_request(chat_id, name, "name")
+        self.logger.info("Имя пользователя было сохранено в заявку")
+        return "Имя пользователя было сохранено в заявку"
 
     async def save_direction_to_request(self, chat_id, direction):
         self.logger.info(f"save_direction_to_request direction: {direction}")
@@ -363,11 +369,6 @@ class ChatAgent:
         self.logger.info("Комментарий был сохранен в заявку")
         return "Комментарий был сохранен в заявку"
 
-    async def save_name_to_request(self, chat_id, name):
-        self.logger.info(f"save_name_to_request name: {name}")
-        await self.request_service.save_to_request(chat_id, name, "name")
-        self.logger.info("Имя пользователя было сохранено в заявку")
-        return "Имя пользователя было сохранено в заявку"
 
     def create_request(
         self,
@@ -383,8 +384,8 @@ class ChatAgent:
         entrance="",
         floor="",
         intercom="",
-        comment="",
         name="Не названо",
+        comment=""
     ):
         token = os.environ.get("1С_TOKEN", "")
         login = os.environ.get("1C_LOGIN", "")
@@ -584,13 +585,10 @@ class ChatAgent:
                 return "Получено или сформулировано недопустимое для изменения значение. Доступны только коммментарий или телефон"
             
             change_url = f"{self.config['proxy_url']}/ex"
-            client_path = self.config["change_path"]
-            client_path["crm"] = f"{self.config['change_path']['crm']}/{partner_number}"
-
             change_data = {
-                "clientPath": client_path
+                "clientPath": {"crm": self.config["change_path"]["crm"]+partner_number}
             }
-            change = requests.put(
+            change = requests.post(
                 change_url,
                 json={"config": change_data, "params": change_params, "token": token}
             )
