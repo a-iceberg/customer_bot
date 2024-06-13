@@ -6,7 +6,7 @@
     "temperature": 0.6,
     "proxy_url": "https://service.icecorp.ru:7405",
     "order_path": {
-        "crm": "http://10.2.4.141/Test_CRM/hs/yandex/v1/order"
+        "crm": "http://10.2.4.141/Test_CRM/hs/yandex/v1/order/"
     },
     "ws_paths": {
         "msk": "http://10.2.4.141/Test_CallCentr/ws/OuterQuery?wsdl",

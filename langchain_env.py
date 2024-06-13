@@ -561,7 +561,7 @@ class ChatAgent:
             }
             revision = requests.post(
                 get_url, json={"config": get_data, "token": token}
-            )["result"]["order"]["revision"]
+            ).json()["result"]["order"]["revision"]
             self.logger.info(f"partner_number: {partner_number}")
             self.logger.info(f"date: {date}")
             self.logger.info(f"comment: {comment}")
