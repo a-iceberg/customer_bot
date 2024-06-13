@@ -541,7 +541,6 @@ class ChatAgent:
             "login": login,
             "password": password,
         }
-
         try:
             results = requests.post(
                 ws_url, json={"config": ws_data, "params": ws_params, "token": token}
@@ -555,18 +554,27 @@ class ChatAgent:
                     date_str = date.strftime('%Y-%m-%dT%H:%MZ')
                     comment = value[0]["comment"] if value[0]["comment"] else ""
                     break
+
+            get_url = f"{self.config['proxy_url']}/rev"
+            get_data = {
+                "clientPath": {"crm": self.config["order_path"]["crm"]+partner_number}
+            }
+            revision = requests.post(
+                get_url, json={"config": get_data, "token": token}
+            )["result"]["order"]["revision"]
             self.logger.info(f"partner_number: {partner_number}")
             self.logger.info(f"date: {date}")
             self.logger.info(f"comment: {comment}")
+            self.logger.info(f"revision: {revision}")
         except Exception as e:
             self.logger.error(f"Error in receiving request data: {e}")
 
-        if partner_number and date:
+        if partner_number and date and revision:
             with open("./data/template.json", "r", encoding="utf-8") as f:
                 change_params = json.load(f)
             change_params["order"]["uslugi_id"] = partner_number
             change_params["order"]["desired_dt"] = date_str
-            change_params["order"]["revision"] = 1
+            change_params["order"]["revision"] = revision + 1
             if field_name == "comment":
                 change_params["order"]["comment"] = field_value
                 self.logger.info(f"Parametrs: {change_params}")
