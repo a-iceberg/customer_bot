@@ -519,14 +519,8 @@ class ChatAgent:
             text = "Секунду..."
             for number in sorted(request_numbers):
                 markup.add(number)
-            question = self.bot_instance.send_message(chat_id, text, reply_markup=markup)
-            await self.chat_history_service.save_to_chat_history(
-                chat_id,
-                text,
-                question.message_id,
-                "AIMessage",
-                "llm",
-            )
+            self.bot_instance.send_message(chat_id, text, reply_markup=markup)
+            
             return "У пользователя был только запрошен номер заявки, в рамках которой сейчас идёт диалог"
         else:
             return "У пользователя нет существующих заявок"

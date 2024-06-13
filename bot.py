@@ -1,10 +1,12 @@
 import os
 import time
 import logging
+import requests
 from uuid import uuid4
 from pathlib import Path
 
 import telebot
+from telebot.types import ReplyKeyboardMarkup
 from openai import OpenAI
 from fastapi import FastAPI, Request, Header
 from fastapi.responses import JSONResponse
@@ -159,10 +161,12 @@ class Application:
                 return self.empty_response
 
             if user_message == "/start":
+                markup = ReplyKeyboardMarkup(resize_keyboard=True, one_time_keyboard=True)
+                markup.add("📑 Выбрать свою заявку")
                 welcome_message = (
-                    "Здраствуйте, это сервисный центр. Чем могу вам помочь? "
+                    "Здраствуйте, это сервисный центр. Чем могу вам помочь?"
                 )
-                bot.send_message(self.chat_id, welcome_message)
+                bot.send_message(self.chat_id, welcome_message, reply_markup=markup)
                 await self.chat_history_service.save_to_chat_history(
                     self.chat_id,
                     welcome_message,
@@ -170,23 +174,67 @@ class Application:
                     "AIMessage",
                     "llm",
                 )
+            
+            elif user_message == "📑 Выбрать свою заявку":
+                token = os.environ.get("1С_TOKEN", "")
+                login = os.environ.get("1C_LOGIN", "")
+                password = os.environ.get("1C_PASSWORD", "")
 
-            if user_message == "/reset":
+                ws_url = f"{self.config_manager.get("proxy_url")}/ws"        
+                ws_params = {
+                    "Идентификатор": "bid_numbers",
+                    "НомерПартнера": str(self.chat_id),
+                }
+                ws_data = {
+                    "clientPath": self.config_manager.get("ws_paths"),
+                    "login": login,
+                    "password": password,
+                }
+                request_numbers = []
+                try:
+                    results = requests.post(
+                        ws_url, json={"config": ws_data, "params": ws_params, "token": token}
+                    ).json()["result"]
+                    self.logger.info(f"results: {results}")
+                    for value in results.values():
+                        if len(value) > 0:
+                            for request in value:
+                                request_numbers.append(request["id"])
+                    self.logger.info(f"request_numbers: {request_numbers}")
+                except Exception as e:
+                    self.logger.error(f"Error in receiving request numbers: {e}")
+
+                if len(request_numbers) > 0:
+                    markup = ReplyKeyboardMarkup(resize_keyboard=True, one_time_keyboard=True)
+                    text = "Выберете номер вашей заявки ниже 👇"
+                    for number in sorted(request_numbers):
+                        markup.add(f"Номер моей заявки - {number}")
+                    markup.add("🏠 Вернуться в меню")
+                    bot.send_message(self.chat_id, text, reply_markup=markup)
+                else:
+                    text = "К сожалению, у вас нет текущих активных заявок./nБуду рад помочь оформить новую! 😃"
+                    bot.send_message(self.chat_id, text)
+            
+            elif user_message =="🏠 Вернуться в меню":
+                markup = ReplyKeyboardMarkup(resize_keyboard=True, one_time_keyboard=True)
+                markup.add("📑 Выбрать свою заявку")
+                return_message = (
+                    "Возвращаюсь в меню..."
+                )
+                bot.send_message(self.chat_id, return_message, reply_markup=markup)
+
+            elif user_message == "/reset":
                 self.chat_history_service.delete_files(self.chat_id)
                 bot.send_message(
                     self.chat_id, "История сообщений чата была очищена для бота"
                 )
 
-            if user_message == "/fullreset":
+            elif user_message == "/fullreset":
                 self.chat_history_service.delete_files(self.chat_id)
                 self.request_service.delete_files(self.chat_id)
                 bot.send_message(self.chat_id, "Полная история чата была очищена")
 
-            elif (
-                user_message != "/start"
-                and user_message != "/reset"
-                and user_message != "/fullreset"
-            ):
+            else:
                 request = await self.request_service.read_request(self.chat_id)
                 user_name = message["from"]["first_name"]
                 try:
