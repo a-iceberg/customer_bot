@@ -558,7 +558,7 @@ class ChatAgent:
                     date_received = value[0]["date"]
                     date = datetime.strptime(date_received, '%d.%m.%Y %H:%M:%S')
                     date_str = date.strftime('%Y-%m-%dT%H:%MZ')
-                    comment = value[0]["comment"]
+                    comment = value[0]["comment"] if value[0]["comment"] else ""
                     break
             self.logger.info(f"partner_number: {partner_number}")
             self.logger.info(f"date: {date}")
@@ -566,7 +566,7 @@ class ChatAgent:
         except Exception as e:
             self.logger.error(f"Error in receiving request data: {e}")
 
-        if partner_number and date and comment:
+        if partner_number and date:
             with open("./data/template.json", "r", encoding="utf-8") as f:
                 change_params = json.load(f)
             change_params["order"]["uslugi_id"] = partner_number
