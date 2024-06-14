@@ -163,7 +163,8 @@ class Application:
             if user_message == "/start":
                 bot.delete_message(self.chat_id, message["message_id"])
                 markup = ReplyKeyboardMarkup(resize_keyboard=True, one_time_keyboard=True)
-                markup.add("📑 Выбрать свою заявку")
+                markup.add("📝 Хочу оформить новую заявку")
+                markup.add("📑 Выбрать свою активную заявку")
                 welcome_message = (
                     "Здраствуйте, это сервисный центр. Чем могу вам помочь?"
                 )
@@ -176,7 +177,7 @@ class Application:
                     "llm",
                 )
             
-            elif user_message == "📑 Выбрать свою заявку":
+            elif user_message == "📑 Выбрать свою активную заявку":
                 bot.delete_message(self.chat_id, message["message_id"])
                 token = os.environ.get("1С_TOKEN", "")
                 login = os.environ.get("1C_LOGIN", "")
@@ -220,7 +221,8 @@ class Application:
             elif user_message =="🏠 Вернуться в меню":
                 bot.delete_message(self.chat_id, message["message_id"])
                 markup = ReplyKeyboardMarkup(resize_keyboard=True, one_time_keyboard=True)
-                markup.add("📑 Выбрать свою заявку")
+                markup.add("📝 Хочу оформить новую заявку")
+                markup.add("📑 Выбрать свою активную заявку")
                 return_message = (
                     "Возвращаюсь в меню..."
                 )
