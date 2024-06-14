@@ -563,13 +563,13 @@ class ChatAgent:
                 get_url, json={"config": get_data, "token": token}
             ).json()["result"]["order"]["revision"]
             self.logger.info(f"partner_number: {partner_number}")
-            self.logger.info(f"date: {date}")
+            self.logger.info(f"date: {date_str}")
             self.logger.info(f"comment: {comment}")
             self.logger.info(f"revision: {revision}")
         except Exception as e:
             self.logger.error(f"Error in receiving request data: {e}")
 
-        if partner_number and date and revision:
+        if partner_number and date_str and revision:
             with open("./data/template.json", "r", encoding="utf-8") as f:
                 change_params = json.load(f)
             change_params["order"]["uslugi_id"] = partner_number
