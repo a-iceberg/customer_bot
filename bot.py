@@ -46,6 +46,10 @@ class Application:
         os.environ["1С_TOKEN"] = cm.get("1С_TOKEN", "")
         os.environ["1C_LOGIN"] = cm.get("1C_LOGIN", "")
         os.environ["1C_PASSWORD"] = cm.get("1C_PASSWORD", "")
+        os.environ["TELEGRAM_API_ID"] = cm.get("TELEGRAM_API_ID", 0)
+        os.environ["TELEGRAM_API_HASH"] = cm.get("TELEGRAM_API_HASH", "")
+        os.environ["BOT_TOKEN"] = cm.get("BOT_TOKEN", "")
+
         self.logger.info("Auth data set successfully")
 
     def setup_logging(self):
@@ -65,6 +69,7 @@ class Application:
             message = await request.json()
 
             self.chat_id = message["chat"]["id"]
+            self.message_id = message["message_id"]
             self.logger.info(message)
 
             token = None
@@ -161,7 +166,7 @@ class Application:
                 return self.empty_response
 
             if user_message == "/start":
-                bot.delete_message(self.chat_id, message["message_id"])
+                bot.delete_message(self.chat_id, self.message_id)
                 markup = ReplyKeyboardMarkup(resize_keyboard=True, one_time_keyboard=True)
                 markup.add("📝 Хочу оформить новую заявку")
                 markup.add("📑 Выбрать свою активную заявку")
@@ -172,13 +177,13 @@ class Application:
                 await self.chat_history_service.save_to_chat_history(
                     self.chat_id,
                     welcome_message,
-                    message["message_id"],
+                    self.message_id,
                     "AIMessage",
                     "llm",
                 )
             
             elif user_message == "📑 Выбрать свою активную заявку":
-                bot.delete_message(self.chat_id, message["message_id"])
+                bot.delete_message(self.chat_id, self.message_id)
                 token = os.environ.get("1С_TOKEN", "")
                 login = os.environ.get("1C_LOGIN", "")
                 password = os.environ.get("1C_PASSWORD", "")
@@ -219,7 +224,7 @@ class Application:
                     bot.send_message(self.chat_id, text)
             
             elif user_message =="🏠 Вернуться в меню":
-                bot.delete_message(self.chat_id, message["message_id"])
+                bot.delete_message(self.chat_id, self.message_id)
                 markup = ReplyKeyboardMarkup(resize_keyboard=True, one_time_keyboard=True)
                 markup.add("📝 Хочу оформить новую заявку")
                 markup.add("📑 Выбрать свою активную заявку")
@@ -229,14 +234,14 @@ class Application:
                 bot.send_message(self.chat_id, return_message, reply_markup=markup)
 
             elif user_message == "/reset":
-                bot.delete_message(self.chat_id, message["message_id"])
+                bot.delete_message(self.chat_id, self.message_id)
                 self.chat_history_service.delete_files(self.chat_id)
                 bot.send_message(
                     self.chat_id, "История сообщений чата была очищена для бота"
                 )
 
             elif user_message == "/fullreset":
-                bot.delete_message(self.chat_id, message["message_id"])
+                bot.delete_message(self.chat_id, self.message_id)
                 self.chat_history_service.delete_files(self.chat_id)
                 self.request_service.delete_files(self.chat_id)
                 bot.send_message(self.chat_id, "Полная история чата была очищена")
@@ -338,7 +343,8 @@ chat_id текущего пользователя - {self.chat_id}"""
 
                 # Read chat history in LLM fromat
                 chat_history = await self.chat_history_service.read_chat_history(
-                    self.chat_id
+                    self.chat_id,
+                    self.message_id
                 )
                 self.logger.info(f"History for {self.chat_id}: {chat_history}")
 
@@ -367,14 +373,14 @@ chat_id текущего пользователя - {self.chat_id}"""
                 await self.chat_history_service.save_to_chat_history(
                     self.chat_id,
                     user_message,
-                    message["message_id"],
+                    self.message_id,
                     "HumanMessage",
                     "human",
                 )
                 await self.chat_history_service.save_to_chat_history(
                     self.chat_id,
                     bot_response["output"],
-                    message["message_id"],
+                    self.message_id,
                     "AIMessage",
                     "llm",
                 )
