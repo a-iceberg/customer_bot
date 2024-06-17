@@ -5,6 +5,7 @@ pandas==1.5.3
 pyTelegramBotAPI==4.16.1
 pyrogram==2.0.106
 tgcrypto==1.2.5
+tenacity==8.2.3
 langchain==0.2.2
 langchain_core==0.2.4
 aiofiles==23.2.1
