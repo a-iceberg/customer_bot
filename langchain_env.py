@@ -267,7 +267,7 @@ class ChatAgent:
         change_request_tool = StructuredTool.from_function(
             func=self.change_request,
             name="Change_request",
-            description="Изменяет нужные данные / значения полей в уже существующей заявке. Допустимо обрабатывать ТОЛЬКО комментарий или телефон. Для редактирования уже созданных заявок используйте ТОЛЬКО этот инструмент! Вам следует предоставить сам номер текущей заявки request_number; field_name - подходящее название поля: 'comment' или 'phone'; а также само новое значение поля, полученное от пользователя (field_value) в качестве параметров.",
+            description="Изменяет нужные данные / значения полей в уже существующей заявке. Допустимо обрабатывать ТОЛЬКО комментарий или телефон. Для редактирования уже имеющихся созданных заявок используйте ТОЛЬКО ЭТОТ инструмент, а НЕ обычные с добавлением информации в новую! Вам следует предоставить сам номер текущей заявки request_number; field_name - подходящее название поля: 'comment' или 'phone'; а также само новое значение поля, полученное от пользователя (field_value) в качестве параметров.",
             args_schema=change_request_args,
             return_direct=False,
             handle_tool_error=True,
@@ -531,6 +531,10 @@ class ChatAgent:
         login = os.environ.get("1C_LOGIN", "")
         password = os.environ.get("1C_PASSWORD", "")
 
+        partner_number = None
+        date_str = None
+        revision = None
+
         ws_url = f"{self.config['proxy_url']}/ws"        
         ws_params = {
             "Идентификатор": "data_to_change_bid",
@@ -552,28 +556,40 @@ class ChatAgent:
                     date_received = value[0]["date"]
                     date = datetime.strptime(date_received, '%d.%m.%Y %H:%M:%S')
                     date_str = date.strftime('%Y-%m-%dT%H:%MZ')
-                    comment = value[0]["comment"] if value[0]["comment"] else ""
+                    if value[0]["comment"]:
+                        if value[0]["comment"] == "''":
+                            comment = ''
+                        else:
+                            comment = value[0]["comment"]
+                    else:
+                        comment = ''
+                    # comment = value[0]["comment"] if value[0]["comment"] else ''
                     break
 
             get_url = f"{self.config['proxy_url']}/rev"
             get_data = {
                 "clientPath": {"crm": self.config["order_path"]["crm"]+partner_number}
             }
-            revision = requests.post(
+            request = requests.post(
                 get_url, json={"config": get_data, "token": token}
-            ).json()["result"]["order"]["revision"]
+            ).json()["result"]["order"]
+            revision = request["revision"]
+            locality = request["address"]["name_components"][0]["name"]
+
             self.logger.info(f"partner_number: {partner_number}")
             self.logger.info(f"date: {date_str}")
             self.logger.info(f"comment: {comment}")
             self.logger.info(f"revision: {revision}")
+            self.logger.info(f"locality: {locality}")
         except Exception as e:
             self.logger.error(f"Error in receiving request data: {e}")
 
-        if partner_number and date_str and revision is not None:
+        if partner_number and date_str and locality and revision is not None:
             with open("./data/template.json", "r", encoding="utf-8") as f:
                 change_params = json.load(f)
             change_params["order"]["uslugi_id"] = partner_number
             change_params["order"]["desired_dt"] = date_str
+            change_params["order"]["address"]["name_components"][0]["name"] = locality
             change_params["order"]["revision"] = revision + 1
             if field_name == "comment":
                 change_params["order"]["comment"] = field_value

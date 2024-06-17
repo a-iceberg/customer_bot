@@ -46,7 +46,7 @@ class Application:
         os.environ["1С_TOKEN"] = cm.get("1С_TOKEN", "")
         os.environ["1C_LOGIN"] = cm.get("1C_LOGIN", "")
         os.environ["1C_PASSWORD"] = cm.get("1C_PASSWORD", "")
-        os.environ["TELEGRAM_API_ID"] = cm.get("TELEGRAM_API_ID", 0)
+        os.environ["TELEGRAM_API_ID"] = cm.get("TELEGRAM_API_ID", "")
         os.environ["TELEGRAM_API_HASH"] = cm.get("TELEGRAM_API_HASH", "")
         os.environ["BOT_TOKEN"] = cm.get("BOT_TOKEN", "")
 
@@ -218,10 +218,12 @@ class Application:
                     for number in sorted(request_numbers):
                         markup.add(f"Номер моей заявки - {number}")
                     markup.add("🏠 Вернуться в меню")
-                    bot.send_message(self.chat_id, text, reply_markup=markup)
+                    answer = bot.send_message(self.chat_id, text, reply_markup=markup)
+                    bot.delete_message(self.chat_id, answer.message_id)
                 else:
                     text = "К сожалению, у вас нет текущих активных заявок./nБуду рад помочь оформить новую! 😃"
-                    bot.send_message(self.chat_id, text)
+                    answer = bot.send_message(self.chat_id, text)
+                    bot.delete_message(self.chat_id, answer.message_id)
             
             elif user_message =="🏠 Вернуться в меню":
                 bot.delete_message(self.chat_id, self.message_id)
@@ -231,20 +233,23 @@ class Application:
                 return_message = (
                     "Возвращаюсь в меню..."
                 )
-                bot.send_message(self.chat_id, return_message, reply_markup=markup)
+                answer = bot.send_message(self.chat_id, return_message, reply_markup=markup)
+                bot.delete_message(self.chat_id, answer.message_id)
 
             elif user_message == "/reset":
                 bot.delete_message(self.chat_id, self.message_id)
                 self.chat_history_service.delete_files(self.chat_id)
-                bot.send_message(
+                answer = bot.send_message(
                     self.chat_id, "История сообщений чата была очищена для бота"
                 )
+                bot.delete_message(self.chat_id, answer.message_id)
 
             elif user_message == "/fullreset":
                 bot.delete_message(self.chat_id, self.message_id)
                 self.chat_history_service.delete_files(self.chat_id)
                 self.request_service.delete_files(self.chat_id)
-                bot.send_message(self.chat_id, "Полная история чата была очищена")
+                answer = bot.send_message(self.chat_id, "Полная история чата была очищена")
+                bot.delete_message(self.chat_id, answer.message_id)
 
             else:
                 request = await self.request_service.read_request(self.chat_id)
@@ -273,7 +278,7 @@ class Application:
 номер дома,
 донесите это в том числе до пользователя, как и то, что без звонка мастер не выезжает), нужно ОБЯЗАТЕЛЬНО получить от пользователя в итоге ВСЕ эти три пункта адреса. Прописывайте их в своём сообщении ТОЛЬКО на ОТДЕЛЬНЫХ новых абзацах с промежутками между строками;
 дополнительную информацию по адресу - квартиру, подъезд, этаж, код/домофон (запрашивайте только ОДНОКРАТНО, именно получить необязательно, пользователь может отказаться предоставлять данную информацию полностью или частично, в таком случае СРАЗУ просто продолжайте работу БЕЗ этой информации и повторных уточнений);
-а также СРАЗУ после получения сохранить их с помощью ваших инструментов. НЕ запрашивайте несколько пунктов в одном сообщении.
+а также СРАЗУ после получения, а НЕ потом несколько пунктов сразу, СОХРАНИТЬ эти пункты с помощью ваших инструментов. НЕ запрашивайте несколько пунктов в одном сообщении.
 В том числе по запросу пользователя вы можете менять / дополнять информацию в уже оформленных заявках. Для этого используйте ТОЛЬКО ваш инструмент Change_request, ПОСЛЕ использования инструмента Request_selection. НЕ запрашивайте номер заявки у пользователя без использования Request_selection, но используйте этот инструмент СРАЗУ и ТОЛЬКО ОДИН РАЗ!
 Далее указана ваша детальная инструкция, внимательно и чётко обязательно соблюдайте из неё все пункты! Не додумывайте никаких фактов, которых нет в вашей инструкции.
 Актуальные направления обращения / ремонта для сопоставления:
@@ -344,7 +349,7 @@ chat_id текущего пользователя - {self.chat_id}"""
                 # Read chat history in LLM fromat
                 chat_history = await self.chat_history_service.read_chat_history(
                     self.chat_id,
-                    self.message_id
+                    self.message_id,
                 )
                 self.logger.info(f"History for {self.chat_id}: {chat_history}")
 
@@ -388,8 +393,6 @@ chat_id текущего пользователя - {self.chat_id}"""
                 self.logger.info("Replying in " + str(self.chat_id))
                 self.logger.info(f"Answer: {bot_response['output']}")
                 return bot.send_message(self.chat_id, bot_response["output"])
-                # if not bot_response["output"].startswith("{")
-                # else bot.send_message(self.chat_id, "Пожалуйста, повторите ещё раз, не понял вас.")
 
         def split_audio_ffmpeg(audio_path, chunk_length=10 * 60):
             cmd_duration = f"ffprobe -v error -show_entries format=duration -of default=noprint_wrappers=1:nokey=1 {audio_path}"
