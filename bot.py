@@ -168,6 +168,12 @@ class Application:
 
             if user_message == "/start":
                 bot.delete_message(self.chat_id, self.message_id)
+                self.chat_history_service.delete_files(self.chat_id)
+                self.request_service.delete_files(self.chat_id)
+
+                current_time = time.strftime('%Y-%m-%d %H:%M:%S', time.localtime())
+                self.config_manager.set('chat_history_date', current_time)
+
                 markup = ReplyKeyboardMarkup(resize_keyboard=True, one_time_keyboard=True)
                 markup.add("📝 Хочу оформить новую заявку")
                 markup.add("📑 Выбрать свою активную заявку")
@@ -234,7 +240,7 @@ class Application:
                 )
                 bot.send_message(self.chat_id, return_message, reply_markup=markup)
 
-            elif user_message == "/reset":
+            elif user_message == "/requestreset":
                 bot.delete_message(self.chat_id, self.message_id)
                 self.chat_history_service.delete_files(self.chat_id)
                 self.request_service.delete_files(self.chat_id)
