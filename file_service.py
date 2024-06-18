@@ -91,7 +91,7 @@ class FileService:
     
         if self.chat_history_client is None:
             self.chat_history_client = Client(
-                "IcebergCustomerBot",
+                "memory",
                 workdir="./",
                 api_id=os.environ.get("TELEGRAM_API_ID", ""),
                 api_hash=os.environ.get("TELEGRAM_API_HASH", ""),
