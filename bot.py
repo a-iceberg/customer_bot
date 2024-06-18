@@ -1,5 +1,6 @@
 import os
 import time
+import json
 import logging
 import requests
 from uuid import uuid4
@@ -174,13 +175,13 @@ class Application:
                     "Здраствуйте, это сервисный центр. Чем могу вам помочь?"
                 )
                 bot.send_message(self.chat_id, welcome_message, reply_markup=markup)
-                await self.chat_history_service.save_to_chat_history(
-                    self.chat_id,
-                    welcome_message,
-                    self.message_id,
-                    "AIMessage",
-                    "llm",
-                )
+                # await self.chat_history_service.save_to_chat_history(
+                #     self.chat_id,
+                #     welcome_message,
+                #     self.message_id,
+                #     "AIMessage",
+                #     "llm",
+                # )
             
             elif user_message == "📑 Выбрать свою активную заявку":
                 bot.delete_message(self.chat_id, self.message_id)
@@ -218,12 +219,10 @@ class Application:
                     for number in sorted(request_numbers):
                         markup.add(f"Номер моей заявки - {number}")
                     markup.add("🏠 Вернуться в меню")
-                    answer = bot.send_message(self.chat_id, text, reply_markup=markup)
-                    bot.delete_message(self.chat_id, answer.message_id)
+                    bot.send_message(self.chat_id, text, reply_markup=markup)
                 else:
                     text = "К сожалению, у вас нет текущих активных заявок./nБуду рад помочь оформить новую! 😃"
-                    answer = bot.send_message(self.chat_id, text)
-                    bot.delete_message(self.chat_id, answer.message_id)
+                    bot.send_message(self.chat_id, text)
             
             elif user_message =="🏠 Вернуться в меню":
                 bot.delete_message(self.chat_id, self.message_id)
@@ -233,14 +232,15 @@ class Application:
                 return_message = (
                     "Возвращаюсь в меню..."
                 )
-                answer = bot.send_message(self.chat_id, return_message, reply_markup=markup)
-                bot.delete_message(self.chat_id, answer.message_id)
+                bot.send_message(self.chat_id, return_message, reply_markup=markup)
 
             elif user_message == "/reset":
                 bot.delete_message(self.chat_id, self.message_id)
                 self.chat_history_service.delete_files(self.chat_id)
+                self.request_service.delete_files(self.chat_id)
+
                 answer = bot.send_message(
-                    self.chat_id, "История сообщений чата была очищена для бота"
+                    self.chat_id, "Информация по заявкам была очищена"
                 )
                 bot.delete_message(self.chat_id, answer.message_id)
 
@@ -248,6 +248,10 @@ class Application:
                 bot.delete_message(self.chat_id, self.message_id)
                 self.chat_history_service.delete_files(self.chat_id)
                 self.request_service.delete_files(self.chat_id)
+
+                current_time = time.strftime('%Y-%m-%d %H:%M:%S', time.localtime())
+                self.config_manager.set('chat_history_date', current_time)
+
                 answer = bot.send_message(self.chat_id, "Полная история чата была очищена")
                 bot.delete_message(self.chat_id, answer.message_id)
 
@@ -375,20 +379,20 @@ chat_id текущего пользователя - {self.chat_id}"""
                         "chat_history": chat_history,
                     }
                 )
-                await self.chat_history_service.save_to_chat_history(
-                    self.chat_id,
-                    user_message,
-                    self.message_id,
-                    "HumanMessage",
-                    "human",
-                )
-                await self.chat_history_service.save_to_chat_history(
-                    self.chat_id,
-                    bot_response["output"],
-                    self.message_id,
-                    "AIMessage",
-                    "llm",
-                )
+                # await self.chat_history_service.save_to_chat_history(
+                #     self.chat_id,
+                #     user_message,
+                #     self.message_id,
+                #     "HumanMessage",
+                #     "human",
+                # )
+                # await self.chat_history_service.save_to_chat_history(
+                #     self.chat_id,
+                #     bot_response["output"],
+                #     self.message_id,
+                #     "AIMessage",
+                #     "llm",
+                # )
 
                 self.logger.info("Replying in " + str(self.chat_id))
                 self.logger.info(f"Answer: {bot_response['output']}")

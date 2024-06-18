@@ -4,6 +4,7 @@ import json
 import shutil
 import aiofiles
 
+from datetime import datetime
 from pathlib import Path
 from pyrogram import Client
 from langchain.schema import AIMessage, HumanMessage
@@ -18,99 +19,103 @@ class FileService:
     def file_path(self, chat_id):
         return os.path.join(self.data_dir, str(chat_id))
 
-    async def save_to_chat_history(
-        self,
-        chat_id,
-        message_text,
-        message_id,
-        message_type,
-        event_id="default",
-        date_override=None,
-    ):
-        self.logger.info(
-            f"[{event_id}] Saving message to chat history for chat_id: {chat_id} for message_id: {message_id}"
-        )
-        if date_override is None:
-            message_date = time.strftime("%Y-%m-%d-%H-%M-%S", time.localtime())
-            parsed_time = time.strptime(message_date, "%Y-%m-%d-%H-%M-%S")
-            unix_timestamp = int(time.mktime(parsed_time))
-        else:
-            unix_timestamp = date_override
-            message_date = time.strftime(
-                "%Y-%m-%d-%H-%M-%S", time.localtime(unix_timestamp)
-            )
-        log_file_name = f"{unix_timestamp}_{message_id}_{event_id}.json"
+    # async def save_to_chat_history(
+    #     self,
+    #     chat_id,
+    #     message_text,
+    #     message_id,
+    #     message_type,
+    #     event_id="default",
+    #     date_override=None,
+    # ):
+    #     self.logger.info(
+    #         f"[{event_id}] Saving message to chat history for chat_id: {chat_id} for message_id: {message_id}"
+    #     )
+    #     if date_override is None:
+    #         message_date = time.strftime("%Y-%m-%d-%H-%M-%S", time.localtime())
+    #         parsed_time = time.strptime(message_date, "%Y-%m-%d-%H-%M-%S")
+    #         unix_timestamp = int(time.mktime(parsed_time))
+    #     else:
+    #         unix_timestamp = date_override
+    #         message_date = time.strftime(
+    #             "%Y-%m-%d-%H-%M-%S", time.localtime(unix_timestamp)
+    #         )
+    #     log_file_name = f"{unix_timestamp}_{message_id}_{event_id}.json"
 
-        chat_log_dir = self.file_path(chat_id)
-        Path(chat_log_dir).mkdir(parents=True, exist_ok=True)
+    #     chat_log_dir = self.file_path(chat_id)
+    #     Path(chat_log_dir).mkdir(parents=True, exist_ok=True)
 
-        full_path = os.path.join(chat_log_dir, log_file_name)
-        async with aiofiles.open(full_path, "w") as log_file:
-            await log_file.write(
-                json.dumps(
-                    {
-                        "type": message_type,
-                        "text": message_text,
-                        "date": message_date,
-                        "message_id": message_id
-                    },
-                    ensure_ascii=False,
-                )
-            )
-
-    async def read_chat_history(self, chat_id: str, message_id: int):
-        """Reads the chat history from a folder and returns it as a list of messages."""
-        chat_history = []
-        chat_log_path = self.file_path(chat_id)
-        Path(chat_log_path).mkdir(parents=True, exist_ok=True)
-        self.logger.info(f"Reading chat history from: {chat_log_path}")
-
-        for log_file in sorted(os.listdir(chat_log_path)):
-            full_path = os.path.join(chat_log_path, log_file)
-            try:
-                with open(full_path, "r") as file:
-                    message = json.load(file)
-                    if message["type"] == "AIMessage":
-                        chat_history.append(AIMessage(content=message["text"]))
-                    elif message["type"] == "HumanMessage":
-                        chat_history.append(HumanMessage(content=message["text"]))
-            except Exception as e:
-                self.logger.error(f"Error reading chat history file {log_file}: {e}")
-                # Remove problematic file
-                os.remove(full_path)
-
-        return chat_history
-
-    # async def read_chat_history(self, chat_id: int, message_id: int):
-    #     """Reads the chat history from a telegram server and returns it as a list of messages."""
-    #     chat_history = []
-    #     if self.chat_history_client is None:
-    #         self.chat_history_client = Client(
-    #             "IcebergCustomerBot",
-    #             workdir="./",
-    #             api_id=os.environ.get("TELEGRAM_API_ID", ""),
-    #             api_hash=os.environ.get("TELEGRAM_API_HASH", ""),
-    #             bot_token=os.environ.get("BOT_TOKEN", "")
+    #     full_path = os.path.join(chat_log_dir, log_file_name)
+    #     async with aiofiles.open(full_path, "w") as log_file:
+    #         await log_file.write(
+    #             json.dumps(
+    #                 {
+    #                     "type": message_type,
+    #                     "text": message_text,
+    #                     "date": message_date,
+    #                     "message_id": message_id
+    #                 },
+    #                 ensure_ascii=False,
+    #             )
     #         )
 
-    #     self.logger.info(f"Reading chat history for chat id: {chat_id}")
-    #     try:
-    #         await self.chat_history_client.start()
-    #         message_ids = list(range(message_id-200, message_id))
-    #         messages = await self.chat_history_client.get_messages(chat_id, message_ids)
-    #     except Exception as e:
-    #         self.logger.error(f"Error reading chat history for chat id {chat_id}: {e}")
-    #     finally:
-    #         await self.chat_history_client.stop()
+    # async def read_chat_history(self, chat_id: str, message_id: int):
+    #     """Reads the chat history from a folder and returns it as a list of messages."""
+    #     chat_history = []
+    #     chat_log_path = self.file_path(chat_id)
+    #     Path(chat_log_path).mkdir(parents=True, exist_ok=True)
+    #     self.logger.info(f"Reading chat history from: {chat_log_path}")
 
-    #     for message in messages:
-    #         if message.from_user:
-    #             if message.from_user.is_bot:
-    #                 chat_history.append(AIMessage(content=message.text))
-    #             else:
-    #                 chat_history.append(HumanMessage(content=message.text))
+    #     for log_file in sorted(os.listdir(chat_log_path)):
+    #         full_path = os.path.join(chat_log_path, log_file)
+    #         try:
+    #             with open(full_path, "r") as file:
+    #                 message = json.load(file)
+    #                 if message["type"] == "AIMessage":
+    #                     chat_history.append(AIMessage(content=message["text"]))
+    #                 elif message["type"] == "HumanMessage":
+    #                     chat_history.append(HumanMessage(content=message["text"]))
+    #         except Exception as e:
+    #             self.logger.error(f"Error reading chat history file {log_file}: {e}")
+    #             # Remove problematic file
+    #             os.remove(full_path)
 
     #     return chat_history
+
+    async def read_chat_history(self, chat_id: int, message_id: int):
+        """Reads the chat history from a telegram server and returns it as a list of messages."""
+        with open("./data/config.json", "r", encoding="utf-8") as f:
+            chat_history_date = json.load(f)["chat_history_date"]
+        chat_history = []
+        service_messages = ["Выберете номер вашей заявки ниже 👇", "Возвращаюсь в меню...", "Секунду..."]
+    
+        if self.chat_history_client is None:
+            self.chat_history_client = Client(
+                "IcebergCustomerBot",
+                workdir="./",
+                api_id=os.environ.get("TELEGRAM_API_ID", ""),
+                api_hash=os.environ.get("TELEGRAM_API_HASH", ""),
+                bot_token=os.environ.get("BOT_TOKEN", "")
+            )
+
+        self.logger.info(f"Reading chat history for chat id: {chat_id}")
+        try:
+            await self.chat_history_client.start()
+            message_ids = list(range(message_id-200, message_id))
+            messages = await self.chat_history_client.get_messages(chat_id, message_ids)
+        except Exception as e:
+            self.logger.error(f"Error reading chat history for chat id {chat_id}: {e}")
+        finally:
+            await self.chat_history_client.stop()
+
+        for message in messages:
+            if message.from_user and message.text not in service_messages and message.date > datetime.strptime(chat_history_date, '%Y-%m-%d %H:%M:%S'):
+                if message.from_user.is_bot:
+                    chat_history.append(AIMessage(content=message.text))
+                else:
+                    chat_history.append(HumanMessage(content=message.text))
+
+        return chat_history
 
     def delete_files(self, chat_id: str):
         """Deletes folder and all its content."""

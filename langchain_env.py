@@ -563,7 +563,6 @@ class ChatAgent:
                             comment = value[0]["comment"]
                     else:
                         comment = ''
-                    # comment = value[0]["comment"] if value[0]["comment"] else ''
                     break
 
             get_url = f"{self.config['proxy_url']}/rev"
