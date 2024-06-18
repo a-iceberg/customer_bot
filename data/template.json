@@ -17,19 +17,19 @@
         "payment_type": "card",
         "client": {
             "display_name": "Не названо",
-            "phone": "81234567890"
+            "phone": ""
         },
         "address": {
             "uri": "",
             "geopoint": {
-                "longitude": 37.618561,
-                "latitude": 55.760221
+                "longitude": 37.532877,
+                "latitude": 55.902519
             },
-            "name": "Москва, Театральная площадь, 1",
-            "floor": "1",
-            "entrance": "1",
-            "apartment": "1",
-            "intercom": "1234",
+            "name": "",
+            "floor": "",
+            "entrance": "",
+            "apartment": "",
+            "intercom": "",
             "name_components": [
                 {
                     "kind": "locality",

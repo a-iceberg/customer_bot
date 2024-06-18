@@ -15,4 +15,4 @@ services:
       - LANGCHAIN_PROJECT=customer_bot_cc_test
     volumes:
       - ./data:/app/data
-    command: ["/bin/sh", "-c", "if [ ! -f /app/data/auth.json ]; then echo '{\"LANGCHAIN_API_KEY\": \"\", \"OPENAI_API_KEY\": \"\", \"ANTHROPIC_API_KEY\": \"\", \"1С_TOKEN\": \"\", \"1C_LOGIN\": \"\", \"1C_PASSWORD\": \"\"}' > /app/data/auth.json; fi && exec gunicorn 'bot:app' --workers 1 --worker-class 'uvicorn.workers.UvicornWorker' --bind '0.0.0.0:7408' --timeout 1800"]
+    command: ["/bin/sh", "-c", "if [ ! -f /app/data/auth.json ]; then echo '{\"LANGCHAIN_API_KEY\": \"\", \"OPENAI_API_KEY\": \"\", \"ANTHROPIC_API_KEY\": \"\", \"1С_TOKEN\": \"\", \"1C_LOGIN\": \"\", \"1C_PASSWORD\": \"\", \"TELEGRAM_API_ID\": 0, \"TELEGRAM_API_HASH\": \"\", \"BOT_TOKEN\": \"\"}' > /app/data/auth.json; fi && exec gunicorn 'bot:app' --workers 1 --worker-class 'uvicorn.workers.UvicornWorker' --bind '0.0.0.0:7408' --timeout 1800"]

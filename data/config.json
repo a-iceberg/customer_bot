@@ -6,11 +6,15 @@
     "temperature": 0.6,
     "proxy_url": "https://service.icecorp.ru:7405",
     "order_path": {
-        "crm": "http://10.2.4.141/Test_CRM/hs/yandex/v1/order"
+        "crm": "http://10.2.4.141/Test_CRM/hs/yandex/v1/order/"
     },
     "ws_paths": {
         "msk": "http://10.2.4.141/Test_CallCentr/ws/OuterQuery?wsdl",
         "spb": "http://10.2.4.141/Test_Piter_MRM/ws/OuterQuery?wsdl",
         "reg": "http://10.2.4.141/Test_Region_MRM/ws/OuterQuery?wsdl"
-    }
+    },
+    "change_path": {
+        "crm": "https://exchange.iceberg.ru/yandex/v1/order/"
+    },
+    "chat_history_date": "2024-06-18 19:49:19"
 }
