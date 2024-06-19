@@ -6,12 +6,14 @@ import requests
 from uuid import uuid4
 from pathlib import Path
 
+from openai import OpenAI
+from pyrogram import Client
+from pydub import AudioSegment
+from fastapi.responses import JSONResponse
+from fastapi import FastAPI, Request, Header
+
 import telebot
 from telebot.types import ReplyKeyboardMarkup
-from openai import OpenAI
-from fastapi import FastAPI, Request, Header
-from fastapi.responses import JSONResponse
-from pydub import AudioSegment
 
 from config_manager import ConfigManager
 from file_service import FileService
@@ -22,18 +24,17 @@ class Application:
         self.config_manager = ConfigManager("./data/config.json")
         self.logger = self.setup_logging()
         self.set_keys()
-        self.chat_history_service = FileService(
+        self.chat_data_service = FileService(
             self.config_manager.get("chats_dir"), self.logger
         )
         self.request_service = FileService(
             self.config_manager.get("request_dir"), self.logger
         )
         self.empty_response = JSONResponse(content={"type": "empty", "body": ""})
-
         self.app = FastAPI()
         self.setup_routes()
-
         self.chat_agent = None
+        self.chat_history_client = None
 
     def text_response(self, text):
         return JSONResponse(content={"type": "text", "body": str(text)})
@@ -71,6 +72,10 @@ class Application:
 
             self.chat_id = message["chat"]["id"]
             self.message_id = message["message_id"]
+            await self.chat_data_service.save_message_id(
+                self.chat_id,
+                self.message_id
+            )
             self.logger.info(message)
 
             token = None
@@ -242,7 +247,6 @@ class Application:
 
             elif user_message == "/requestreset":
                 bot.delete_message(self.chat_id, self.message_id)
-                self.chat_history_service.delete_files(self.chat_id)
                 self.request_service.delete_files(self.chat_id)
 
                 answer = bot.send_message(
@@ -252,13 +256,13 @@ class Application:
 
             elif user_message == "/fullreset":
                 bot.delete_message(self.chat_id, self.message_id)
-                self.chat_history_service.delete_files(self.chat_id)
                 self.request_service.delete_files(self.chat_id)
+                await self.chat_data_service.update_chat_history_date(self.chat_id)
 
-                current_time = time.strftime('%Y-%m-%d %H:%M:%S', time.localtime())
-                self.config_manager.set('chat_history_date', current_time)
-
-                answer = bot.send_message(self.chat_id, "Полная история чата была очищена")
+                answer = bot.send_message(
+                    self.chat_id,
+                    "Полная история чата была очищена"
+                )
                 bot.delete_message(self.chat_id, answer.message_id)
 
             else:
@@ -357,7 +361,7 @@ class Application:
 chat_id текущего пользователя - {self.chat_id}"""
 
                 # Read chat history in LLM fromat
-                chat_history = await self.chat_history_service.read_chat_history(
+                chat_history = await self.chat_data_service.read_chat_history(
                     self.chat_id,
                     self.message_id,
                 )
@@ -446,6 +450,30 @@ chat_id текущего пользователя - {self.chat_id}"""
             self.logger.info("Transcription length: " + str(len(text)))
 
             return text
+
+        # @self.app.get("/history")
+        # async def get_chat_history(partner_id: str):
+        #     if self.chat_history_client is None:
+        #         self.chat_history_client = Client(
+        #             "memory",
+        #             workdir="./",
+        #             api_id=os.environ.get("TELEGRAM_API_ID", ""),
+        #             api_hash=os.environ.get("TELEGRAM_API_HASH", ""),
+        #             bot_token=os.environ.get("BOT_TOKEN", "")
+        #         )
+        #     chat_id = partner_id[:9]
+        #     self.logger.info(f"Reading chat history for partner id: {partner_id}")
+
+        #     try:
+        #         await self.chat_history_client.start()
+        #         message_ids = list(range(message_id-200, message_id))
+        #         messages = await self.chat_history_client.get_messages(chat_id, message_ids)
+        #     except Exception as e:
+        #         self.logger.error(f"Error reading chat history for chat id {chat_id}: {e}")
+        #     finally:
+        #         await self.chat_history_client.stop()
+
+        #     return self.text_response("ok") 
 
 
 application = Application()
