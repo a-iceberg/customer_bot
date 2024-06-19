@@ -36,6 +36,7 @@ class Application:
         self.setup_routes()
         self.chat_agent = None
         self.chat_history_client = None
+        self.token = os.environ.get("BOT_TOKEN", "")
 
     def text_response(self, text):
         return JSONResponse(content={"type": "text", "body": str(text)})
@@ -79,11 +80,10 @@ class Application:
             )
             self.logger.info(message)
 
-            token = None
             if authorization and authorization.startswith("Bearer "):
-                token = authorization.split(" ")[1]
+                self.token = authorization.split(" ")[1]
 
-            if token:
+            if self.token:
                 server_api_uri = 'http://localhost:8081/bot{0}/{1}'
                 telebot.apihelper.API_URL = server_api_uri
                 self.logger.info(f'Setting API_URL: {server_api_uri}')
@@ -91,7 +91,7 @@ class Application:
                 server_file_url = 'http://localhost:8081'
                 telebot.apihelper.FILE_URL = server_file_url
                 self.logger.info(f'Setting FILE_URL: {server_file_url}')
-                bot = telebot.TeleBot(token)
+                bot = telebot.TeleBot(self.token)
             else:
                 answer = "Не удалось определить токен бота."
                 return self.text_response(answer)
@@ -194,7 +194,7 @@ class Application:
             
             elif user_message == "📑 Выбрать свою активную заявку":
                 bot.delete_message(self.chat_id, self.message_id)
-                token = os.environ.get("1С_TOKEN", "")
+                # token = os.environ.get("1С_TOKEN", "")
                 login = os.environ.get("1C_LOGIN", "")
                 password = os.environ.get("1C_PASSWORD", "")
 
@@ -211,7 +211,7 @@ class Application:
                 request_numbers = []
                 try:
                     results = requests.post(
-                        ws_url, json={"config": ws_data, "params": ws_params, "token": token}
+                        ws_url, json={"config": ws_data, "params": ws_params, "token": self.token}
                     ).json()["result"]
                     self.logger.info(f"results: {results}")
                     for value in results.values():
@@ -460,7 +460,7 @@ chat_id текущего пользователя - {self.chat_id}"""
                     workdir="./",
                     api_id=os.environ.get("TELEGRAM_API_ID", ""),
                     api_hash=os.environ.get("TELEGRAM_API_HASH", ""),
-                    bot_token=os.environ.get("BOT_TOKEN", "")
+                    bot_token=self.token
                 )
             chat_history = {}
             chat_id = partner_id[:-14]
