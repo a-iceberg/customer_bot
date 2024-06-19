@@ -150,7 +150,7 @@ class FileService:
             await self.chat_history_client.stop()
 
         for message in messages:
-            if message.from_user and message.text not in service_messages and message.date > datetime.strptime(chat_history_date, '%Y-%m-%d %H:%M:%S'):
+            if message.from_user and message.chat.id==chat_id and message.text not in service_messages and message.date > datetime.strptime(chat_history_date, '%Y-%m-%d %H:%M:%S'):
                 if message.from_user.is_bot:
                     chat_history.append(AIMessage(content=message.text))
                 else:
