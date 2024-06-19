@@ -362,6 +362,7 @@ chat_id текущего пользователя - {self.chat_id}"""
                 chat_history = await self.chat_data_service.read_chat_history(
                     self.chat_id,
                     self.message_id,
+                    self.token
                 )
                 self.logger.info(f"History for {self.chat_id}: {chat_history}")
 
@@ -475,7 +476,7 @@ chat_id текущего пользователя - {self.chat_id}"""
             try:
                 await self.chat_history_client.start()
                 message_ids = list(range(message_id-199, message_id+1))
-                messages = await self.chat_history_client.get_messages(chat_id, message_ids)
+                messages = await self.chat_history_client.get_messages(int(chat_id), message_ids)
             except Exception as e:
                 self.logger.error(f"Error reading chat history for chat id {chat_id}: {e}")
             finally:
