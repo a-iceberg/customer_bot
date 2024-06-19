@@ -405,9 +405,9 @@ chat_id текущего пользователя - {self.chat_id}"""
                 self.logger.info("Replying in " + str(self.chat_id))
                 self.logger.info(f"Answer: {bot_response['output']}")
                 answer = bot.send_message(self.chat_id, bot_response["output"])
-                # self.message_id = answer.message_id
+                self.message_id = answer.message_id
 
-                # return await self.chat_data_service.save_message_id(self.chat_id, self.message_id)
+                return await self.chat_data_service.save_message_id(self.chat_id, self.message_id)
 
         def split_audio_ffmpeg(audio_path, chunk_length=10 * 60):
             cmd_duration = f"ffprobe -v error -show_entries format=duration -of default=noprint_wrappers=1:nokey=1 {audio_path}"
@@ -463,7 +463,7 @@ chat_id текущего пользователя - {self.chat_id}"""
                     bot_token=os.environ.get("BOT_TOKEN", "")
                 )
             chat_history = {}
-            chat_id = partner_id[:9]
+            chat_id = partner_id[:-14]
             full_path = os.path.join(
                 self.config_manager.get("chats_dir"),
                 chat_id+'/chat_data.json'
@@ -489,14 +489,6 @@ chat_id текущего пользователя - {self.chat_id}"""
                         "name": message.from_user.first_name if message.from_user.first_name else message.from_user.username,
                         "text": message.text
                     }
-
-            content = json.dumps(chat_history, ensure_ascii=False)
-            c = json.loads(content)
-            keys_list = list(c.keys())
-            last_key = keys_list[-1]
-            last_element = c[last_key]
-            self.logger.info(last_element)
-
             return JSONResponse(
                 content=json.dumps(chat_history, ensure_ascii=False)
             )
