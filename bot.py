@@ -3,6 +3,7 @@ import time
 import json
 import logging
 import requests
+import aiofiles
 from uuid import uuid4
 from pathlib import Path
 
@@ -173,11 +174,8 @@ class Application:
 
             if user_message == "/start":
                 bot.delete_message(self.chat_id, self.message_id)
-                self.chat_history_service.delete_files(self.chat_id)
                 self.request_service.delete_files(self.chat_id)
-
-                current_time = time.strftime('%Y-%m-%d %H:%M:%S', time.localtime())
-                self.config_manager.set('chat_history_date', current_time)
+                await self.chat_data_service.update_chat_history_date(self.chat_id)
 
                 markup = ReplyKeyboardMarkup(resize_keyboard=True, one_time_keyboard=True)
                 markup.add("📝 Хочу оформить новую заявку")
@@ -406,7 +404,10 @@ chat_id текущего пользователя - {self.chat_id}"""
 
                 self.logger.info("Replying in " + str(self.chat_id))
                 self.logger.info(f"Answer: {bot_response['output']}")
-                return bot.send_message(self.chat_id, bot_response["output"])
+                answer = bot.send_message(self.chat_id, bot_response["output"])
+                # self.message_id = answer.message_id
+
+                # return await self.chat_data_service.save_message_id(self.chat_id, self.message_id)
 
         def split_audio_ffmpeg(audio_path, chunk_length=10 * 60):
             cmd_duration = f"ffprobe -v error -show_entries format=duration -of default=noprint_wrappers=1:nokey=1 {audio_path}"
@@ -451,29 +452,54 @@ chat_id текущего пользователя - {self.chat_id}"""
 
             return text
 
-        # @self.app.get("/history")
-        # async def get_chat_history(partner_id: str):
-        #     if self.chat_history_client is None:
-        #         self.chat_history_client = Client(
-        #             "memory",
-        #             workdir="./",
-        #             api_id=os.environ.get("TELEGRAM_API_ID", ""),
-        #             api_hash=os.environ.get("TELEGRAM_API_HASH", ""),
-        #             bot_token=os.environ.get("BOT_TOKEN", "")
-        #         )
-        #     chat_id = partner_id[:9]
-        #     self.logger.info(f"Reading chat history for partner id: {partner_id}")
+        @self.app.get("/history/{partner_id}")
+        async def get_chat_history(partner_id: str):
+            if self.chat_history_client is None:
+                self.chat_history_client = Client(
+                    "memory",
+                    workdir="./",
+                    api_id=os.environ.get("TELEGRAM_API_ID", ""),
+                    api_hash=os.environ.get("TELEGRAM_API_HASH", ""),
+                    bot_token=os.environ.get("BOT_TOKEN", "")
+                )
+            chat_history = {}
+            chat_id = partner_id[:9]
+            full_path = os.path.join(
+                self.config_manager.get("chats_dir"),
+                chat_id+'/chat_data.json'
+            )
+            async with aiofiles.open(full_path, "r", encoding="utf-8") as f:
+                message_id = json.loads(await f.read())["message_id"]
 
-        #     try:
-        #         await self.chat_history_client.start()
-        #         message_ids = list(range(message_id-200, message_id))
-        #         messages = await self.chat_history_client.get_messages(chat_id, message_ids)
-        #     except Exception as e:
-        #         self.logger.error(f"Error reading chat history for chat id {chat_id}: {e}")
-        #     finally:
-        #         await self.chat_history_client.stop()
+            self.logger.info(f"Reading chat history for partner id: {partner_id}")
+            try:
+                await self.chat_history_client.start()
+                message_ids = list(range(message_id-199, message_id+1))
+                messages = await self.chat_history_client.get_messages(chat_id, message_ids)
+            except Exception as e:
+                self.logger.error(f"Error reading chat history for chat id {chat_id}: {e}")
+            finally:
+                await self.chat_history_client.stop()
+            
+            for message in messages:
+                if message.from_user:
+                    chat_history[message.id] = {
+                        "date": message.date.strftime('%Y-%m-%d %H:%M:%S'),
+                        "is_bot": message.from_user.is_bot,
+                        "name": message.from_user.first_name if message.from_user.first_name else message.from_user.username,
+                        "text": message.text
+                    }
 
-        #     return self.text_response("ok") 
+            content = json.dumps(chat_history, ensure_ascii=False)
+            c = json.loads(content)
+            keys_list = list(c.keys())
+            last_key = keys_list[-1]
+            last_element = c[last_key]
+            self.logger.info(last_element)
+
+            return JSONResponse(
+                content=json.dumps(chat_history, ensure_ascii=False)
+            )
 
 
 application = Application()

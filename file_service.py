@@ -209,7 +209,7 @@ class FileService:
                         "text": message_text,
                         "date": message_date,
                     },
-                    ensure_ascii=False,
+                    ensure_ascii=False
                 )
             )
 
