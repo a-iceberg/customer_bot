@@ -483,7 +483,7 @@ chat_id текущего пользователя - {self.chat_id}"""
                 await self.chat_history_client.stop()
             
             for message in messages:
-                if message.from_user:
+                if message.from_user and message.chat.id==int(chat_id):
                     chat_history[message.id] = {
                         "date": message.date.strftime('%Y-%m-%d %H:%M:%S'),
                         "is_bot": message.from_user.is_bot,
