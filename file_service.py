@@ -82,12 +82,53 @@ class FileService:
 
     #     return chat_history
 
+    async def save_message_id(self, chat_id, message_id):
+        chat_dir = self.file_path(chat_id)
+        Path(chat_dir).mkdir(parents=True, exist_ok=True)
+        full_path = os.path.join(chat_dir, 'chat_data.json')
+
+        data = {
+            "message_id": message_id,
+            "chat_history_date": time.strftime('%Y-%m-%d %H:%M:%S', time.localtime())
+        }
+        if Path(full_path).exists():
+            async with aiofiles.open(full_path, "r", encoding="utf-8") as f:
+                existing_data = json.loads(await f.read())
+                existing_data["message_id"] = message_id
+                data = existing_data
+
+        async with aiofiles.open(full_path, "w") as f:
+            await f.write(
+                json.dumps(data, ensure_ascii=False)
+            )
+
+    async def update_chat_history_date(self, chat_id):
+        chat_dir = self.file_path(chat_id)
+        full_path = os.path.join(chat_dir, 'chat_data.json')
+
+        async with aiofiles.open(full_path, "r", encoding="utf-8") as f:
+            data = json.loads(await f.read())
+        data["chat_history_date"] = time.strftime(
+            '%Y-%m-%d %H:%M:%S',
+            time.localtime()
+        )
+        async with aiofiles.open(full_path, "w") as f:
+            await f.write(
+                json.dumps(data, ensure_ascii=False)
+            )
+
     async def read_chat_history(self, chat_id: int, message_id: int):
         """Reads the chat history from a telegram server and returns it as a list of messages."""
-        with open("./data/config.json", "r", encoding="utf-8") as f:
-            chat_history_date = json.load(f)["chat_history_date"]
+        chat_dir = self.file_path(chat_id)
+        full_path = os.path.join(chat_dir, 'chat_data.json')
+        async with aiofiles.open(full_path, "r", encoding="utf-8") as f:
+            chat_history_date = json.loads(await f.read())["chat_history_date"]
         chat_history = []
-        service_messages = ["Выберете номер вашей заявки ниже 👇", "Возвращаюсь в меню...", "Секунду..."]
+        service_messages = [
+            "Выберете номер вашей заявки ниже 👇",
+            "Возвращаюсь в меню...",
+            "Секунду..."
+        ]
     
         if self.chat_history_client is None:
             self.chat_history_client = Client(
@@ -154,7 +195,7 @@ class FileService:
 
         full_path = os.path.join(request_dir, log_file_name)
         if Path(full_path).exists() and message_type == "comment":
-            async with aiofiles.open(full_path, "r") as log_file:
+            async with aiofiles.open(full_path, "r", encoding="utf-8") as log_file:
                 data = await log_file.read()
                 existing_data = json.loads(data)
                 existing_text = existing_data.get("text", "")
