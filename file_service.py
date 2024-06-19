@@ -117,7 +117,7 @@ class FileService:
                 json.dumps(data, ensure_ascii=False)
             )
 
-    async def read_chat_history(self, chat_id: int, message_id: int):
+    async def read_chat_history(self, chat_id: int, message_id: int, token: str):
         """Reads the chat history from a telegram server and returns it as a list of messages."""
         chat_dir = self.file_path(chat_id)
         full_path = os.path.join(chat_dir, 'chat_data.json')
@@ -136,7 +136,7 @@ class FileService:
                 workdir="./",
                 api_id=os.environ.get("TELEGRAM_API_ID", ""),
                 api_hash=os.environ.get("TELEGRAM_API_HASH", ""),
-                bot_token=os.environ.get("BOT_TOKEN", "")
+                bot_token=token
             )
 
         self.logger.info(f"Reading chat history for chat id: {chat_id}")
