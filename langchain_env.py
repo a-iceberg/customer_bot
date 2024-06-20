@@ -394,7 +394,7 @@ class ChatAgent:
         with open("./data/template.json", "r", encoding="utf-8") as f:
             order_params = json.load(f)
 
-        order_params["order"]["uslugi_id"] = str(chat_id)+time.strftime("%Y-%m-%d-%H-%M-%S", time.localtime()).replace("-", "")
+        order_params["order"]["uslugi_id"] = time.strftime("%Y-%m-%d-%H-%M-%S", time.localtime()).replace("-", "")+str(chat_id)
         order_params["order"]["client"]["display_name"] = name
         order_params["order"]["services"][0]["service_id"] = direction
         order_params["order"]["desired_dt"] = date

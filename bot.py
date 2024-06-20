@@ -464,7 +464,7 @@ chat_id текущего пользователя - {self.chat_id}"""
                     bot_token=self.token
                 )
             chat_history = {}
-            chat_id = partner_id[:-14]
+            chat_id = partner_id[14:]
             full_path = os.path.join(
                 self.config_manager.get("chats_dir"),
                 chat_id+'/chat_data.json'
