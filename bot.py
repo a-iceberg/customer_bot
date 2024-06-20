@@ -53,6 +53,7 @@ class Application:
         os.environ["TELEGRAM_API_ID"] = cm.get("TELEGRAM_API_ID", "")
         os.environ["TELEGRAM_API_HASH"] = cm.get("TELEGRAM_API_HASH", "")
         os.environ["BOT_TOKEN"] = cm.get("BOT_TOKEN", "")
+        os.environ["CHAT_HISTORY_TOKEN"] = cm.get("CHAT_HISTORY_TOKEN", "")
 
         self.logger.info("Auth data set successfully")
 
@@ -194,7 +195,7 @@ class Application:
             
             elif user_message == "📑 Выбрать свою активную заявку":
                 bot.delete_message(self.chat_id, self.message_id)
-                # token = os.environ.get("1С_TOKEN", "")
+                token = os.environ.get("1С_TOKEN", "")
                 login = os.environ.get("1C_LOGIN", "")
                 password = os.environ.get("1C_PASSWORD", "")
 
@@ -211,7 +212,7 @@ class Application:
                 request_numbers = []
                 try:
                     results = requests.post(
-                        ws_url, json={"config": ws_data, "params": ws_params, "token": self.token}
+                        ws_url, json={"config": ws_data, "params": ws_params, "token": token}
                     ).json()["result"]
                     self.logger.info(f"results: {results}")
                     for value in results.values():
@@ -230,7 +231,7 @@ class Application:
                     markup.add("🏠 Вернуться в меню")
                     bot.send_message(self.chat_id, text, reply_markup=markup)
                 else:
-                    text = "К сожалению, у вас нет текущих активных заявок./nБуду рад помочь оформить новую! 😃"
+                    text = "К сожалению, у вас нет текущих активных заявок. Буду рад помочь оформить новую! 😃"
                     bot.send_message(self.chat_id, text)
             
             elif user_message =="🏠 Вернуться в меню":
@@ -453,8 +454,13 @@ chat_id текущего пользователя - {self.chat_id}"""
 
             return text
 
-        @self.app.get("/history/{partner_id}")
-        async def get_chat_history(partner_id: str):
+        @self.app.get("/history/{received_token}/{partner_id}")
+        async def get_chat_history(received_token: str, partner_id: str):
+            correct_token = os.environ.get("CHAT_HISTORY_TOKEN", "")
+            if received_token != correct_token:
+                answer = "Неверный токен получения истории чата"
+                return self.text_response(answer)
+
             if self.chat_history_client is None:
                 self.chat_history_client = Client(
                     "memory",
