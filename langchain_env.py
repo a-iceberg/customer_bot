@@ -9,7 +9,7 @@ from datetime import datetime
 from openai import OpenAI
 from pydantic.v1 import BaseModel, Field
 from geopy.geocoders import Nominatim
-from geopy.distance import geodesic
+from geopy.distance import geodesic, lonlat
 from telebot.types import ReplyKeyboardMarkup
 
 from langchain_core.tools import StructuredTool
@@ -325,8 +325,8 @@ class ChatAgent:
         self.affilate = None
         for aff, boundaries in self.config["affilates"].items():
             for coordinates in boundaries:
-                if geodesic([latitude, longitude], coordinates).kilometers < distance:
-                    distance = geodesic([latitude, longitude], coordinates).kilometers
+                if geodesic([latitude, longitude], lonlat(*coordinates)).kilometers < distance:
+                    distance = geodesic([latitude, longitude], lonlat(*coordinates)).kilometers
                     self.affilate = aff
         if (self.affilate == "Москва" and distance > 50) or (self.affilate != "Москва" and distance > 40):
             return "Указанный пользователем адрес находится вне зоны бесплатного выезда мастера. Предложите пользователю связаться с нами по нашему контактному телефону 8 495 723 723 8, указав его, и прекратите далее оформлять заявку!"
@@ -355,8 +355,8 @@ class ChatAgent:
         self.affilate = None
         for aff, boundaries in self.config["affilates"].items():
             for coordinates in boundaries:
-                if geodesic([latitude, longitude], coordinates).kilometers < distance:
-                    distance = geodesic([latitude, longitude], coordinates).kilometers
+                if geodesic([latitude, longitude], lonlat(*coordinates)).kilometers < distance:
+                    distance = geodesic([latitude, longitude], lonlat(*coordinates)).kilometers
                     self.affilate = aff
         if (self.affilate == "Москва" and distance > 50) or (self.affilate != "Москва" and distance > 40):
             return "Указанный пользователем адрес находится вне зоны бесплатного выезда мастера. Предложите пользователю связаться с нами по нашему контактному телефону 8 495 723 723 8, указав его, и прекратите далее оформлять заявку!"
@@ -469,8 +469,8 @@ class ChatAgent:
             self.affilate = None
             for aff, boundaries in self.config["affilates"].items():
                 for coordinates in boundaries:
-                    if geodesic([latitude, longitude], coordinates).kilometers < distance:
-                        distance = geodesic([latitude, longitude], coordinates).kilometers
+                    if geodesic([latitude, longitude], lonlat(*coordinates)).kilometers < distance:
+                        distance = geodesic([latitude, longitude], lonlat(*coordinates)).kilometers
                         self.affilate = aff
             if (self.affilate == "Москва" and distance > 50) or (self.affilate != "Москва" and distance > 40):
                 return "Указанный пользователем адрес находится вне зоны бесплатного выезда мастера. Предложите пользователю связаться с нами по нашему контактному телефону 8 495 723 723 8, указав его, и прекратите далее оформлять заявку!"
