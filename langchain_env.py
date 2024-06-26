@@ -3,11 +3,13 @@ import re
 import time
 import json
 import requests
+import numpy as np
 
 from datetime import datetime
 from openai import OpenAI
 from pydantic.v1 import BaseModel, Field
 from geopy.geocoders import Nominatim
+from geopy.distance import geodesic
 from telebot.types import ReplyKeyboardMarkup
 
 from langchain_core.tools import StructuredTool
@@ -62,7 +64,7 @@ class save_comment_to_request_args(BaseModel):
 
 class create_request_args(BaseModel):
     chat_id: int = Field(description="chat_id")
-    city: str = Field(description="city")
+    # city: str = Field(description="city")
     direction: str = Field(description="direction")
     date: str = Field(description="date")
     phone: str = Field(description="phone")
@@ -99,6 +101,8 @@ class ChatAgent:
         order_path,
         ws_paths,
         change_path,
+        divisions,
+        affilates,
         logger,
         bot_instance,
     ):
@@ -114,7 +118,9 @@ class ChatAgent:
             "proxy_url": proxy_url,
             "order_path": order_path,
             "ws_paths": ws_paths,
-            "change_path": change_path
+            "change_path": change_path,
+            "divisions": divisions,
+            "affilates": affilates
         }
         self.agent_executor = None
         self.bot_instance = bot_instance
@@ -241,7 +247,7 @@ class ChatAgent:
         create_request_tool = StructuredTool.from_function(
             func=self.create_request,
             name="Create_request",
-            description="Создает полностью заполненную новую заявку в 1С и по возможности определяет её номер. Вам следует предоставить chat_id, точное значение города обращения из списка в вашем системном промпте, выбранное на основании города в address, и по отдельности сами значения ключей словаря (request) с текущей заявкой из вашего системного промпта в качестве соответствующих параметров инструмента, кроме ключа address_line_2. Из его же значения выделите и передайте отдельно при наличии непосредственно сами численно-буквенные значения apartment, entrance, floor и intercom (т.е. без слов) из всего address_line_2 в качестве остальных соответствующих параметров инструмента.",
+            description="Создает полностью заполненную новую заявку в 1С и по возможности определяет её номер. Вам следует предоставить chat_id и по отдельности сами значения ключей словаря (request) с текущей заявкой из вашего системного промпта в качестве соответствующих параметров инструмента, кроме ключа address_line_2. Из его же значения выделите и передайте отдельно при наличии непосредственно сами численно-буквенные значения apartment, entrance, floor и intercom (т.е. без слов) из всего address_line_2 в качестве остальных соответствующих параметров инструмента.",
             args_schema=create_request_args,
             return_direct=False,
             handle_tool_error=True,
@@ -305,6 +311,8 @@ class ChatAgent:
 
     async def save_direction_to_request(self, chat_id, direction):
         self.logger.info(f"save_direction_to_request direction: {direction}")
+        if direction not in self.config["divisions"].values():
+            return "Выбрано некорректное направление обращения, определите сами повторно подходящее именно из вашего списка"
         await self.request_service.save_to_request(chat_id, direction, "direction")
         self.logger.info("Направление обращения было сохранено в заявку")
         return "Направление обращения было сохранено в заявку"
@@ -313,6 +321,15 @@ class ChatAgent:
         self.logger.info(
             f"save_gps_to_request latitude: {latitude} longitude: {longitude}"
         )
+        distance = np.inf
+        self.affilate = None
+        for aff, boundaries in self.config["affilates"].items():
+            for coordinates in boundaries:
+                if geodesic([latitude, longitude], coordinates).kilometers < distance:
+                    distance = geodesic([latitude, longitude], coordinates).kilometers
+                    self.affilate = aff
+        if (self.affilate == "Москва" and distance > 50) or (self.affilate != "Москва" and distance > 40):
+            return "Указанный пользователем адрес находится вне зоны бесплатного выезда мастера. Предложите пользователю связаться с нами по нашему контактному телефону 8 495 723 723 8, указав его, и прекратите далее оформлять заявку!"
         geolocator = Nominatim(user_agent="my_app")
         address = geolocator.reverse(f"{latitude}, {longitude}").address
         await self.request_service.save_to_request(chat_id, latitude, "latitude")
@@ -333,8 +350,16 @@ class ChatAgent:
             latitude = location.latitude
             longitude = location.longitude
         else:
-            latitude = 55.900678
-            longitude = 37.528109
+            return "Не удалось получить координаты адреса. Запросите адрес ещё раз"
+        distance = np.inf
+        self.affilate = None
+        for aff, boundaries in self.config["affilates"].items():
+            for coordinates in boundaries:
+                if geodesic([latitude, longitude], coordinates).kilometers < distance:
+                    distance = geodesic([latitude, longitude], coordinates).kilometers
+                    self.affilate = aff
+        if (self.affilate == "Москва" and distance > 50) or (self.affilate != "Москва" and distance > 40):
+            return "Указанный пользователем адрес находится вне зоны бесплатного выезда мастера. Предложите пользователю связаться с нами по нашему контактному телефону 8 495 723 723 8, указав его, и прекратите далее оформлять заявку!"
         await self.request_service.save_to_request(chat_id, latitude, "latitude")
         await self.request_service.save_to_request(chat_id, longitude, "longitude")
         await self.request_service.save_to_request(chat_id, address, "address")
@@ -351,6 +376,9 @@ class ChatAgent:
 
     async def save_phone_to_request(self, chat_id, phone):
         self.logger.info(f"save_phone_to_request phone: {phone}")
+        phone = re.sub(r"[^\d]", "", phone)
+        if len(phone) < 10:
+            return "Пользователь предоставил некорректный номер телефона, запросите его ещё раз. Передайте, что возможно, не хватает кода оператора / города"
         await self.request_service.save_to_request(
             chat_id, "".join(re.findall(r"[\d]", phone)), "phone"
         )
@@ -373,7 +401,7 @@ class ChatAgent:
     def create_request(
         self,
         chat_id,
-        city,
+        # city,
         direction,
         date,
         phone,
@@ -404,7 +432,7 @@ class ChatAgent:
         order_params["order"]["address"]["entrance"] = entrance
         order_params["order"]["address"]["apartment"] = apartment
         order_params["order"]["address"]["intercom"] = intercom
-        order_params["order"]["address"]["name_components"][0]["name"] = city
+        # order_params["order"]["address"]["name_components"][0]["name"] = city
 
         client = OpenAI(api_key=os.environ.get("OPENAI_API_KEY", ""))
         response = client.chat.completions.create(
@@ -436,6 +464,17 @@ class ChatAgent:
         if longitude == 0:
             longitude = 37.618561
 
+        if not self.affilate:
+            distance = np.inf
+            self.affilate = None
+            for aff, boundaries in self.config["affilates"].items():
+                for coordinates in boundaries:
+                    if geodesic([latitude, longitude], coordinates).kilometers < distance:
+                        distance = geodesic([latitude, longitude], coordinates).kilometers
+                        self.affilate = aff
+            if (self.affilate == "Москва" and distance > 50) or (self.affilate != "Москва" and distance > 40):
+                return "Указанный пользователем адрес находится вне зоны бесплатного выезда мастера. Предложите пользователю связаться с нами по нашему контактному телефону 8 495 723 723 8, указав его, и прекратите далее оформлять заявку!"
+        order_params["order"]["address"]["name_components"][0]["name"] = self.affilate
         order_params["order"]["comment"] = comment
         order_params["order"]["address"]["geopoint"]["latitude"] = latitude
         order_params["order"]["address"]["geopoint"]["longitude"] = longitude        
@@ -500,7 +539,8 @@ class ChatAgent:
             "login": login,
             "password": password,
         }
-        request_numbers = []
+        request_numbers = {}
+        divisions = self.config["divisions"]
         try:
             results = requests.post(
                 ws_url, json={"config": ws_data, "params": ws_params, "token": token}
@@ -509,7 +549,11 @@ class ChatAgent:
             for value in results.values():
                 if len(value) > 0:
                     for request in value:
-                        request_numbers.append(request["id"])
+                        # request_numbers.append(request["id"])
+                        request_numbers[request["id"]] = {
+                            "date": request["date"][:10],
+                            "division": divisions[request["division"]]
+                        }
             self.logger.info(f"request_numbers: {request_numbers}")
         except Exception as e:
             self.logger.error(f"Error in receiving request numbers: {e}")
@@ -517,8 +561,8 @@ class ChatAgent:
         if len(request_numbers) > 0:
             markup = ReplyKeyboardMarkup(resize_keyboard=True, one_time_keyboard=True)
             text = "Секунду..."
-            for number in sorted(request_numbers):
-                markup.add(f"Номер моей заявки - {number}")
+            for number, values in request_numbers.items():
+                markup.add(f"Заявка {number} от {values['date']}; {values['division']}")
             markup.add("🏠 Вернуться в меню")
             self.bot_instance.send_message(chat_id, text, reply_markup=markup)
 
