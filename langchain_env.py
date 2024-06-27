@@ -5,18 +5,18 @@ import json
 import requests
 import numpy as np
 
-from datetime import datetime
 from openai import OpenAI
-from pydantic.v1 import BaseModel, Field
+from datetime import datetime
+from geopy.distance import geodesic
 from geopy.geocoders import Nominatim
-from geopy.distance import geodesic, lonlat
+from pydantic.v1 import BaseModel, Field
 from telebot.types import ReplyKeyboardMarkup
 
-from langchain_core.tools import StructuredTool
-# from langchain_anthropic import ChatAnthropic
 from langchain_openai import ChatOpenAI
-from langchain.agents import AgentExecutor, create_tool_calling_agent
+# from langchain_anthropic import ChatAnthropic
+from langchain_core.tools import StructuredTool
 from langchain_core.prompts import ChatPromptTemplate
+from langchain.agents import AgentExecutor, create_tool_calling_agent
 
 from file_service import FileService
 
@@ -64,7 +64,6 @@ class save_comment_to_request_args(BaseModel):
 
 class create_request_args(BaseModel):
     chat_id: int = Field(description="chat_id")
-    # city: str = Field(description="city")
     direction: str = Field(description="direction")
     date: str = Field(description="date")
     phone: str = Field(description="phone")
@@ -90,7 +89,6 @@ class change_request_args(BaseModel):
 
 
 class ChatAgent:
-
     def __init__(
         self,
         model,
@@ -125,9 +123,14 @@ class ChatAgent:
         self.agent_executor = None
         self.bot_instance = bot_instance
 
-        self.request_service = FileService(self.config["request_dir"], self.logger)
-        self.chat_history_service = FileService(self.config["chats_dir"], self.logger)
-
+        self.request_service = FileService(
+            self.config["request_dir"],
+            self.logger
+        )
+        self.chat_history_service = FileService(
+            self.config["chats_dir"],
+            self.logger
+        )
 
     def initialize_agent(self):
         # llm = ChatAnthropic(
@@ -300,8 +303,29 @@ class ChatAgent:
         )
         agent = create_tool_calling_agent(llm, tools, prompt)
         self.agent_executor = AgentExecutor(
-            agent=agent, tools=tools, verbose=True, handle_parsing_errors=True, early_stopping_method="generate", max_iterations=20
+            agent=agent,
+            tools=tools,
+            verbose=True,
+            handle_parsing_errors=True,
+            early_stopping_method="generate",
+            max_iterations=20
         )
+    
+    def distance_calculation(self, latitude, longitude, affilate_coordinates):
+        distance = np.inf
+        affilate = None
+        for aff, boundaries in affilate_coordinates:
+            for coordinates in boundaries:
+                if geodesic(
+                    [latitude, longitude],
+                    coordinates
+                ).kilometers < distance:
+                    distance = geodesic(
+                        [latitude, longitude],
+                        coordinates
+                    ).kilometers
+                    affilate = aff
+        return distance, affilate
 
     async def save_name_to_request(self, chat_id, name):
         self.logger.info(f"save_name_to_request name: {name}")
@@ -313,7 +337,12 @@ class ChatAgent:
         self.logger.info(f"save_direction_to_request direction: {direction}")
         if direction not in self.config["divisions"].values():
             return "Выбрано некорректное направление обращения, определите сами повторно подходящее именно из вашего списка"
-        await self.request_service.save_to_request(chat_id, direction, "direction")
+        
+        await self.request_service.save_to_request(
+            chat_id,
+            direction,
+            "direction"
+        )
         self.logger.info("Направление обращения было сохранено в заявку")
         return "Направление обращения было сохранено в заявку"
 
@@ -321,19 +350,30 @@ class ChatAgent:
         self.logger.info(
             f"save_gps_to_request latitude: {latitude} longitude: {longitude}"
         )
-        distance = np.inf
-        self.affilate = None
-        for aff, boundaries in self.config["affilates"].items():
-            for coordinates in boundaries:
-                if geodesic([latitude, longitude], lonlat(*coordinates)).kilometers < distance:
-                    distance = geodesic([latitude, longitude], lonlat(*coordinates)).kilometers
-                    self.affilate = aff
-        if (self.affilate == "Москва" and distance > 50) or (self.affilate != "Москва" and distance > 40):
+        distance, self.affilate = self.distance_calculation(
+            latitude,
+            longitude,
+            self.config["affilates"].items()
+        )
+        if (
+            self.affilate == "Москва" and distance > 50
+        ) or (
+            self.affilate != "Москва" and distance > 40
+        ):
             return "Указанный пользователем адрес находится вне зоны бесплатного выезда мастера. Предложите пользователю связаться с нами по нашему контактному телефону 8 495 723 723 8, указав его, и прекратите далее оформлять заявку!"
+        
         geolocator = Nominatim(user_agent="my_app")
         address = geolocator.reverse(f"{latitude}, {longitude}").address
-        await self.request_service.save_to_request(chat_id, latitude, "latitude")
-        await self.request_service.save_to_request(chat_id, longitude, "longitude")
+        await self.request_service.save_to_request(
+            chat_id,
+            latitude,
+            "latitude"
+        )
+        await self.request_service.save_to_request(
+            chat_id,
+            longitude,
+            "longitude"
+        )
         await self.request_service.save_to_request(chat_id, address, "address")
         self.logger.info("Адрес пользователя был сохранен в заявку")
         return "Адрес пользователя был сохранен в заявку"
@@ -342,36 +382,56 @@ class ChatAgent:
         self.logger.info(f"save_address_to_request address: {address}")
         geolocator = Nominatim(user_agent="my_app")
         location = None
+
         try:
             location = geolocator.geocode(address)
         except:
             self.logger.error(f"Failed to get coordinates for {address}")
+
         if location:
             latitude = location.latitude
             longitude = location.longitude
         else:
             return "Не удалось получить координаты адреса. Запросите адрес ещё раз"
-        distance = np.inf
-        self.affilate = None
-        for aff, boundaries in self.config["affilates"].items():
-            for coordinates in boundaries:
-                if geodesic([latitude, longitude], lonlat(*coordinates)).kilometers < distance:
-                    distance = geodesic([latitude, longitude], lonlat(*coordinates)).kilometers
-                    self.affilate = aff
-        if (self.affilate == "Москва" and distance > 50) or (self.affilate != "Москва" and distance > 40):
+        
+        distance, self.affilate = self.distance_calculation(
+            latitude,
+            longitude,
+            self.config["affilates"].items()
+        )
+        if (
+            self.affilate == "Москва" and distance > 50
+        ) or (
+            self.affilate != "Москва" and distance > 40
+        ):
             return "Указанный пользователем адрес находится вне зоны бесплатного выезда мастера. Предложите пользователю связаться с нами по нашему контактному телефону 8 495 723 723 8, указав его, и прекратите далее оформлять заявку!"
-        await self.request_service.save_to_request(chat_id, latitude, "latitude")
-        await self.request_service.save_to_request(chat_id, longitude, "longitude")
+        
+        await self.request_service.save_to_request(
+            chat_id,
+            latitude,
+            "latitude"
+        )
+        await self.request_service.save_to_request(
+            chat_id,
+            longitude,
+            "longitude"
+        )
         await self.request_service.save_to_request(chat_id, address, "address")
         self.logger.info("Адрес пользователя был сохранен в заявку")
         return "Адрес пользователя был сохранен в заявку"
 
     async def save_address_line_2_to_request(self, chat_id, address_line_2):
-        self.logger.info(f"save_address_line_2_to_request address: {address_line_2}")
-        await self.request_service.save_to_request(
-            chat_id, address_line_2, "address_line_2"
+        self.logger.info(
+            f"save_address_line_2_to_request address: {address_line_2}"
         )
-        self.logger.info("Вторая линия адреса пользователя была сохранена в заявку")
+        await self.request_service.save_to_request(
+            chat_id,
+            address_line_2,
+            "address_line_2"
+        )
+        self.logger.info(
+            "Вторая линия адреса пользователя была сохранена в заявку"
+        )
         return "Вторая линия адреса пользователя была сохранена в заявку"
 
     async def save_phone_to_request(self, chat_id, phone):
@@ -379,8 +439,11 @@ class ChatAgent:
         phone = re.sub(r"[^\d]", "", phone)
         if len(phone) < 10:
             return "Пользователь предоставил некорректный номер телефона, запросите его ещё раз. Передайте, что возможно, не хватает кода оператора / города"
+        
         await self.request_service.save_to_request(
-            chat_id, "".join(re.findall(r"[\d]", phone)), "phone"
+            chat_id,
+            "".join(re.findall(r"[\d]", phone)),
+            "phone"
         )
         self.logger.info("Телефон пользователя был сохранен в заявку")
         return "Телефон пользователя был сохранен в заявку"
@@ -397,11 +460,9 @@ class ChatAgent:
         self.logger.info("Комментарий был сохранен в заявку")
         return "Комментарий был сохранен в заявку"
 
-
     def create_request(
         self,
         chat_id,
-        # city,
         direction,
         date,
         phone,
@@ -422,7 +483,10 @@ class ChatAgent:
         with open("./data/template.json", "r", encoding="utf-8") as f:
             order_params = json.load(f)
 
-        order_params["order"]["uslugi_id"] = time.strftime("%Y-%m-%d-%H-%M-%S", time.localtime()).replace("-", "")+str(chat_id)
+        order_params["order"]["uslugi_id"] = time.strftime(
+            "%Y-%m-%d-%H-%M-%S",
+            time.localtime()
+        ).replace("-", "")+str(chat_id)
         order_params["order"]["client"]["display_name"] = name
         order_params["order"]["services"][0]["service_id"] = direction
         order_params["order"]["desired_dt"] = date
@@ -432,7 +496,6 @@ class ChatAgent:
         order_params["order"]["address"]["entrance"] = entrance
         order_params["order"]["address"]["apartment"] = apartment
         order_params["order"]["address"]["intercom"] = intercom
-        # order_params["order"]["address"]["name_components"][0]["name"] = city
 
         client = OpenAI(api_key=os.environ.get("OPENAI_API_KEY", ""))
         response = client.chat.completions.create(
@@ -456,7 +519,10 @@ class ChatAgent:
             ]
         )
         comment = response.choices[0].message.content
-        pattern = re.compile(r"([+]?[\d]?\d{3}.*?\d{3}.*?\d{2}.*?\d{2})|подъезд|этаж|эт|квартир|кв|домофон|код", re.IGNORECASE)
+        pattern = re.compile(
+            r"([+]?[\d]?\d{3}.*?\d{3}.*?\d{2}.*?\d{2})|подъезд|этаж|эт|квартир|кв|домофон|код",
+            re.IGNORECASE
+        )
         comment = re.sub(pattern, '', comment)
 
         if latitude == 0:
@@ -465,19 +531,22 @@ class ChatAgent:
             longitude = 37.618561
 
         if not self.affilate:
-            distance = np.inf
-            self.affilate = None
-            for aff, boundaries in self.config["affilates"].items():
-                for coordinates in boundaries:
-                    if geodesic([latitude, longitude], lonlat(*coordinates)).kilometers < distance:
-                        distance = geodesic([latitude, longitude], lonlat(*coordinates)).kilometers
-                        self.affilate = aff
-            if (self.affilate == "Москва" and distance > 50) or (self.affilate != "Москва" and distance > 40):
+            distance, self.affilate = self.distance_calculation(
+                latitude,
+                longitude,
+                self.config["affilates"].items()
+            )
+            if (
+                self.affilate == "Москва" and distance > 50
+            ) or (
+                self.affilate != "Москва" and distance > 40
+            ):
                 return "Указанный пользователем адрес находится вне зоны бесплатного выезда мастера. Предложите пользователю связаться с нами по нашему контактному телефону 8 495 723 723 8, указав его, и прекратите далее оформлять заявку!"
+            
         order_params["order"]["address"]["name_components"][0]["name"] = self.affilate
         order_params["order"]["comment"] = comment
         order_params["order"]["address"]["geopoint"]["latitude"] = latitude
-        order_params["order"]["address"]["geopoint"]["longitude"] = longitude        
+        order_params["order"]["address"]["geopoint"]["longitude"] = longitude
         self.logger.info(f"Parametrs: {order_params}")
 
         ws_params = {
@@ -492,7 +561,11 @@ class ChatAgent:
         }
         order = requests.post(
             order_url,
-            json={"config": order_data, "params": order_params, "token": token},
+            json={
+                "config": order_data,
+                "params": order_params,
+                "token": token
+            }
         )
         self.logger.info(f"Result:\n{order.status_code}\n{order.text}")
 
@@ -502,9 +575,11 @@ class ChatAgent:
             "password": password,
         }
         request_number = None
+
         try:
             results = requests.post(
-                ws_url, json={"config": ws_data, "params": ws_params, "token": token}
+                ws_url,
+                json={"config": ws_data, "params": ws_params, "token": token}
             ).json()["result"]
             self.logger.info(f"results: {results}")
             for value in results.values():
@@ -541,9 +616,11 @@ class ChatAgent:
         }
         request_numbers = {}
         divisions = self.config["divisions"]
+
         try:
             results = requests.post(
-                ws_url, json={"config": ws_data, "params": ws_params, "token": token}
+                ws_url,
+                json={"config": ws_data, "params": ws_params, "token": token}
             ).json()["result"]
             self.logger.info(f"results: {results}")
             for value in results.values():
@@ -559,13 +636,17 @@ class ChatAgent:
             self.logger.error(f"Error in receiving request numbers: {e}")
 
         if len(request_numbers) > 0:
-            markup = ReplyKeyboardMarkup(resize_keyboard=True, one_time_keyboard=True)
+            markup = ReplyKeyboardMarkup(
+                resize_keyboard=True,
+                one_time_keyboard=True
+            )
             text = "Секунду..."
             for number, values in request_numbers.items():
-                markup.add(f"Заявка {number} от {values['date']}; {values['division']}")
+                markup.add(
+                    f"Заявка {number} от {values['date']}; {values['division']}"
+                )
             markup.add("🏠 Вернуться в меню")
             self.bot_instance.send_message(chat_id, text, reply_markup=markup)
-
             return "У пользователя был только запрошен номер заявки, в рамках которой сейчас идёт диалог"
         else:
             return "У пользователя нет существующих заявок"
@@ -591,14 +672,18 @@ class ChatAgent:
         }
         try:
             results = requests.post(
-                ws_url, json={"config": ws_data, "params": ws_params, "token": token}
+                ws_url,
+                json={"config": ws_data, "params": ws_params, "token": token}
             ).json()["result"]
             self.logger.info(f"results: {results}")
             for value in results.values():
                 if len(value) > 0:
                     partner_number = str(value[0]["id"])
                     date_received = value[0]["date"]
-                    date = datetime.strptime(date_received, '%d.%m.%Y %H:%M:%S')
+                    date = datetime.strptime(
+                        date_received,
+                        '%d.%m.%Y %H:%M:%S'
+                    )
                     date_str = date.strftime('%Y-%m-%dT%H:%MZ')
                     if value[0]["comment"]:
                         if value[0]["comment"] == "''":
@@ -614,7 +699,8 @@ class ChatAgent:
                 "clientPath": {"crm": self.config["order_path"]["crm"]+partner_number}
             }
             request = requests.post(
-                get_url, json={"config": get_data, "token": token}
+                get_url,
+                json={"config": get_data, "token": token}
             ).json()["result"]["order"]
             revision = request["revision"]
             locality = request["address"]["name_components"][0]["name"]
@@ -634,6 +720,7 @@ class ChatAgent:
             change_params["order"]["desired_dt"] = date_str
             change_params["order"]["address"]["name_components"][0]["name"] = locality
             change_params["order"]["revision"] = revision + 1
+
             if field_name == "comment":
                 change_params["order"]["comment"] = field_value
                 self.logger.info(f"Parametrs: {change_params}")
@@ -651,9 +738,14 @@ class ChatAgent:
             }
             change = requests.post(
                 change_url,
-                json={"config": change_data, "params": change_params, "token": token}
+                json={
+                    "config": change_data,
+                    "params": change_params,
+                    "token": token
+                }
             )
             self.logger.info(f"Result:\n{change.status_code}\n{change.text}")
+            
             if change.status_code == 200:
                 return f"Данные заявки были обновлнены"
             else:

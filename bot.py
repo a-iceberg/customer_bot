@@ -6,7 +6,6 @@ import requests
 import aiofiles
 from uuid import uuid4
 from pathlib import Path
-from datetime import datetime
 
 from openai import OpenAI
 from pyrogram import Client
@@ -17,23 +16,29 @@ from fastapi import FastAPI, Request, Header
 import telebot
 from telebot.types import ReplyKeyboardMarkup
 
-from config_manager import ConfigManager
-from file_service import FileService
 from langchain_env import ChatAgent
+from file_service import FileService
+from config_manager import ConfigManager
 
 class Application:
     def __init__(self):
         self.config_manager = ConfigManager("./data/config.json")
-        self.coordinates_manager = ConfigManager("./data/affilates_coordinates.json")
+        self.coordinates_manager = ConfigManager(
+            "./data/affilates_coordinates.json"
+        )
         self.logger = self.setup_logging()
         self.set_keys()
         self.chat_data_service = FileService(
-            self.config_manager.get("chats_dir"), self.logger
+            self.config_manager.get("chats_dir"),
+            self.logger
         )
         self.request_service = FileService(
-            self.config_manager.get("request_dir"), self.logger
+            self.config_manager.get("request_dir"),
+            self.logger
         )
-        self.empty_response = JSONResponse(content={"type": "empty", "body": ""})
+        self.empty_response = JSONResponse(
+            content={"type": "empty", "body": ""}
+        )
         self.app = FastAPI()
         self.setup_routes()
         self.chat_agent = None
@@ -71,7 +76,10 @@ class Application:
             return self.text_response("ok") 
 
         @self.app.post("/message")
-        async def handle_message(request: Request, authorization: str = Header(None)):
+        async def handle_message(
+            request: Request,
+            authorization: str = Header(None)
+        ):
             self.logger.info("handle_message")
             message = await request.json()
 
@@ -142,12 +150,14 @@ class Application:
 
                 file_name = f"{uuid4().hex}_{file_name}"
                 audio_path = os.path.join(
-                    self.config_manager.get("audio_dir"), str(self.chat_id)
+                    self.config_manager.get("audio_dir"),
+                    str(self.chat_id)
                 )
                 Path(audio_path).mkdir(parents=True, exist_ok=True)
                 file_path = os.path.join(audio_path, file_name)
                 with open(file_path, "wb") as f:
                     f.write(file_bytes)
+
                 try:
                     original_audio = AudioSegment.from_file(file_path)
                 except Exception as e:
@@ -156,7 +166,9 @@ class Application:
                     return self.text_response("Пожалуйста, попробуйте текстом")
 
                 if " " in file_path:
-                    self.logger.info(f"Replacing space in file_path: {file_path}")
+                    self.logger.info(
+                        f"Replacing space in file_path: {file_path}"
+                    )
                     new_file_path = file_path.replace(" ", "_")
                     os.rename(file_path, new_file_path)
                     file_path = new_file_path
@@ -186,7 +198,11 @@ class Application:
                 welcome_message = (
                     "Здраствуйте, это сервисный центр. Чем могу вам помочь?"
                 )
-                bot.send_message(self.chat_id, welcome_message, reply_markup=markup)
+                bot.send_message(
+                    self.chat_id,
+                    welcome_message,
+                    reply_markup=markup
+                )
                 # await self.chat_history_service.save_to_chat_history(
                 #     self.chat_id,
                 #     welcome_message,
@@ -213,9 +229,15 @@ class Application:
                 }
                 request_numbers = {}
                 divisions = self.config_manager.get("divisions")
+
                 try:
                     results = requests.post(
-                        ws_url, json={"config": ws_data, "params": ws_params, "token": token}
+                        ws_url,
+                        json={
+                            "config": ws_data,
+                            "params": ws_params,
+                            "token": token
+                        }
                     ).json()["result"]
                     self.logger.info(f"results: {results}")
                     for value in results.values():
@@ -228,13 +250,20 @@ class Application:
                                 }
                     self.logger.info(f"request_numbers: {request_numbers}")
                 except Exception as e:
-                    self.logger.error(f"Error in receiving request numbers: {e}")
+                    self.logger.error(
+                        f"Error in receiving request numbers: {e}"
+                    )
 
                 if len(request_numbers) > 0:
-                    markup = ReplyKeyboardMarkup(resize_keyboard=True, one_time_keyboard=True)
+                    markup = ReplyKeyboardMarkup(
+                        resize_keyboard=True,
+                        one_time_keyboard=True
+                    )
                     text = "Выберете нужную заявку ниже 👇"
                     for number, values in request_numbers.items():
-                        markup.add(f"Заявка {number} от {values['date']}; {values['division']}")
+                        markup.add(
+                            f"Заявка {number} от {values['date']}; {values['division']}"
+                        )
                     markup.add("🏠 Вернуться в меню")
                     bot.send_message(self.chat_id, text, reply_markup=markup)
                 else:
@@ -243,20 +272,27 @@ class Application:
             
             elif user_message =="🏠 Вернуться в меню":
                 bot.delete_message(self.chat_id, self.message_id)
-                markup = ReplyKeyboardMarkup(resize_keyboard=True, one_time_keyboard=True)
+                markup = ReplyKeyboardMarkup(
+                    resize_keyboard=True,
+                    one_time_keyboard=True
+                )
                 markup.add("📝 Хочу оформить новую заявку")
                 markup.add("📑 Выбрать свою активную заявку")
                 return_message = (
                     "Возвращаюсь в меню..."
                 )
-                bot.send_message(self.chat_id, return_message, reply_markup=markup)
+                bot.send_message(
+                    self.chat_id,
+                    return_message,
+                    reply_markup=markup
+                )
 
             elif user_message == "/requestreset":
                 bot.delete_message(self.chat_id, self.message_id)
                 self.request_service.delete_files(self.chat_id)
-
                 answer = bot.send_message(
-                    self.chat_id, "Информация по заявкам была очищена"
+                    self.chat_id,
+                    "Информация по заявкам была очищена"
                 )
                 bot.delete_message(self.chat_id, answer.message_id)
 
@@ -264,7 +300,6 @@ class Application:
                 bot.delete_message(self.chat_id, self.message_id)
                 self.request_service.delete_files(self.chat_id)
                 await self.chat_data_service.update_chat_history_date(self.chat_id)
-
                 answer = bot.send_message(
                     self.chat_id,
                     "Полная история чата была очищена"
@@ -274,12 +309,15 @@ class Application:
             else:
                 request = await self.request_service.read_request(self.chat_id)
                 user_name = message["from"]["first_name"]
+
                 try:
                     date = time.strftime(
-                        "%Y-%m-%d", time.localtime(message["date"])
+                        "%Y-%m-%d",
+                        time.localtime(message["date"])
                     )
                     time_str = time.strftime(
-                        "%H:%M", time.localtime(message["date"])
+                        "%H:%M",
+                        time.localtime(message["date"])
                     )
                 except:
                     date = time.strftime("%Y-%m-%d", time.localtime())
@@ -346,7 +384,7 @@ class Application:
 Если в процессе диалога пользователь передаст какую-то дополнительную информацию в целом в истории чата, любом своем сообщении или даже его части (например, об любых обстоятельствах и деталях неисправности / услуги, нюансах расположения локации запроса, доступности клиента и т.п.), являющуюся полезной для компании или ваших коллег, мастеров и т.д., также передавайте КАЖДУЮ такую в заявку с помощью соответствующего инструмента. Но ни в коем случае НЕЛЬЗЯ использовать именно этот инструмент для передачи информации, содержащей детали адреса (квартира, подъезд и т.п.) или ЛЮБЫЕ телефоны клиента, даже если он сам просит, для этого у используйте ваши ДРУГИЕ соответствующие инструменты.
 Вам доступен набор инструментов. Вам рекомендуется ИСПОЛЬЗОВАТЬ ваши инструменты для сохранения СРАЗУ, ПО ОДНОМУ и ОДНОКРАТНО, как только будет доступна соответствующая информация.
 Текущее содержание заявки: {request}. Если в заявке не хватает какого-либо пункта из перечисленных выше, то ТОЛЬКО при отсутствии вопросов пользователя запрашивайте этот пункт ПО ОДНОМУ, а не в одном сообщении. ПОСЛЕ получения от пользователя сообщения с данными СРАЗУ ИСПОЛЬЗУЙТЕ ОДИН из ваших соответствующих инструментов для сохранения данных в заявку, в зависимости от того, что именно было получено. А НЕ уже после получения всех данных.
-Далее только если у вас уже есть и "direction", и "date", и "phone", и "latitude", и "longitude", и "address", и "address_line_2" (или последнее было хотя бы однократно запрошено), СНАЧАЛА обязательно уточните у пользователя корректность сразу ВСЕХ ЭТИХ переданных им данных, в том числе "address_line_2" при его наличии, НО КРОМЕ "date" и "comment", прислав их ему. Уточняйте ТОЛЬКО ТАК, по отдельности разные пункты НЕ нужно, как НЕ нужно НИКОГДА уточнять "date" и "comment". В этом одном сообщении выносите каждый отдельный пункт на отдельный новый абзац c промежутком между строками. А после, ТОЛЬКО в случае получения ЯВНОГО именно ПОДТВЕРЖДЕНИЯ, СРАЗУ ОБЯЗАТЕЛЬНО ИСПОЛЬЗУЙТЕ ваш инструмент "Create_request", но не после других сообщений. Простой ответ "да" также является подтверждением, ещё раз уточнять НЕ нужно. Подтверждением НЕ является просто любое другое сообщение, явно не подтверждающее данные.
+Далее только если у вас уже есть и "direction", и "date", и "phone", и "latitude", и "longitude", и "address", и "address_line_2" (или последнее было хотя бы однократно запрошено), СНАЧАЛА обязательно уточните у пользователя корректность сразу ВСЕХ ЭТИХ переданных им данных, в том числе "direction" и "address_line_2" при его наличии, НО КРОМЕ "date" и "comment", прислав их ему. Уточняйте ТОЛЬКО ТАК, по отдельности разные пункты НЕ нужно, как НЕ нужно НИКОГДА уточнять "date" и "comment". В этом одном сообщении выносите каждый отдельный пункт на отдельный новый абзац c промежутком между строками. А после, ТОЛЬКО в случае получения ЯВНОГО именно ПОДТВЕРЖДЕНИЯ, СРАЗУ ОБЯЗАТЕЛЬНО ИСПОЛЬЗУЙТЕ ваш инструмент "Create_request", но не после других сообщений. Простой ответ "да" также является подтверждением, ещё раз уточнять НЕ нужно. Подтверждением НЕ является просто любое другое сообщение, явно не подтверждающее данные.
 Если же пользователь указал на неточность данных, снова вызывайте только соответствующие инструменты для обновления заявки только для этих актуальных данных. И повторно после согласовывайте сначала корректность данных после изменений, прежде чем создавать заявку. Она создается только после финального подтверждения.
 Отвечайте на русском языке, учитывая контекст переписки.
 В завершающем ветку создания заявки сообщении для пользователя после создания заявки, если ваше текущее время - {time_str} - до 19:00, доносите, что мастер свяжется с ним сегодня в течение часа. Если город обращения Екатеринбург или Новосибирск, то в течение двух часов, но НИ В КОЕМ СЛУЧАЕ НЕ пишите пользователю, что это из-за города, присылайте ему только информацию о времени!
@@ -408,7 +446,10 @@ chat_id текущего пользователя - {self.chat_id}"""
                 answer = bot.send_message(self.chat_id, bot_response["output"])
                 self.message_id = answer.message_id
 
-                return await self.chat_data_service.save_message_id(self.chat_id, self.message_id)
+                return await self.chat_data_service.save_message_id(
+                    self.chat_id,
+                    self.message_id
+                )
 
         def split_audio_ffmpeg(audio_path, chunk_length=10 * 60):
             cmd_duration = f"ffprobe -v error -show_entries format=duration -of default=noprint_wrappers=1:nokey=1 {audio_path}"
@@ -435,7 +476,9 @@ chat_id текущего пользователя - {self.chat_id}"""
             full_text = ""
 
             for idx, chunk_path in enumerate(chunk_paths):
-                self.logger.info(f"Processing chunk {idx+1} of {len(chunk_paths)}")
+                self.logger.info(
+                    f"Processing chunk {idx+1} of {len(chunk_paths)}"
+                )
                 chunk_audio = AudioSegment.from_file(chunk_path)
                 with open(chunk_path, "rb") as audio_file:
                     text = client.audio.transcriptions.create(
@@ -450,7 +493,6 @@ chat_id текущего пользователя - {self.chat_id}"""
             self.logger.info("Removing audio file..")
             os.remove(audio_path)
             self.logger.info("Transcription length: " + str(len(text)))
-
             return text
 
         @self.app.get("/history/{received_token}/{partner_id}")
@@ -477,13 +519,20 @@ chat_id текущего пользователя - {self.chat_id}"""
             async with aiofiles.open(full_path, "r", encoding="utf-8") as f:
                 message_id = json.loads(await f.read())["message_id"]
 
-            self.logger.info(f"Reading chat history for partner id: {partner_id}")
+            self.logger.info(
+                f"Reading chat history for partner id: {partner_id}"
+            )
             try:
                 await self.chat_history_client.start()
                 message_ids = list(range(message_id-199, message_id+1))
-                messages = await self.chat_history_client.get_messages(int(chat_id), message_ids)
+                messages = await self.chat_history_client.get_messages(
+                    int(chat_id),
+                    message_ids
+                )
             except Exception as e:
-                self.logger.error(f"Error reading chat history for chat id {chat_id}: {e}")
+                self.logger.error(
+                    f"Error reading chat history for chat id {chat_id}: {e}"
+                )
             finally:
                 await self.chat_history_client.stop()
             

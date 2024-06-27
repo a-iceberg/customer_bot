@@ -4,9 +4,9 @@ import json
 import shutil
 import aiofiles
 
-from datetime import datetime
 from pathlib import Path
 from pyrogram import Client
+from datetime import datetime
 from langchain.schema import AIMessage, HumanMessage
 
 
@@ -89,7 +89,10 @@ class FileService:
 
         data = {
             "message_id": message_id,
-            "chat_history_date": time.strftime('%Y-%m-%d %H:%M:%S', time.localtime())
+            "chat_history_date": time.strftime(
+                '%Y-%m-%d %H:%M:%S',
+                time.localtime()
+            )
         }
         if Path(full_path).exists():
             async with aiofiles.open(full_path, "r", encoding="utf-8") as f:
@@ -117,12 +120,18 @@ class FileService:
                 json.dumps(data, ensure_ascii=False)
             )
 
-    async def read_chat_history(self, chat_id: int, message_id: int, token: str):
+    async def read_chat_history(
+        self,
+        chat_id: int,
+        message_id: int,
+        token: str
+    ):
         """Reads the chat history from a telegram server and returns it as a list of messages."""
         chat_dir = self.file_path(chat_id)
         full_path = os.path.join(chat_dir, 'chat_data.json')
         async with aiofiles.open(full_path, "r", encoding="utf-8") as f:
             chat_history_date = json.loads(await f.read())["chat_history_date"]
+
         chat_history = []
         service_messages = [
             "Выберете номер вашей заявки ниже 👇",
@@ -143,9 +152,14 @@ class FileService:
         try:
             await self.chat_history_client.start()
             message_ids = list(range(message_id-200, message_id))
-            messages = await self.chat_history_client.get_messages(chat_id, message_ids)
+            messages = await self.chat_history_client.get_messages(
+                chat_id,
+                message_ids
+            )
         except Exception as e:
-            self.logger.error(f"Error reading chat history for chat id {chat_id}: {e}")
+            self.logger.error(
+                f"Error reading chat history for chat id {chat_id}: {e}"
+            )
         finally:
             await self.chat_history_client.stop()
 
@@ -155,7 +169,6 @@ class FileService:
                     chat_history.append(AIMessage(content=message.text))
                 else:
                     chat_history.append(HumanMessage(content=message.text))
-
         return chat_history
 
     def delete_files(self, chat_id: str):
@@ -166,7 +179,9 @@ class FileService:
                 shutil.rmtree(log_path)
                 self.logger.info(f"Deleted files for chat_id: {chat_id}")
             except Exception as e:
-                self.logger.error(f"Error deleting files for chat_id: {chat_id}: {e}")
+                self.logger.error(
+                    f"Error deleting files for chat_id: {chat_id}: {e}"
+                )
         else:
             self.logger.info(
                 f"No files found for chat_id: {chat_id}, nothing to delete."
@@ -186,7 +201,8 @@ class FileService:
             message_date = time.strftime("%Y-%m-%d-%H-%M-%S", time.localtime())
         else:
             message_date = time.strftime(
-                "%Y-%m-%d-%H-%M-%S", time.localtime(date_override)
+                "%Y-%m-%d-%H-%M-%S",
+                time.localtime(date_override)
             )
         log_file_name = f"{message_type}.json"
 
@@ -195,7 +211,11 @@ class FileService:
 
         full_path = os.path.join(request_dir, log_file_name)
         if Path(full_path).exists() and message_type == "comment":
-            async with aiofiles.open(full_path, "r", encoding="utf-8") as log_file:
+            async with aiofiles.open(
+                full_path,
+                "r",
+                encoding="utf-8"
+            ) as log_file:
                 data = await log_file.read()
                 existing_data = json.loads(data)
                 existing_text = existing_data.get("text", "")
@@ -247,5 +267,4 @@ class FileService:
                 self.logger.error(f"Error reading request file {item}: {e}")
                 # Remove problematic file
                 os.remove(full_path)
-
         return request_items
