@@ -44,6 +44,8 @@ class Application:
         self.chat_agent = None
         self.chat_history_client = None
         self.token = os.environ.get("BOT_TOKEN", "")
+        self.CHANNEL_ID = '-1002186198012'
+        self.channel_posts = {}
 
     def text_response(self, text):
         return JSONResponse(content={"type": "text", "body": str(text)})
@@ -106,6 +108,15 @@ class Application:
             else:
                 answer = "Не удалось определить токен бота."
                 return self.text_response(answer)
+
+            if self.chat_id not in self.channel_posts:
+                name = f'@{message["from"]["username"]}' if "username" in message["from"] else message["from"]["first_name"]
+                initial_channel_message = bot.send_message(
+                    self.CHANNEL_ID,
+                    f'Chat with {name} (Chat ID: {self.chat_id})',
+                    parse_mode="HTML"
+                )
+                self.channel_posts[self.chat_id] = initial_channel_message.message_id
 
             if "location" in message:
                 user_message = f"Мои координаты - {message['location']}"
@@ -307,6 +318,13 @@ class Application:
                 bot.delete_message(self.chat_id, answer.message_id)
 
             else:
+                bot.send_message(
+                    self.CHANNEL_ID,
+                    user_message,
+                    reply_to_message_id=self.channel_posts[self.chat_id],
+                    parse_mode="HTML"
+                )
+
                 request = await self.request_service.read_request(self.chat_id)
                 user_name = message["from"]["first_name"]
 
@@ -445,6 +463,13 @@ chat_id текущего пользователя - {self.chat_id}"""
                 self.logger.info(f"Answer: {bot_response['output']}")
                 answer = bot.send_message(self.chat_id, bot_response["output"])
                 self.message_id = answer.message_id
+
+                bot.send_message(
+                    self.CHANNEL_ID,
+                    bot_response["output"],
+                    reply_to_message_id=self.channel_posts[self.chat_id],
+                    parse_mode="HTML"
+                )
 
                 return await self.chat_data_service.save_message_id(
                     self.chat_id,
