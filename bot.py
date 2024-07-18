@@ -44,7 +44,8 @@ class Application:
         self.chat_agent = None
         self.chat_history_client = None
         self.token = os.environ.get("BOT_TOKEN", "")
-        self.CHANNEL_ID = '-1002186198012'
+        self.CHANNEL_ID = "-1002186198012"
+        self.GROUP_ID = "-1002201179628"
         self.channel_posts = {}
 
     def text_response(self, text):
@@ -85,6 +86,9 @@ class Application:
             self.logger.info("handle_message")
             message = await request.json()
 
+            if message["from"]["is_bot"] or message["from"]["first_name"] == "Telegram":
+                return self.empty_response
+
             self.chat_id = message["chat"]["id"]
             self.message_id = message["message_id"]
             await self.chat_data_service.save_message_id(
@@ -113,8 +117,7 @@ class Application:
                 name = f'@{message["from"]["username"]}' if "username" in message["from"] else message["from"]["first_name"]
                 initial_channel_message = bot.send_message(
                     self.CHANNEL_ID,
-                    f'Chat with {name} (Chat ID: {self.chat_id})',
-                    parse_mode="HTML"
+                    f'Chat with {name} (Chat ID: {self.chat_id})'
                 )
                 self.channel_posts[self.chat_id] = initial_channel_message.message_id
 
@@ -322,8 +325,14 @@ class Application:
                     self.CHANNEL_ID,
                     user_message,
                     reply_to_message_id=self.channel_posts[self.chat_id],
-                    parse_mode="HTML"
+                    allow_sending_without_reply=True
                 )
+                # bot.copy_message(
+                #     self.CHANNEL_ID,
+                #     self.chat_id,
+                #     self.message_id,
+                #     reply_to_message_id=self.channel_posts[self.chat_id]
+                # )
 
                 request = await self.request_service.read_request(self.chat_id)
                 user_name = message["from"]["first_name"]
@@ -358,6 +367,7 @@ class Application:
 В том числе по запросу пользователя вы можете менять / дополнять информацию в уже оформленных заявках. Для этого используйте ТОЛЬКО ваши инструменты Request_selection и Change_request, ВСЕГДА ОБА, Change_request ПОСЛЕ Request_selection. НЕ запрашивайте номер заявки у пользователя без использования Request_selection, но используйте этот инструмент СРАЗУ и ТОЛЬКО ОДИН РАЗ!
 Далее указана ваша детальная инструкция, внимательно и чётко обязательно соблюдайте из неё все пункты! Не додумывайте никаких фактов, которых нет в вашей инструкции.
 Актуальные направления обращения / ремонта для сопоставления (самостоятельно до клиента их доносить НЕ нужно):
+Тестомешалки
 Электроинструмент
 Вытяжки
 Клининг
@@ -468,8 +478,14 @@ chat_id текущего пользователя - {self.chat_id}"""
                     self.CHANNEL_ID,
                     bot_response["output"],
                     reply_to_message_id=self.channel_posts[self.chat_id],
-                    parse_mode="HTML"
+                    allow_sending_without_reply=True
                 )
+                # bot.copy_message(
+                #     self.CHANNEL_ID,
+                #     self.chat_id,
+                #     self.message_id,
+                #     reply_to_message_id=self.channel_posts[self.chat_id]
+                # )
 
                 return await self.chat_data_service.save_message_id(
                     self.chat_id,
