@@ -159,7 +159,7 @@ class ChatAgent:
         save_direction_tool = StructuredTool.from_function(
             coroutine=self.save_direction_to_request,
             name="Saving_direction",
-            description="Сохраняет подходящее под запрос пользователя направление обращения из имеющегося списка направлений в новую заявку. Нужно соотнести запрос и выбрать подходящее только из тех, что в этом списке. Вам следует предоставить chat_id и непосредственно сам direction из списка в качестве параметров.",
+            description="Сохраняет подходящее под запрос пользователя направление, причину обращения из имеющегося списка направлений в новую заявку. Нужно соотнести запрос и выбрать подходящее только из тех, что в этом списке. Вам следует предоставить chat_id и непосредственно сам direction из списка в качестве параметров.",
             args_schema=SaveDirectionToRequestArgs,
             return_direct=False,
             handle_tool_error=True,
@@ -343,8 +343,8 @@ class ChatAgent:
             direction,
             "direction"
         )
-        self.logger.info("Направление обращения было сохранено в заявку")
-        return "Направление обращения было сохранено в заявку"
+        self.logger.info("Направление, причина обращения было сохранено в заявку")
+        return "Направление, причина обращения было сохранено в заявку"
 
     async def save_gps_to_request(self, chat_id, latitude, longitude):
         self.logger.info(
