@@ -43,7 +43,10 @@ class Application:
         self.setup_routes()
         self.chat_agent = None
         self.chat_history_client = None
-        self.token = os.environ.get("BOT_TOKEN", "")
+        self.TOKEN = os.environ.get("BOT_TOKEN", "")
+        self.CHANNEL_ID = os.environ.get("HISTORY_CHANNEL_ID", "")
+        self.GROUP_ID = os.environ.get("HISTORY_GROUP_ID", "")
+        self.channel_posts = {}
 
     def text_response(self, text):
         return JSONResponse(content={"type": "text", "body": str(text)})
@@ -83,6 +86,16 @@ class Application:
             self.logger.info("handle_message")
             message = await request.json()
 
+            if message["from"]["first_name"] == "Telegram":
+                if self.chat_id not in self.channel_posts:
+                                if 'message_thread_id' in message:
+                                    self.channel_posts[self.chat_id] = message["message_id"] = message['message_thread_id']
+                                else:
+                                    self.channel_posts[self.chat_id] = message["message_id"]
+
+            if message["from"]["is_bot"] or message["from"]["first_name"] == "Telegram":
+                return self.empty_response
+
             self.chat_id = message["chat"]["id"]
             self.message_id = message["message_id"]
             await self.chat_data_service.save_message_id(
@@ -92,9 +105,9 @@ class Application:
             self.logger.info(message)
 
             if authorization and authorization.startswith("Bearer "):
-                self.token = authorization.split(" ")[1]
+                self.TOKEN = authorization.split(" ")[1]
 
-            if self.token:
+            if self.TOKEN:
                 server_api_uri = 'http://localhost:8081/bot{0}/{1}'
                 telebot.apihelper.API_URL = server_api_uri
                 self.logger.info(f'Setting API_URL: {server_api_uri}')
@@ -102,10 +115,17 @@ class Application:
                 server_file_url = 'http://localhost:8081'
                 telebot.apihelper.FILE_URL = server_file_url
                 self.logger.info(f'Setting FILE_URL: {server_file_url}')
-                bot = telebot.TeleBot(self.token)
+                bot = telebot.TeleBot(self.TOKEN)
             else:
                 answer = "Не удалось определить токен бота."
                 return self.text_response(answer)
+
+            if self.chat_id not in self.channel_posts:
+                name = f'@{message["from"]["username"]}' if "username" in message["from"] else message["from"]["first_name"]
+                bot.send_message(
+                    self.CHANNEL_ID,
+                    f'Chat with {name} (Chat ID: {self.chat_id})'
+                )
 
             if "location" in message:
                 user_message = f"Мои координаты - {message['location']}"
@@ -307,6 +327,19 @@ class Application:
                 bot.delete_message(self.chat_id, answer.message_id)
 
             else:
+                bot.send_message(
+                    self.GROUP_ID,
+                    user_message,
+                    reply_to_message_id=self.channel_posts[self.chat_id],
+                    allow_sending_without_reply=True
+                )
+                # bot.copy_message(
+                #     self.CHANNEL_ID,
+                #     self.chat_id,
+                #     self.message_id,
+                #     reply_to_message_id=self.channel_posts[self.chat_id]
+                # )
+
                 request = await self.request_service.read_request(self.chat_id)
                 user_name = message["from"]["first_name"]
 
@@ -339,7 +372,7 @@ class Application:
 а также СРАЗУ после получения, а НЕ потом несколько пунктов сразу, СОХРАНИТЬ эти пункты с помощью ваших инструментов. НЕ запрашивайте несколько пунктов в одном сообщении.
 В том числе по запросу пользователя вы можете менять / дополнять информацию в уже оформленных заявках. Для этого используйте ТОЛЬКО ваши инструменты Request_selection и Change_request, ВСЕГДА ОБА, Change_request ПОСЛЕ Request_selection. НЕ запрашивайте номер заявки у пользователя без использования Request_selection, но используйте этот инструмент СРАЗУ и ТОЛЬКО ОДИН РАЗ!
 Далее указана ваша детальная инструкция, внимательно и чётко обязательно соблюдайте из неё все пункты! Не додумывайте никаких фактов, которых нет в вашей инструкции.
-Актуальные направления обращения / ремонта для сопоставления (самостоятельно до клиента их доносить НЕ нужно):
+Актуальные направления, причины обращения / ремонта для сопоставления (самостоятельно до клиента их доносить НЕ нужно):
 Электроинструмент
 Вытяжки
 Клининг
@@ -384,7 +417,7 @@ class Application:
 Если в процессе диалога пользователь передаст какую-то дополнительную информацию в целом в истории чата, любом своем сообщении или даже его части (например, об любых обстоятельствах и деталях неисправности / услуги, нюансах расположения локации запроса, доступности клиента и т.п.), являющуюся полезной для компании или ваших коллег, мастеров и т.д., также передавайте КАЖДУЮ такую в заявку с помощью соответствующего инструмента. Но ни в коем случае НЕЛЬЗЯ использовать именно этот инструмент для передачи информации, содержащей детали адреса (квартира, подъезд и т.п.) или ЛЮБЫЕ телефоны клиента, даже если он сам просит, для этого у используйте ваши ДРУГИЕ соответствующие инструменты.
 Вам доступен набор инструментов. Вам рекомендуется ИСПОЛЬЗОВАТЬ ваши инструменты для сохранения СРАЗУ, ПО ОДНОМУ и ОДНОКРАТНО, как только будет доступна соответствующая информация.
 Текущее содержание заявки: {request}. Если в заявке не хватает какого-либо пункта из перечисленных выше, то ТОЛЬКО при отсутствии вопросов пользователя запрашивайте этот пункт ПО ОДНОМУ, а не в одном сообщении. ПОСЛЕ получения от пользователя сообщения с данными СРАЗУ ИСПОЛЬЗУЙТЕ ОДИН из ваших соответствующих инструментов для сохранения данных в заявку, в зависимости от того, что именно было получено. А НЕ уже после получения всех данных.
-Далее только если у вас уже есть и "direction", и "date", и "phone", и "latitude", и "longitude", и "address", и "address_line_2" (или последнее было хотя бы однократно запрошено), СНАЧАЛА обязательно уточните у пользователя корректность сразу ВСЕХ ЭТИХ переданных им данных, в том числе "direction" и "address_line_2" при его наличии, НО КРОМЕ "date" и "comment", прислав их ему. Уточняйте ТОЛЬКО ТАК, по отдельности разные пункты НЕ нужно, как НЕ нужно НИКОГДА уточнять "date" и "comment". В этом одном сообщении выносите каждый отдельный пункт на отдельный новый абзац c промежутком между строками. А после, ТОЛЬКО в случае получения ЯВНОГО именно ПОДТВЕРЖДЕНИЯ, СРАЗУ ОБЯЗАТЕЛЬНО ИСПОЛЬЗУЙТЕ ваш инструмент "Create_request", но не после других сообщений. Простой ответ "да" также является подтверждением, ещё раз уточнять НЕ нужно. Подтверждением НЕ является просто любое другое сообщение, явно не подтверждающее данные.
+Далее только если у вас уже есть и "direction", и "date", и "phone", и "latitude", и "longitude", и "address", и "address_line_2" (или последнее было хотя бы однократно запрошено), СНАЧАЛА обязательно уточните у пользователя корректность сразу ВСЕХ ЭТИХ переданных им данных, в том числе "direction"(называя его для пользователя ТОЛЬКО "причиной обращения") и "address_line_2" при его наличии, НО КРОМЕ "date" и "comment", прислав их ему. Уточняйте ТОЛЬКО ТАК, по отдельности разные пункты НЕ нужно, как НЕ нужно НИКОГДА уточнять "date" и "comment". В этом одном сообщении выносите каждый отдельный пункт на отдельный новый абзац c промежутком между строками. А после, ТОЛЬКО в случае получения ЯВНОГО именно ПОДТВЕРЖДЕНИЯ, СРАЗУ ОБЯЗАТЕЛЬНО ИСПОЛЬЗУЙТЕ ваш инструмент "Create_request", но не после других сообщений. Простой ответ "да" также является подтверждением, ещё раз уточнять НЕ нужно. Подтверждением НЕ является просто любое другое сообщение, явно не подтверждающее данные.
 Если же пользователь указал на неточность данных, снова вызывайте только соответствующие инструменты для обновления заявки только для этих актуальных данных. И повторно после согласовывайте сначала корректность данных после изменений, прежде чем создавать заявку. Она создается только после финального подтверждения.
 Отвечайте на русском языке, учитывая контекст переписки.
 В завершающем ветку создания заявки сообщении для пользователя после создания заявки, если ваше текущее время - {time_str} - до 19:00, доносите, что мастер свяжется с ним сегодня в течение часа. Если город обращения Екатеринбург или Новосибирск, то в течение двух часов, но НИ В КОЕМ СЛУЧАЕ НЕ пишите пользователю, что это из-за города, присылайте ему только информацию о времени!
@@ -398,7 +431,7 @@ chat_id текущего пользователя - {self.chat_id}"""
                 chat_history = await self.chat_data_service.read_chat_history(
                     self.chat_id,
                     self.message_id,
-                    self.token
+                    self.TOKEN
                 )
                 self.logger.info(f"History for {self.chat_id}: {chat_history}")
 
@@ -445,6 +478,19 @@ chat_id текущего пользователя - {self.chat_id}"""
                 self.logger.info(f"Answer: {bot_response['output']}")
                 answer = bot.send_message(self.chat_id, bot_response["output"])
                 self.message_id = answer.message_id
+
+                bot.send_message(
+                    self.GROUP_ID,
+                    bot_response["output"],
+                    reply_to_message_id=self.channel_posts[self.chat_id],
+                    allow_sending_without_reply=True
+                )
+                # bot.copy_message(
+                #     self.CHANNEL_ID,
+                #     self.chat_id,
+                #     self.message_id,
+                #     reply_to_message_id=self.channel_posts[self.chat_id]
+                # )
 
                 return await self.chat_data_service.save_message_id(
                     self.chat_id,
@@ -508,7 +554,7 @@ chat_id текущего пользователя - {self.chat_id}"""
                     workdir="./",
                     api_id=os.environ.get("TELEGRAM_API_ID", ""),
                     api_hash=os.environ.get("TELEGRAM_API_HASH", ""),
-                    bot_token=self.token
+                    bot_token=self.TOKEN
                 )
             chat_history = {}
             chat_id = partner_id[14:]

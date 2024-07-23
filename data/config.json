@@ -3,7 +3,7 @@
     "audio_dir": "./data/audio/",
     "request_dir": "./data/requests/",
     "model": "gpt-4o-2024-05-13",
-    "temperature": 0.6,
+    "temperature": 0.5,
     "proxy_url": "https://service.icecorp.ru:7405",
     "order_path": {
         "crm": "http://10.2.4.141/Test_CRM/hs/yandex/v1/order/"
