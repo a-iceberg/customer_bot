@@ -1,4 +1,5 @@
 import os
+import re
 import time
 import json
 import logging
@@ -47,6 +48,7 @@ class Application:
         self.CHANNEL_ID = os.environ.get("HISTORY_CHANNEL_ID", "")
         self.GROUP_ID = os.environ.get("HISTORY_GROUP_ID", "")
         self.channel_posts = {}
+        self.banned_accounts = []
 
     def text_response(self, text):
         return JSONResponse(content={"type": "text", "body": str(text)})
@@ -89,23 +91,6 @@ class Application:
             message = await request.json()
             self.logger.info(message)
 
-            if message["from"]["first_name"] == "Telegram":
-                if self.chat_id not in self.channel_posts:
-                                if 'message_thread_id' in message:
-                                    self.channel_posts[self.chat_id] = message["message_id"] = message['message_thread_id']
-                                else:
-                                    self.channel_posts[self.chat_id] = message["message_id"]
-
-            if message["from"]["is_bot"] or message["from"]["first_name"] == "Telegram":
-                return self.empty_response
-
-            self.chat_id = message["chat"]["id"]
-            self.message_id = message["message_id"]
-            await self.chat_data_service.save_message_id(
-                self.chat_id,
-                self.message_id
-            )
-
             if authorization and authorization.startswith("Bearer "):
                 self.TOKEN = authorization.split(" ")[1]
 
@@ -121,6 +106,65 @@ class Application:
             else:
                 answer = "Не удалось определить токен бота."
                 return self.text_response(answer)
+
+            if message["chat"]["id"] == int(self.GROUP_ID) and "text" in message and "reply_to_message" in message:
+                if message["text"] == "/ban":
+                    banned_id = re.search(
+                        r'Chat ID: (\d+)',
+                        message["reply_to_message"]["text"]
+                    ).group(1)
+                    self.banned_accounts.append(int(banned_id))
+                    answer = bot.send_message(
+                        self.GROUP_ID,
+                        f"Пользователь с chat_id {banned_id} был забанен",
+                        reply_to_message_id=self.channel_posts[self.chat_id]
+                    )
+                    bot.delete_message(self.GROUP_ID, answer.message_id)
+                    self.logger.info(f"Banned user with chat_id {banned_id}")
+
+                if message["text"] == "/unban":
+                    try:
+                        unbanned_id = re.search(
+                            r'Chat ID: (\d+)',
+                            message["reply_to_message"]["text"]
+                        ).group(1)
+                        self.banned_accounts.remove(int(unbanned_id))
+                        answer = bot.send_message(
+                            self.GROUP_ID,
+                            f"Пользователь с chat_id {unbanned_id} был разбанен",
+                            reply_to_message_id=self.channel_posts[self.chat_id]
+                        )
+                        bot.delete_message(self.GROUP_ID, answer.message_id)
+                        self.logger.info(
+                            f'Unbanned user with chat_id {unbanned_id}'
+                        )
+                    except:
+                        answer = bot.send_message(
+                            self.GROUP_ID,
+                            f"Пользователь с chat_id {unbanned_id} не был забанен",
+                            reply_to_message_id=self.channel_posts[self.chat_id]
+                        )
+                        bot.delete_message(self.GROUP_ID, answer.message_id)
+                        self.logger.info(
+                            f"User with chat_id {unbanned_id} isn't banned"
+                        )
+
+            if message["from"]["first_name"] == "Telegram":
+                if self.chat_id not in self.channel_posts:
+                    if 'message_thread_id' in message:
+                        self.channel_posts[self.chat_id] = message['message_thread_id']
+                    else:
+                        self.channel_posts[self.chat_id] = message["message_id"]
+
+            if message["from"]["is_bot"] or message["from"]["first_name"] == "Telegram":
+                return self.empty_response
+
+            self.chat_id = message["chat"]["id"]
+            self.message_id = message["message_id"]
+            await self.chat_data_service.save_message_id(
+                self.chat_id,
+                self.message_id
+            )
 
             if self.chat_id not in self.channel_posts:
                 name = f'@{message["from"]["username"]}' if "username" in message["from"] else message["from"]["first_name"]
@@ -341,6 +385,10 @@ class Application:
                 #     self.message_id,
                 #     reply_to_message_id=self.channel_posts[self.chat_id]
                 # )
+                self.logger.info(self.banned_accounts)
+                self.logger.info(self.chat_id)
+                if self.chat_id in self.banned_accounts:
+                    return self.empty_response
 
                 request = await self.request_service.read_request(self.chat_id)
                 user_name = message["from"]["first_name"]
