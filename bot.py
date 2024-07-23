@@ -64,6 +64,8 @@ class Application:
         os.environ["TELEGRAM_API_HASH"] = cm.get("TELEGRAM_API_HASH", "")
         os.environ["BOT_TOKEN"] = cm.get("BOT_TOKEN", "")
         os.environ["CHAT_HISTORY_TOKEN"] = cm.get("CHAT_HISTORY_TOKEN", "")
+        os.environ["HISTORY_CHANNEL_ID"] = cm.get("HISTORY_CHANNEL_ID", "")
+        os.environ["HISTORY_GROUP_ID"] = cm.get("HISTORY_GROUP_ID", "")
 
         self.logger.info("Auth data set successfully")
 
@@ -85,6 +87,7 @@ class Application:
         ):
             self.logger.info("handle_message")
             message = await request.json()
+            self.logger.info(message)
 
             if message["from"]["first_name"] == "Telegram":
                 if self.chat_id not in self.channel_posts:
@@ -102,7 +105,6 @@ class Application:
                 self.chat_id,
                 self.message_id
             )
-            self.logger.info(message)
 
             if authorization and authorization.startswith("Bearer "):
                 self.TOKEN = authorization.split(" ")[1]
