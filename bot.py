@@ -9,6 +9,8 @@ import aiofiles
 from uuid import uuid4
 from pathlib import Path
 
+import telebot.async_telebot
+
 from openai import OpenAI
 from pyrogram import Client
 from pydub import AudioSegment
@@ -104,7 +106,7 @@ class Application:
                 server_file_url = 'http://localhost:8081'
                 telebot.apihelper.FILE_URL = server_file_url
                 self.logger.info(f'Setting FILE_URL: {server_file_url}')
-                bot = telebot.TeleBot(self.TOKEN)
+                bot = telebot.async_telebot.AsyncTeleBot(self.TOKEN)
             else:
                 answer = "Не удалось определить токен бота."
                 return self.text_response(answer)
@@ -121,13 +123,13 @@ class Application:
                     )
                     self.banned_accounts = self.ban_manager.load_config()
                     try:
-                        answer = bot.send_message(
+                        answer = await bot.send_message(
                             self.GROUP_ID,
                             f"Пользователь с chat_id {banned_id} был забанен",
                             reply_to_message_id=self.channel_posts[self.chat_id]
                         )
                         await asyncio.sleep(5)
-                        bot.delete_message(
+                        await bot.delete_message(
                             self.GROUP_ID,
                             answer.message_id
                         )
@@ -144,13 +146,13 @@ class Application:
                         self.ban_manager.delete(unbanned_id)
                         self.banned_accounts = self.ban_manager.load_config()
                         try:
-                            answer = bot.send_message(
+                            answer = await bot.send_message(
                                 self.GROUP_ID,
                                 f"Пользователь с chat_id {unbanned_id} был разбанен",
                                 reply_to_message_id=self.channel_posts[self.chat_id]
                             )
                             await asyncio.sleep(5)
-                            bot.delete_message(
+                            await bot.delete_message(
                                 self.GROUP_ID,
                                 answer.message_id
                             )
@@ -160,13 +162,13 @@ class Application:
                             f'Unbanned user with chat_id {unbanned_id}'
                         )
                     except:
-                        answer = bot.send_message(
+                        answer = await bot.send_message(
                             self.GROUP_ID,
                             f"Пользователь с chat_id {unbanned_id} не был забанен",
                             reply_to_message_id=self.channel_posts[self.chat_id]
                         )
                         await asyncio.sleep(5)
-                        bot.delete_message(self.GROUP_ID, answer.message_id)
+                        await bot.delete_message(self.GROUP_ID, answer.message_id)
                         self.logger.info(
                             f"User with chat_id {unbanned_id} isn't banned"
                         )
@@ -190,7 +192,7 @@ class Application:
 
             if self.chat_id not in self.channel_posts:
                 name = f'@{message["from"]["username"]}' if "username" in message["from"] else message["from"]["first_name"]
-                bot.send_message(
+                await bot.send_message(
                     self.CHANNEL_ID,
                     f'Chat with {name} (Chat ID: {self.chat_id})'
                 )
@@ -224,8 +226,8 @@ class Application:
                 self.logger.info(f"file_id: {file_id}")
 
                 try:
-                    file_info = bot.get_file(file_id)
-                    file_bytes = bot.download_file(file_info.file_path)
+                    file_info = await bot.get_file(file_id)
+                    file_bytes = await bot.download_file(file_info.file_path)
                 except Exception as e:
                     self.logger.error(f"Error downloading file: {e}")
                     return self.text_response("Пожалуйста, попробуйте текстом")
@@ -276,7 +278,7 @@ class Application:
                 return self.empty_response
 
             if user_message == "/start":
-                bot.delete_message(self.chat_id, self.message_id)
+                await bot.delete_message(self.chat_id, self.message_id)
                 self.request_service.delete_files(self.chat_id)
                 await self.chat_data_service.update_chat_history_date(self.chat_id)
 
@@ -286,14 +288,14 @@ class Application:
                 welcome_message = (
                     "Здраствуйте, это сервисный центр. Чем могу вам помочь?"
                 )
-                bot.send_message(
+                await bot.send_message(
                     self.chat_id,
                     welcome_message,
                     reply_markup=markup
                 )
             
             elif user_message == "📑 Выбрать свою активную заявку":
-                bot.delete_message(self.chat_id, self.message_id)
+                await bot.delete_message(self.chat_id, self.message_id)
                 token = os.environ.get("1С_TOKEN", "")
                 login = os.environ.get("1C_LOGIN", "")
                 password = os.environ.get("1C_PASSWORD", "")
@@ -346,13 +348,13 @@ class Application:
                             f"Заявка {number} от {values['date']}; {values['division']}"
                         )
                     markup.add("🏠 Вернуться в меню")
-                    bot.send_message(self.chat_id, text, reply_markup=markup)
+                    await bot.send_message(self.chat_id, text, reply_markup=markup)
                 else:
                     text = "К сожалению, у вас нет текущих активных заявок. Буду рад помочь оформить новую! 😃"
-                    bot.send_message(self.chat_id, text)
+                    await bot.send_message(self.chat_id, text)
             
             elif user_message =="🏠 Вернуться в меню":
-                bot.delete_message(self.chat_id, self.message_id)
+                await bot.delete_message(self.chat_id, self.message_id)
                 markup = ReplyKeyboardMarkup(
                     resize_keyboard=True,
                     one_time_keyboard=True
@@ -362,36 +364,36 @@ class Application:
                 return_message = (
                     "Возвращаюсь в меню..."
                 )
-                bot.send_message(
+                await bot.send_message(
                     self.chat_id,
                     return_message,
                     reply_markup=markup
                 )
 
             elif user_message == "/requestreset":
-                bot.delete_message(self.chat_id, self.message_id)
+                await bot.delete_message(self.chat_id, self.message_id)
                 self.request_service.delete_files(self.chat_id)
-                answer = bot.send_message(
+                answer = await bot.send_message(
                     self.chat_id,
                     "Информация по заявкам была очищена"
                 )
                 await asyncio.sleep(5)
-                bot.delete_message(self.chat_id, answer.message_id)
+                await bot.delete_message(self.chat_id, answer.message_id)
 
             elif user_message == "/fullreset":
-                bot.delete_message(self.chat_id, self.message_id)
+                await bot.delete_message(self.chat_id, self.message_id)
                 self.request_service.delete_files(self.chat_id)
                 await self.chat_data_service.update_chat_history_date(self.chat_id)
-                answer = bot.send_message(
+                answer = await bot.send_message(
                     self.chat_id,
                     "Полная история чата была очищена"
                 )
                 await asyncio.sleep(5)
-                bot.delete_message(self.chat_id, answer.message_id)
+                await bot.delete_message(self.chat_id, answer.message_id)
 
             else:
                 try:
-                    bot.send_message(
+                    await bot.send_message(
                         self.GROUP_ID,
                         user_message,
                         reply_to_message_id=self.channel_posts[self.chat_id]
@@ -529,11 +531,11 @@ chat_id текущего пользователя - {self.chat_id}"""
 
                 self.logger.info("Replying in " + str(self.chat_id))
                 self.logger.info(f"Answer: {bot_response['output']}")
-                answer = bot.send_message(self.chat_id, bot_response["output"])
+                answer = await bot.send_message(self.chat_id, bot_response["output"])
                 self.message_id = answer.message_id
 
                 try:
-                    bot.send_message(
+                    await bot.send_message(
                         self.GROUP_ID,
                         bot_response["output"],
                         reply_to_message_id=self.channel_posts[self.chat_id]
