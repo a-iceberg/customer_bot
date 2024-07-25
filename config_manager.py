@@ -16,6 +16,11 @@ class ConfigManager:
     def set(self, key, value):
         self.config[key] = value
         self.save_config()
+    
+    def delete(self, key):
+        if key in self.config:
+            del self.config[key]
+            self.save_config()
 
     def save_config(self):
         with open(self.config_path, 'w', encoding='utf-8') as config_file:
