@@ -53,8 +53,8 @@ class Application:
         self.GROUP_ID = os.environ.get("HISTORY_GROUP_ID", "")
         self.channel_posts = {}
         self.banned_accounts = self.ban_manager.load_config()
-        self.base_error_answer = "Извините, произошла ошибка в работе бота. Cвяжитесь с нами по телефону 8 495 723 723 8 для дальнейшей помощи."
-        self.llm_error_answer = "Извините, произошла ошибка в работе бота. Попробуйте сформулировать ваше сообщение по-другому или же свяжитесь с нами по телефону 8 495 723 723 8 для дальнейшей помощи."
+        self.base_error_answer = "Извините, произошла ошибка в работе системы. Cвяжитесь с нами по телефону 8 495 723 723 8 для дальнейшей помощи."
+        self.llm_error_answer = "Извините, произошла ошибка в работе системы. Попробуйте сформулировать ваше сообщение по-другому или же свяжитесь с нами по телефону 8 495 723 723 8 для дальнейшей помощи."
 
     def text_response(self, text):
         return JSONResponse(content={"type": "text", "body": str(text)})
@@ -118,7 +118,7 @@ class Application:
                 bot = telebot.async_telebot.AsyncTeleBot(self.TOKEN)
             else:
                 self.logger.error("Failed to get bot token")
-                return self.text_response("Не удалось определить токен бота")
+                return self.text_response("Не удалось определить токен")
 
             if message["chat"]["id"] == int(self.GROUP_ID) and "text" in message and "reply_to_message" in message:
                 if message["text"] == "/ban":
