@@ -13,7 +13,7 @@ from pydantic.v1 import BaseModel, Field
 from telebot.types import ReplyKeyboardMarkup
 
 from langchain_openai import ChatOpenAI
-# from langchain_anthropic import ChatAnthropic
+from langchain_anthropic import ChatAnthropic
 from langchain_core.tools import StructuredTool
 from langchain_core.prompts import ChatPromptTemplate
 from langchain.agents import AgentExecutor, create_tool_calling_agent
@@ -121,6 +121,7 @@ class ChatAgent:
             "affilates": affilates
         }
         self.agent_executor = None
+        self.affilate = None
         self.bot_instance = bot_instance
 
         self.request_service = FileService(
@@ -285,14 +286,6 @@ class ChatAgent:
         )
         tools.append(change_request_tool)
 
-        # self.agent = initialize_agent(
-        #     tools,
-        #     llm,
-        #     agent=AgentType.STRUCTURED_CHAT_ZERO_SHOT_REACT_DESCRIPTION,
-        #     verbose=True,
-        #     handle_parsing_errors=True,
-        # )
-
         prompt = ChatPromptTemplate.from_messages(
             [
                 ("system", "{system_prompt}"),
@@ -329,109 +322,127 @@ class ChatAgent:
 
     async def save_name_to_request(self, chat_id, name):
         self.logger.info(f"save_name_to_request name: {name}")
-        await self.request_service.save_to_request(chat_id, name, "name")
-        self.logger.info("Имя пользователя было сохранено в заявку")
+        try:
+            await self.request_service.save_to_request(chat_id, name, "name")
+        except Exception as e:
+            self.logger.error(f"Error in saving customer name: {e}")
+        self.logger.info("Customer name was saved in the request")
         return "Имя пользователя было сохранено в заявку"
 
     async def save_direction_to_request(self, chat_id, direction):
         self.logger.info(f"save_direction_to_request direction: {direction}")
         if direction not in self.config["divisions"].values():
             return "Выбрано некорректное направление обращения, определите сами повторно подходящее именно из вашего списка"
-        
-        await self.request_service.save_to_request(
-            chat_id,
-            direction,
-            "direction"
-        )
-        self.logger.info("Направление, причина обращения было сохранено в заявку")
+        try:
+            await self.request_service.save_to_request(
+                chat_id,
+                direction,
+                "direction"
+            )
+        except Exception as e:
+            self.logger.error(f"Error in saving direction: {e}")
+            return f"Ошибка при сохранении направления обращения: {e}"
+        self.logger.info("Direction was saved in the request")
         return "Направление, причина обращения было сохранено в заявку"
 
     async def save_gps_to_request(self, chat_id, latitude, longitude):
         self.logger.info(
             f"save_gps_to_request latitude: {latitude} longitude: {longitude}"
         )
-        distance, self.affilate = self.distance_calculation(
-            latitude,
-            longitude,
-            self.config["affilates"].items()
-        )
-        if (
-            self.affilate == "Москва" and distance > 50
-        ) or (
-            self.affilate != "Москва" and distance > 40
-        ):
-            return "Указанный пользователем адрес находится вне зоны бесплатного выезда мастера. Предложите пользователю связаться с нами по нашему контактному телефону 8 495 723 723 8, указав его, и прекратите далее оформлять заявку!"
+        try:
+            distance, self.affilate = self.distance_calculation(
+                latitude,
+                longitude,
+                self.config["affilates"].items()
+            )
+            if (
+                self.affilate == "Москва" and distance > 50
+            ) or (
+                self.affilate != "Москва" and distance > 40
+            ):
+                return "Указанный пользователем адрес находится вне зоны бесплатного выезда мастера. Предложите пользователю связаться с нами по нашему контактному телефону 8 495 723 723 8, указав его, и прекратите далее оформлять заявку!"
+        except Exception as e:
+            self.logger.error(f"Error in distance calculation: {e}")
         
-        geolocator = Nominatim(user_agent="my_app")
-        address = geolocator.reverse(f"{latitude}, {longitude}").address
-        await self.request_service.save_to_request(
-            chat_id,
-            latitude,
-            "latitude"
-        )
-        await self.request_service.save_to_request(
-            chat_id,
-            longitude,
-            "longitude"
-        )
-        await self.request_service.save_to_request(chat_id, address, "address")
-        self.logger.info("Адрес пользователя был сохранен в заявку")
+        try:
+            geolocator = Nominatim(user_agent="my_app")
+            address = geolocator.reverse(f"{latitude}, {longitude}").address
+            await self.request_service.save_to_request(
+                chat_id,
+                latitude,
+                "latitude"
+            )
+            await self.request_service.save_to_request(
+                chat_id,
+                longitude,
+                "longitude"
+            )
+            await self.request_service.save_to_request(chat_id, address, "address")
+        except Exception as e:
+            self.logger.error(f"Error in saving address: {e}")
+            return f"Ошибка при сохранении адреса: {e}"
+        self.logger.info("Address was saved in the request")
         return "Адрес пользователя был сохранен в заявку"
 
     async def save_address_to_request(self, chat_id, address):
         self.logger.info(f"save_address_to_request address: {address}")
-        geolocator = Nominatim(user_agent="my_app")
-        location = None
-
         try:
+            geolocator = Nominatim(user_agent="my_app")
             location = geolocator.geocode(address)
-        except:
-            self.logger.error(f"Failed to get coordinates for {address}")
-
-        if location:
             latitude = location.latitude
             longitude = location.longitude
-        else:
+        except Exception as e:
+            self.logger.error(f"Error in geocoding address: {e}")
             return "Не удалось получить координаты адреса. Запросите адрес ещё раз"
         
-        distance, self.affilate = self.distance_calculation(
-            latitude,
-            longitude,
-            self.config["affilates"].items()
-        )
-        if (
-            self.affilate == "Москва" and distance > 50
-        ) or (
-            self.affilate != "Москва" and distance > 40
-        ):
-            return "Указанный пользователем адрес находится вне зоны бесплатного выезда мастера. Предложите пользователю связаться с нами по нашему контактному телефону 8 495 723 723 8, указав его, и прекратите далее оформлять заявку!"
+        try:
+            distance, self.affilate = self.distance_calculation(
+                latitude,
+                longitude,
+                self.config["affilates"].items()
+            )
+            if (
+                self.affilate == "Москва" and distance > 50
+            ) or (
+                self.affilate != "Москва" and distance > 40
+            ):
+                return "Указанный пользователем адрес находится вне зоны бесплатного выезда мастера. Предложите пользователю связаться с нами по нашему контактному телефону 8 495 723 723 8, указав его, и прекратите далее оформлять заявку!"
+        except Exception as e:
+            self.logger.error(f"Error in distance calculation: {e}")
         
-        await self.request_service.save_to_request(
-            chat_id,
-            latitude,
-            "latitude"
-        )
-        await self.request_service.save_to_request(
-            chat_id,
-            longitude,
-            "longitude"
-        )
-        await self.request_service.save_to_request(chat_id, address, "address")
-        self.logger.info("Адрес пользователя был сохранен в заявку")
+        try:
+            geolocator = Nominatim(user_agent="my_app")
+            address = geolocator.reverse(f"{latitude}, {longitude}").address
+            await self.request_service.save_to_request(
+                chat_id,
+                latitude,
+                "latitude"
+            )
+            await self.request_service.save_to_request(
+                chat_id,
+                longitude,
+                "longitude"
+            )
+            await self.request_service.save_to_request(chat_id, address, "address")
+        except Exception as e:
+            self.logger.error(f"Error in saving address: {e}")
+            return f"Ошибка при сохранении адреса: {e}"
+        self.logger.info("Address was saved in the request")
         return "Адрес пользователя был сохранен в заявку"
 
     async def save_address_line_2_to_request(self, chat_id, address_line_2):
         self.logger.info(
             f"save_address_line_2_to_request address: {address_line_2}"
         )
-        await self.request_service.save_to_request(
-            chat_id,
-            address_line_2,
-            "address_line_2"
-        )
-        self.logger.info(
-            "Вторая линия адреса пользователя была сохранена в заявку"
-        )
+        try:
+            await self.request_service.save_to_request(
+                chat_id,
+                address_line_2,
+                "address_line_2"
+            )
+        except Exception as e:
+            self.logger.error(f"Error in saving address line 2: {e}")
+        self.logger.info("Address line 2 was saved in the request")
         return "Вторая линия адреса пользователя была сохранена в заявку"
 
     async def save_phone_to_request(self, chat_id, phone):
@@ -440,24 +451,39 @@ class ChatAgent:
         if len(phone) < 10:
             return "Пользователь предоставил некорректный номер телефона, запросите его ещё раз. Передайте, что возможно, не хватает кода оператора / города"
         
-        await self.request_service.save_to_request(
-            chat_id,
-            "".join(re.findall(r"[\d]", phone)),
-            "phone"
-        )
-        self.logger.info("Телефон пользователя был сохранен в заявку")
+        try:
+            await self.request_service.save_to_request(
+                chat_id,
+                "".join(re.findall(r"[\d]", phone)),
+                "phone"
+            )
+        except Exception as e:
+            self.logger.error(f"Error in saving phone: {e}")
+            return f"Ошибка при сохранении телефона: {e}"
+        self.logger.info("Phone was saved in the request")
         return "Телефон пользователя был сохранен в заявку"
 
     async def save_date_to_request(self, chat_id, date):
         self.logger.info(f"save_date_to_request date: {date}")
-        await self.request_service.save_to_request(chat_id, date, "date")
-        self.logger.info("Дата посещения была сохранена в заявку")
+        try:
+            await self.request_service.save_to_request(chat_id, date, "date")
+        except Exception as e:
+            self.logger.error(f"Error in saving date: {e}")
+            return f"Ошибка при сохранении даты посещения: {e}"
+        self.logger.info("Date was saved in the request")
         return "Дата посещения была сохранена в заявку"
 
     async def save_comment_to_request(self, chat_id, comment):
         self.logger.info(f"save_comment_to_request comment: {comment}")
-        await self.request_service.save_to_request(chat_id, comment, "comment")
-        self.logger.info("Комментарий был сохранен в заявку")
+        try:
+            await self.request_service.save_to_request(
+                chat_id,
+                comment,
+                "comment"
+            )
+        except Exception as e:
+            self.logger.error(f"Error in saving comment: {e}")
+        self.logger.info("Comment was saved in the request")
         return "Комментарий был сохранен в заявку"
 
     def create_request(
@@ -480,101 +506,121 @@ class ChatAgent:
         login = os.environ.get("1C_LOGIN", "")
         password = os.environ.get("1C_PASSWORD", "")
 
-        with open("./data/template.json", "r", encoding="utf-8") as f:
-            order_params = json.load(f)
+        try:
+            with open("./data/template.json", "r", encoding="utf-8") as f:
+                order_params = json.load(f)
+        except Exception as e:
+            self.logger.error(f"Error in getting params template: {e}")
+            return f"Ошибка при получении шаблона параметров заявки: {e}"
+        
+        try:
+            order_params["order"]["client"]["display_name"] = name
+            order_params["order"]["address"]["floor"] = floor
+            order_params["order"]["address"]["entrance"] = entrance
+            order_params["order"]["address"]["apartment"] = apartment
+            order_params["order"]["address"]["intercom"] = intercom
+        except Exception as e:
+            self.logger.error(f"Error in getting order params: {e}")
 
-        order_params["order"]["uslugi_id"] = time.strftime(
-            "%Y-%m-%d-%H-%M-%S",
-            time.localtime()
-        ).replace("-", "")+str(chat_id)
-        order_params["order"]["client"]["display_name"] = name
-        order_params["order"]["services"][0]["service_id"] = direction
-        order_params["order"]["desired_dt"] = date
-        order_params["order"]["client"]["phone"] = phone
-        order_params["order"]["address"]["name"] = address
-        order_params["order"]["address"]["floor"] = floor
-        order_params["order"]["address"]["entrance"] = entrance
-        order_params["order"]["address"]["apartment"] = apartment
-        order_params["order"]["address"]["intercom"] = intercom
+        try:
+            client = OpenAI(api_key=os.environ.get("OPENAI_API_KEY", ""))
+            response = client.chat.completions.create(
+                model=self.config["model"],
+                temperature=0,
+                seed=654321,
+                messages=[
+                    {
+                        "role": "system",
+                        "content": "Вы - сотрудник по сохранности конфиденциальных данных. В передаваемом вами тексте никогда не должно быть никакой следующей информации: любых номеров телефонов; значений подъезда, этажа, квартиры, домофона. Возвращайте в ответе ТОЛЬКО полученный текст с УБРАННОЙ всей перечисленной выше информацией, НИ В КОЕМ СЛУЧАЕ НЕ ваш ответ с размышлениями. Если текст изначально пустой, также возвращайте пустую строку - ''.",
+                    },
+                    {
+                        "role": "user",
+                        "content": "проход под аркой домофон 45к7809в, этаж 10, квартира 45, подъезд 3, дополнительный телефон 89760932378",
+                    },
+                    {
+                        "role": "assistant",
+                        "content": "проход под аркой домофон, этаж, квартира, подъезд, дополнительный телефон",
+                    },
+                    {"role": "user", "content": comment},
+                ]
+            )
+            comment = response.choices[0].message.content
+        except Exception as e:
+            self.logger.error(f"Error in checking personal data: {e}")
 
-        client = OpenAI(api_key=os.environ.get("OPENAI_API_KEY", ""))
-        response = client.chat.completions.create(
-            model=self.config["model"],
-            temperature=0,
-            seed=654321,
-            messages=[
-                {
-                    "role": "system",
-                    "content": "Вы - сотрудник по сохранности конфиденциальных данных. В передаваемом вами тексте никогда не должно быть никакой следующей информации: любых номеров телефонов; значений подъезда, этажа, квартиры, домофона. Возвращайте в ответе ТОЛЬКО полученный текст с УБРАННОЙ всей перечисленной выше информацией, НИ В КОЕМ СЛУЧАЕ НЕ ваш ответ с размышлениями. Если текст изначально пустой, также возвращайте пустую строку - ''.",
-                },
-                {
-                    "role": "user",
-                    "content": "проход под аркой домофон 45к7809в, этаж 10, квартира 45, подъезд 3, дополнительный телефон 89760932378",
-                },
-                {
-                    "role": "assistant",
-                    "content": "проход под аркой домофон, этаж, квартира, подъезд, дополнительный телефон",
-                },
-                {"role": "user", "content": comment},
-            ]
-        )
-        comment = response.choices[0].message.content
         pattern = re.compile(
             r"([+]?[\d]?\d{3}.*?\d{3}.*?\d{2}.*?\d{2})|подъезд|этаж|эт|квартир|кв|домофон|код",
             re.IGNORECASE
         )
         comment = re.sub(pattern, '', comment)
 
-        if latitude == 0:
-            latitude = 55.760221
-        if longitude == 0:
-            longitude = 37.618561
-
         if not self.affilate:
-            distance, self.affilate = self.distance_calculation(
-                latitude,
-                longitude,
-                self.config["affilates"].items()
-            )
-            if (
-                self.affilate == "Москва" and distance > 50
-            ) or (
-                self.affilate != "Москва" and distance > 40
-            ):
-                return "Указанный пользователем адрес находится вне зоны бесплатного выезда мастера. Предложите пользователю связаться с нами по нашему контактному телефону 8 495 723 723 8, указав его, и прекратите далее оформлять заявку!"
+            try:
+                distance, self.affilate = self.distance_calculation(
+                    latitude,
+                    longitude,
+                    self.config["affilates"].items()
+                )
+                if (
+                    self.affilate == "Москва" and distance > 50
+                ) or (
+                    self.affilate != "Москва" and distance > 40
+                ):
+                    return "Указанный пользователем адрес находится вне зоны бесплатного выезда мастера. Предложите пользователю связаться с нами по нашему контактному телефону 8 495 723 723 8, указав его, и прекратите далее оформлять заявку!"
+            except Exception as e:
+                self.logger.error(f"Error in distance calculation: {e}")
             
-        order_params["order"]["address"]["name_components"][0]["name"] = self.affilate
-        order_params["order"]["comment"] = comment
-        order_params["order"]["address"]["geopoint"]["latitude"] = latitude
-        order_params["order"]["address"]["geopoint"]["longitude"] = longitude
-        self.logger.info(f"Parametrs: {order_params}")
+        try:
+            order_params["order"]["services"][0]["service_id"] = direction
+            order_params["order"]["desired_dt"] = date
+            order_params["order"]["client"]["phone"] = phone
+            order_params["order"]["address"]["name"] = address
+            order_params["order"]["address"]["name_components"][0]["name"] = self.affilate
+            order_params["order"]["comment"] = comment
+            order_params["order"]["address"]["geopoint"]["latitude"] = latitude
+            order_params["order"]["address"]["geopoint"]["longitude"] = longitude
+            order_params["order"]["uslugi_id"] = time.strftime(
+                "%Y-%m-%d-%H-%M-%S",
+                time.localtime()
+            ).replace("-", "")+str(chat_id)
+        except Exception as e:
+            self.logger.error(f"Error in getting order params: {e}")
+            return f"Ошибка при получении параметров заявки: {e}"
 
-        ws_params = {
-            "Идентификатор": "new_bid_number",
-            "НомерПартнера": order_params["order"]["uslugi_id"],
-        }
-        order_url = f"{self.config['proxy_url']}/hs"
-        ws_url = f"{self.config['proxy_url']}/ws"
-
-        order_data = {
-            "clientPath": self.config["order_path"]
-        }
-        order = requests.post(
-            order_url,
-            json={
-                "config": order_data,
-                "params": order_params,
-                "token": token
+        try:
+            ws_params = {
+                "Идентификатор": "new_bid_number",
+                "НомерПартнера": order_params["order"]["uslugi_id"],
             }
-        )
-        self.logger.info(f"Result:\n{order.status_code}\n{order.text}")
+            order_url = f"{self.config['proxy_url']}/hs"
+            ws_url = f"{self.config['proxy_url']}/ws"
 
-        ws_data = {
-            "clientPath": self.config["ws_paths"],
-            "login": login,
-            "password": password,
-        }
-        request_number = None
+            order_data = {
+                "clientPath": self.config["order_path"]
+            }
+            ws_data = {
+                "clientPath": self.config["ws_paths"],
+                "login": login,
+                "password": password,
+            }
+            request_number = None
+        except Exception as e:
+            self.logger.error(f"Error in getting web services params: {e}")
+            return f"Ошибка при получении параметров вэб-сервисов: {e}"
+        
+        try:
+            order = requests.post(
+                order_url,
+                json={
+                    "config": order_data,
+                    "params": order_params,
+                    "token": token
+                }
+            )
+        except Exception as e:
+            self.logger.error(f"Error in creating request: {e}")
+            return f"Ошибка при создании заявки: {e}"
+        self.logger.info(f"Result:\n{order.status_code}\n{order.text}")
 
         try:
             results = requests.post(
@@ -597,6 +643,7 @@ class ChatAgent:
             else:
                 return "Заявка была создана"
         else:
+            self.logger.error(f"Error in creating request: {order.text}")
             return f"Ошибка при создании заявки: {order.text}"
 
     async def request_selection(self, chat_id):
@@ -604,18 +651,22 @@ class ChatAgent:
         login = os.environ.get("1C_LOGIN", "")
         password = os.environ.get("1C_PASSWORD", "")
 
-        ws_url = f"{self.config['proxy_url']}/ws"        
-        ws_params = {
-            "Идентификатор": "bid_numbers",
-            "НомерПартнера": str(chat_id),
-        }
-        ws_data = {
-            "clientPath": self.config["ws_paths"],
-            "login": login,
-            "password": password,
-        }
-        request_numbers = {}
-        divisions = self.config["divisions"]
+        try:
+            ws_url = f"{self.config['proxy_url']}/ws"        
+            ws_params = {
+                "Идентификатор": "bid_numbers",
+                "НомерПартнера": str(chat_id),
+            }
+            ws_data = {
+                "clientPath": self.config["ws_paths"],
+                "login": login,
+                "password": password,
+            }
+            request_numbers = {}
+            divisions = self.config["divisions"]
+        except Exception as e:
+            self.logger.error(f"Error in getting web service params: {e}")
+            return f"Ошибка при получении параметров вэб-сервиса: {e}"
 
         try:
             results = requests.post(
@@ -626,7 +677,6 @@ class ChatAgent:
             for value in results.values():
                 if len(value) > 0:
                     for request in value:
-                        # request_numbers.append(request["id"])
                         request_numbers[request["id"]] = {
                             "date": request["date"][:10],
                             "division": divisions[request["division"]]
@@ -634,6 +684,7 @@ class ChatAgent:
             self.logger.info(f"request_numbers: {request_numbers}")
         except Exception as e:
             self.logger.error(f"Error in receiving request numbers: {e}")
+            return f"Ошибка при получении списка заявок: {e}"
 
         if len(request_numbers) > 0:
             markup = ReplyKeyboardMarkup(
@@ -659,17 +710,23 @@ class ChatAgent:
         partner_number = None
         date_str = None
         revision = None
+        locality = None
 
-        ws_url = f"{self.config['proxy_url']}/ws"        
-        ws_params = {
-            "Идентификатор": "data_to_change_bid",
-            "Номер": request_number,
-        }
-        ws_data = {
-            "clientPath": self.config["ws_paths"],
-            "login": login,
-            "password": password,
-        }
+        try:
+            ws_url = f"{self.config['proxy_url']}/ws"        
+            ws_params = {
+                "Идентификатор": "data_to_change_bid",
+                "Номер": request_number,
+            }
+            ws_data = {
+                "clientPath": self.config["ws_paths"],
+                "login": login,
+                "password": password,
+            }
+        except Exception as e:
+            self.logger.error(f"Error in getting web service params: {e}")
+            return f"Ошибка при получении параметров вэб-сервиса: {e}"
+        
         try:
             results = requests.post(
                 ws_url,
@@ -714,8 +771,13 @@ class ChatAgent:
             self.logger.error(f"Error in receiving request data: {e}")
 
         if partner_number and date_str and locality and revision is not None:
-            with open("./data/template.json", "r", encoding="utf-8") as f:
-                change_params = json.load(f)
+            try:
+                with open("./data/template.json", "r", encoding="utf-8") as f:
+                    change_params = json.load(f)
+            except Exception as e:
+                self.logger.error(f"Error in getting params template: {e}")
+                return f"Ошибка при получении шаблона параметров заявки: {e}"
+            
             change_params["order"]["uslugi_id"] = partner_number
             change_params["order"]["desired_dt"] = date_str
             change_params["order"]["address"]["name_components"][0]["name"] = locality
@@ -732,23 +794,28 @@ class ChatAgent:
                 self.logger.info(f"Parametrs: {change_params}")
                 return "Получено или сформулировано недопустимое для изменения значение. Доступны только коммментарий или телефон"
             
-            change_url = f"{self.config['proxy_url']}/ex"
-            change_data = {
-                "clientPath": {"crm": self.config["change_path"]["crm"]+partner_number}
-            }
-            change = requests.post(
-                change_url,
-                json={
-                    "config": change_data,
-                    "params": change_params,
-                    "token": token
+            try:
+                change_url = f"{self.config['proxy_url']}/ex"
+                change_data = {
+                    "clientPath": {"crm": self.config["change_path"]["crm"]+partner_number}
                 }
-            )
+                change = requests.post(
+                    change_url,
+                    json={
+                        "config": change_data,
+                        "params": change_params,
+                        "token": token
+                    }
+                )
+            except Exception as e:
+                self.logger.error(f"Error in changing request: {e}")
+                return f"Ошибка при обновлении заявки: {e}"
             self.logger.info(f"Result:\n{change.status_code}\n{change.text}")
             
             if change.status_code == 200:
-                return f"Данные заявки были обновлнены"
+                return f"Данные заявки были обновлены"
             else:
+                self.logger.error(f"Error in changing request: {change.text}")
                 return f"Ошибка при обновлении заявки: {change.text}"
         else:
-            return "Произошла ошибка при получении данных заявки"
+            return f"Произошла ошибка при получении данных заявки: {e}"
