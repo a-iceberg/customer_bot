@@ -11,7 +11,7 @@ from pathlib import Path
 
 import telebot.async_telebot
 
-from openai import OpenAI
+from openai import OpenAI, RateLimitError
 from pyrogram import Client
 from pydub import AudioSegment
 from fastapi.responses import JSONResponse
@@ -525,8 +525,10 @@ chat_id текущего пользователя - {self.chat_id}"""
 
                 if self.chat_agent is None:
                     self.chat_agent = ChatAgent(
-                        self.config_manager.get("model"),
-                        self.config_manager.get("temperature"),
+                        self.config_manager.get("openai_model"),
+                        self.config_manager.get("anthropic_model"),
+                        self.config_manager.get("openai_temperature"),
+                        self.config_manager.get("anthropic_temperature"),
                         self.config_manager.get("chats_dir"),
                         self.config_manager.get("request_dir"),
                         self.config_manager.get("proxy_url"),
@@ -539,16 +541,28 @@ chat_id текущего пользователя - {self.chat_id}"""
                         bot,
                     )
                     self.chat_agent.initialize_agent()
-
-                try:
+                try:        
                     try:
-                        bot_response = await self.chat_agent.agent_executor.ainvoke(
-                            {
-                                "system_prompt": system_prompt,
-                                "input": user_message,
-                                "chat_history": chat_history,
-                            }
-                        )
+                        try:
+                            bot_response = await self.chat_agent.agent_executor.ainvoke(
+                                {
+                                    "system_prompt": system_prompt,
+                                    "input": user_message,
+                                    "chat_history": chat_history,
+                                }
+                            )
+                        except RateLimitError as oai_limit_error:
+                            self.logger.error(
+                                f"Exceeded OpenAI quota: {oai_limit_error}, change agent to Anthropic model"
+                            )
+                            self.chat_agent.initialize_agent("Anthropic")
+                            bot_response = await self.chat_agent.agent_executor.ainvoke(
+                                {
+                                    "system_prompt": system_prompt,
+                                    "input": user_message,
+                                    "chat_history": chat_history,
+                                }
+                            )
                     except Exception as first_error:
                         self.logger.error(f"Error in agent run: {first_error}, second try")
                         bot_response = await self.chat_agent.agent_executor.ainvoke(

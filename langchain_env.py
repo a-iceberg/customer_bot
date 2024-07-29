@@ -6,6 +6,7 @@ import requests
 import numpy as np
 
 from openai import OpenAI
+from anthropic import Anthropic
 from datetime import datetime
 from geopy.distance import geodesic
 from geopy.geocoders import Nominatim
@@ -91,8 +92,10 @@ class change_request_args(BaseModel):
 class ChatAgent:
     def __init__(
         self,
-        model,
-        temperature,
+        oai_model,
+        a_model,
+        oai_temperature,
+        a_temperature,
         chats_dir,
         request_dir,
         proxy_url,
@@ -105,12 +108,11 @@ class ChatAgent:
         bot_instance,
     ):
         self.logger = logger
-        self.logger.info(
-            f"ChatAgent init with model: {model} and temperature: {temperature}"
-        )
         self.config = {
-            "model": model,
-            "temperature": temperature,
+            "oai_model": oai_model,
+            "a_model": a_model,
+            "oai_temperature": oai_temperature,
+            "a_temperature": a_temperature,
             "chats_dir": chats_dir,
             "request_dir": request_dir,
             "proxy_url": proxy_url,
@@ -133,14 +135,26 @@ class ChatAgent:
             self.logger
         )
 
-    def initialize_agent(self):
-        # llm = ChatAnthropic(
-        #     api_key=os.environ.get("ANTHROPIC_API_KEY", ""),
-        llm = ChatOpenAI(
-            api_key=os.environ.get("OPENAI_API_KEY", ""),
-            model=self.config["model"],
-            temperature=self.config["temperature"],
-        )
+    def initialize_agent(self, company="OpenAI"):
+        self.company = company
+        if self.company == "OpenAI":
+            llm = ChatOpenAI(
+                api_key=os.environ.get("OPENAI_API_KEY", ""),
+                model=self.config["oai_model"],
+                temperature=self.config["oai_temperature"],
+            )
+            self.logger.info(
+                f'OpenAI ChatAgent init with model: {self.config["oai_model"]} and temperature: {self.config["oai_temperature"]}'
+            )
+        elif self.company == "Anthropic":
+            llm = ChatAnthropic(
+                api_key=os.environ.get("ANTHROPIC_API_KEY", ""),
+                model=self.config["a_model"],
+                temperature=self.config["a_temperature"],
+            )
+            self.logger.info(
+                f'Anthropic ChatAgent init with model: {self.config["a_model"]} and temperature: {self.config["a_temperature"]}'
+            )
         tools = []
 
         # Tool: save_name_tool
@@ -523,28 +537,48 @@ class ChatAgent:
             self.logger.error(f"Error in getting order params: {e}")
 
         try:
-            client = OpenAI(api_key=os.environ.get("OPENAI_API_KEY", ""))
-            response = client.chat.completions.create(
-                model=self.config["model"],
-                temperature=0,
-                seed=654321,
-                messages=[
-                    {
-                        "role": "system",
-                        "content": "Вы - сотрудник по сохранности конфиденциальных данных. В передаваемом вами тексте никогда не должно быть никакой следующей информации: любых номеров телефонов; значений подъезда, этажа, квартиры, домофона. Возвращайте в ответе ТОЛЬКО полученный текст с УБРАННОЙ всей перечисленной выше информацией, НИ В КОЕМ СЛУЧАЕ НЕ ваш ответ с размышлениями. Если текст изначально пустой, также возвращайте пустую строку - ''.",
-                    },
-                    {
-                        "role": "user",
-                        "content": "проход под аркой домофон 45к7809в, этаж 10, квартира 45, подъезд 3, дополнительный телефон 89760932378",
-                    },
-                    {
-                        "role": "assistant",
-                        "content": "проход под аркой домофон, этаж, квартира, подъезд, дополнительный телефон",
-                    },
-                    {"role": "user", "content": comment},
-                ]
-            )
-            comment = response.choices[0].message.content
+            if self.company == "OpenAI":
+                client = OpenAI(api_key=os.environ.get("OPENAI_API_KEY", ""))
+                response = client.chat.completions.create(
+                    model=self.config["model"],
+                    temperature=0,
+                    seed=654321,
+                    messages=[
+                        {
+                            "role": "system",
+                            "content": "Вы - сотрудник по сохранности конфиденциальных данных. В передаваемом вами тексте никогда не должно быть никакой следующей информации: любых номеров телефонов; значений подъезда, этажа, квартиры, домофона. Возвращайте в ответе ТОЛЬКО полученный текст с УБРАННОЙ всей перечисленной выше информацией, НИ В КОЕМ СЛУЧАЕ НЕ ваш ответ с размышлениями. Если текст изначально пустой, также возвращайте пустую строку - ''.",
+                        },
+                        {
+                            "role": "user",
+                            "content": "проход под аркой домофон 45к7809в, этаж 10, квартира 45, подъезд 3, дополнительный телефон 89760932378",
+                        },
+                        {
+                            "role": "assistant",
+                            "content": "проход под аркой домофон, этаж, квартира, подъезд, дополнительный телефон",
+                        },
+                        {"role": "user", "content": comment},
+                    ]
+                )
+                comment = response.choices[0].message.content
+            elif self.company == "Anthropic":
+                client = Anthropic(api_key=os.environ.get("ANTHROPIC_API_KEY", ""))
+                response = client.messages.create(
+                    model=self.config["a_model"],
+                    temperature=0,
+                    system="Вы - сотрудник по сохранности конфиденциальных данных. В передаваемом вами тексте никогда не должно быть никакой следующей информации: любых номеров телефонов; значений подъезда, этажа, квартиры, домофона. Возвращайте в ответе ТОЛЬКО полученный текст с УБРАННОЙ всей перечисленной выше информацией, НИ В КОЕМ СЛУЧАЕ НЕ ваш ответ с размышлениями. Если текст изначально пустой, также возвращайте пустую строку - ''.",
+                    messages=[
+                        {
+                            "role": "user",
+                            "content": "проход под аркой домофон 45к7809в, этаж 10, квартира 45, подъезд 3, дополнительный телефон 89760932378",
+                        },
+                        {
+                            "role": "assistant",
+                            "content": "проход под аркой домофон, этаж, квартира, подъезд, дополнительный телефон",
+                        },
+                        {"role": "user", "content": comment},
+                    ]
+                )
+                comment = response.content.text
         except Exception as e:
             self.logger.error(f"Error in checking personal data: {e}")
 
