@@ -53,6 +53,8 @@ class Application:
         self.GROUP_ID = os.environ.get("HISTORY_GROUP_ID", "")
         self.channel_posts = {}
         self.banned_accounts = self.ban_manager.load_config()
+        self.base_error_answer = "Извините, произошла ошибка в работе системы. Cвяжитесь с нами по телефону 8 495 723 723 8 для дальнейшей помощи."
+        self.llm_error_answer = "Извините, произошла ошибка в работе системы. Попробуйте сформулировать ваше сообщение по-другому или же свяжитесь с нами по телефону 8 495 723 723 8 для дальнейшей помощи."
 
     def text_response(self, text):
         return JSONResponse(content={"type": "text", "body": str(text)})
@@ -92,7 +94,14 @@ class Application:
             authorization: str = Header(None)
         ):
             self.logger.info("handle_message")
-            message = await request.json()
+            try:
+                message = await request.json()
+            except Exception as e:
+                self.logger.error(f"Error in getting message: {e}")
+                return await bot.send_message(
+                    self.chat_id,
+                    self.base_error_answer
+                )
             self.logger.info(message)
 
             if authorization and authorization.startswith("Bearer "):
@@ -108,8 +117,8 @@ class Application:
                 self.logger.info(f'Setting FILE_URL: {server_file_url}')
                 bot = telebot.async_telebot.AsyncTeleBot(self.TOKEN)
             else:
-                answer = "Не удалось определить токен бота."
-                return self.text_response(answer)
+                self.logger.error("Failed to get bot token")
+                return self.text_response("Не удалось определить токен")
 
             if message["chat"]["id"] == int(self.GROUP_ID) and "text" in message and "reply_to_message" in message:
                 if message["text"] == "/ban":
@@ -223,7 +232,7 @@ class Application:
                 ):
                     key = "document"
                 file_id = message[key]["file_id"]
-                self.logger.info(f"file_id: {file_id}")
+                self.logger.info(f"Audiofile id: {file_id}")
 
                 try:
                     file_info = await bot.get_file(file_id)
@@ -257,12 +266,12 @@ class Application:
 
                 if " " in file_path:
                     self.logger.info(
-                        f"Replacing space in file_path: {file_path}"
+                        f"Replacing space in audiofile path: {file_path}"
                     )
                     new_file_path = file_path.replace(" ", "_")
                     os.rename(file_path, new_file_path)
                     file_path = new_file_path
-                    self.logger.info(f"New file_path: {file_path}")
+                    self.logger.info(f"New audiofile path: {file_path}")
 
                 self.logger.info(f"Converting audio to {file_path}")
                 converted_audio = (
@@ -272,7 +281,11 @@ class Application:
                 )
 
                 self.logger.info("Transcribing audio..")
-                user_message = transcribe_audio_file(file_path)
+                try:
+                    user_message = transcribe_audio_file(file_path)
+                except Exception as e:
+                    self.logger.error(f"Error transcribing audio file: {e}")
+                    return self.text_response("Пожалуйста, попробуйте текстом")                
                 self.logger.info("Transcription finished")
             else:
                 return self.empty_response
@@ -300,18 +313,22 @@ class Application:
                 login = os.environ.get("1C_LOGIN", "")
                 password = os.environ.get("1C_PASSWORD", "")
 
-                ws_url = f"{self.config_manager.get('proxy_url')}/ws"        
-                ws_params = {
-                    "Идентификатор": "bid_numbers",
-                    "НомерПартнера": str(self.chat_id),
-                }
-                ws_data = {
-                    "clientPath": self.config_manager.get("ws_paths"),
-                    "login": login,
-                    "password": password,
-                }
-                request_numbers = {}
-                divisions = self.config_manager.get("divisions")
+                try:
+                    ws_url = f"{self.config_manager.get('proxy_url')}/ws"        
+                    ws_params = {
+                        "Идентификатор": "bid_numbers",
+                        "НомерПартнера": str(self.chat_id),
+                    }
+                    ws_data = {
+                        "clientPath": self.config_manager.get("ws_paths"),
+                        "login": login,
+                        "password": password,
+                    }
+                    request_numbers = {}
+                    divisions = self.config_manager.get("divisions")
+                except Exception as e:
+                    self.logger.error(f"Error in getting web service params: {e}")
+                    return f"Ошибка при получении параметров вэб-сервиса: {e}"
 
                 try:
                     results = requests.post(
@@ -326,7 +343,6 @@ class Application:
                     for value in results.values():
                         if len(value) > 0:
                             for request in value:
-                                # request_numbers.append(request["id"])
                                 request_numbers[request["id"]] = {
                                     "date": request["date"][:10],
                                     "division": divisions[request["division"]]
@@ -342,16 +358,21 @@ class Application:
                         resize_keyboard=True,
                         one_time_keyboard=True
                     )
-                    text = "Выберете нужную заявку ниже 👇"
                     for number, values in request_numbers.items():
                         markup.add(
                             f"Заявка {number} от {values['date']}; {values['division']}"
                         )
                     markup.add("🏠 Вернуться в меню")
-                    await bot.send_message(self.chat_id, text, reply_markup=markup)
+                    await bot.send_message(
+                        self.chat_id,
+                        "Выберете нужную заявку ниже 👇",
+                        reply_markup=markup
+                    )
                 else:
-                    text = "К сожалению, у вас нет текущих активных заявок. Буду рад помочь оформить новую! 😃"
-                    await bot.send_message(self.chat_id, text)
+                    await bot.send_message(
+                        self.chat_id,
+                        "К сожалению, у вас нет текущих активных заявок. Буду рад помочь оформить новую! 😃"
+                    )
             
             elif user_message =="🏠 Вернуться в меню":
                 await bot.delete_message(self.chat_id, self.message_id)
@@ -400,16 +421,14 @@ class Application:
                     )
                 except:
                     self.logger.info("Chat id not received yet")
-                # bot.copy_message(
-                #     self.CHANNEL_ID,
-                #     self.chat_id,
-                #     self.message_id,
-                #     reply_to_message_id=self.channel_posts[self.chat_id]
-                # )
+
                 if str(self.chat_id) in self.banned_accounts:
                     return self.empty_response
 
-                request = await self.request_service.read_request(self.chat_id)
+                try:
+                    request = await self.request_service.read_request(self.chat_id)
+                except Exception as e:
+                    self.logger.error(f"Error in reading current request files: {e}")
                 user_name = message["from"]["first_name"]
 
                 try:
@@ -521,34 +540,52 @@ chat_id текущего пользователя - {self.chat_id}"""
                     )
                     self.chat_agent.initialize_agent()
 
-                bot_response = await self.chat_agent.agent_executor.ainvoke(
-                    {
-                        "system_prompt": system_prompt,
-                        "input": user_message,
-                        "chat_history": chat_history,
-                    }
-                )
-
-                self.logger.info("Replying in " + str(self.chat_id))
-                self.logger.info(f"Answer: {bot_response['output']}")
-                answer = await bot.send_message(self.chat_id, bot_response["output"])
-                self.message_id = answer.message_id
-
                 try:
-                    await bot.send_message(
-                        self.GROUP_ID,
-                        bot_response["output"],
-                        reply_to_message_id=self.channel_posts[self.chat_id]
+                    try:
+                        bot_response = await self.chat_agent.agent_executor.ainvoke(
+                            {
+                                "system_prompt": system_prompt,
+                                "input": user_message,
+                                "chat_history": chat_history,
+                            }
+                        )
+                    except Exception as first_error:
+                        self.logger.error(f"Error in agent run: {first_error}, second try")
+                        bot_response = await self.chat_agent.agent_executor.ainvoke(
+                            {
+                                "system_prompt": system_prompt+f". Сейчас вы получили следующую ошибку при своей работе, попробуйте действовать иначе: {first_error}",
+                                "input": user_message,
+                                "chat_history": chat_history,
+                            }
+                        )
+                    self.logger.info("Replying in " + str(self.chat_id))
+                    self.logger.info(f"Answer: {bot_response['output']}")
+                    answer = await bot.send_message(
+                        self.chat_id,
+                        bot_response["output"]
                     )
-                except:
-                    self.logger.info("Chat id not received yet")
-                # bot.copy_message(
-                #     self.CHANNEL_ID,
-                #     self.chat_id,
-                #     self.message_id,
-                #     reply_to_message_id=self.channel_posts[self.chat_id]
-                # )
+                    self.message_id = answer.message_id
 
+                    try:
+                        await bot.send_message(
+                            self.GROUP_ID,
+                            bot_response["output"],
+                            reply_to_message_id=self.channel_posts[self.chat_id]
+                        )
+                    except:
+                        self.logger.info("Chat id not received yet")
+                except Exception as second_error:
+                    await self.chat_data_service.save_message_id(
+                        self.chat_id,
+                        self.message_id
+                    )
+                    self.logger.error(
+                        f"Error in agent run: {second_error}, sending auto answer"
+                    )
+                    return await bot.send_message(
+                        self.chat_id,
+                        self.llm_error_answer
+                    )
                 return await self.chat_data_service.save_message_id(
                     self.chat_id,
                     self.message_id
@@ -613,6 +650,7 @@ chat_id текущего пользователя - {self.chat_id}"""
                     api_hash=os.environ.get("TELEGRAM_API_HASH", ""),
                     bot_token=self.TOKEN
                 )
+            messages = None
             chat_history = {}
             chat_id = partner_id[14:]
             full_path = os.path.join(
@@ -639,14 +677,15 @@ chat_id текущего пользователя - {self.chat_id}"""
             finally:
                 await self.chat_history_client.stop()
             
-            for message in messages:
-                if message.from_user and message.chat.id==int(chat_id):
-                    chat_history[message.id] = {
-                        "date": message.date.strftime('%Y-%m-%d %H:%M:%S'),
-                        "is_bot": message.from_user.is_bot,
-                        "name": message.from_user.first_name if message.from_user.first_name else message.from_user.username,
-                        "text": message.text
-                    }
+            if messages:
+                for message in messages:
+                    if message.from_user and message.chat.id==int(chat_id):
+                        chat_history[message.id] = {
+                            "date": message.date.strftime('%Y-%m-%d %H:%M:%S'),
+                            "is_bot": message.from_user.is_bot,
+                            "name": message.from_user.first_name if message.from_user.first_name else message.from_user.username,
+                            "text": message.text
+                        }
             return JSONResponse(
                 content=json.dumps(chat_history, ensure_ascii=False)
             )

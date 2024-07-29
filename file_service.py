@@ -132,6 +132,7 @@ class FileService:
         async with aiofiles.open(full_path, "r", encoding="utf-8") as f:
             chat_history_date = json.loads(await f.read())["chat_history_date"]
 
+        messages = None
         chat_history = []
         service_messages = [
             "Выберете номер вашей заявки ниже 👇",
@@ -163,12 +164,13 @@ class FileService:
         finally:
             await self.chat_history_client.stop()
 
-        for message in messages:
-            if message.from_user and message.chat.id==chat_id and message.text not in service_messages and message.date > datetime.strptime(chat_history_date, '%Y-%m-%d %H:%M:%S'):
-                if message.from_user.is_bot:
-                    chat_history.append(AIMessage(content=message.text))
-                else:
-                    chat_history.append(HumanMessage(content=message.text))
+        if messages:
+            for message in messages:
+                if message.from_user and message.chat.id==chat_id and message.text not in service_messages and message.date > datetime.strptime(chat_history_date, '%Y-%m-%d %H:%M:%S'):
+                    if message.from_user.is_bot:
+                        chat_history.append(AIMessage(content=message.text))
+                    else:
+                        chat_history.append(HumanMessage(content=message.text))
         return chat_history
 
     def delete_files(self, chat_id: str):
