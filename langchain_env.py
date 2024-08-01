@@ -5,8 +5,8 @@ import json
 import requests
 import numpy as np
 
-from openai import OpenAI
-from anthropic import Anthropic
+from openai import AsyncOpenAI
+from anthropic import AsyncAnthropic
 from datetime import datetime
 from geopy.distance import geodesic
 from geopy.geocoders import Nominatim
@@ -141,7 +141,7 @@ class ChatAgent:
             llm = ChatOpenAI(
                 api_key=os.environ.get("OPENAI_API_KEY", ""),
                 model=self.config["oai_model"],
-                temperature=self.config["oai_temperature"],
+                temperature=self.config["oai_temperature"]
             )
             self.logger.info(
                 f'OpenAI ChatAgent init with model: {self.config["oai_model"]} and temperature: {self.config["oai_temperature"]}'
@@ -150,7 +150,7 @@ class ChatAgent:
             llm = ChatAnthropic(
                 api_key=os.environ.get("ANTHROPIC_API_KEY", ""),
                 model=self.config["a_model"],
-                temperature=self.config["a_temperature"],
+                temperature=self.config["a_temperature"]
             )
             self.logger.info(
                 f'Anthropic ChatAgent init with model: {self.config["a_model"]} and temperature: {self.config["a_temperature"]}'
@@ -187,7 +187,7 @@ class ChatAgent:
         save_gps_tool = StructuredTool.from_function(
             coroutine=self.save_gps_to_request,
             name="Saving_GPS-coordinates",
-            description="Сохраняет адрес на основании полученнных GPS-координат в новую заявку. Вам следует предоставить значения chat_id, latitude и longitude в качестве параметров.",
+            description="Сохраняет адрес на основании полученнных GPS-координат в новую заявку, только если ранее уже не был использован инструмент Saving_address. Вам следует предоставить значения chat_id, latitude и longitude в качестве параметров.",
             args_schema=save_gps_to_request_args,
             return_direct=False,
             handle_tool_error=True,
@@ -200,7 +200,7 @@ class ChatAgent:
         save_address_tool = StructuredTool.from_function(
             coroutine=self.save_address_to_request,
             name="Saving_address",
-            description="Сохраняет полученнный адрес в новую заявку. При сохранении убедитесь, что у вас есть ВСЕ три обязательных поля адреса (город, улица, дом). Вам следует предоставить chat_id и непосредственно сам address из всего сообщения в качестве параметров.",
+            description="Сохраняет полученнный адрес в новую заявку. При сохранении убедитесь, что у вас есть ВСЕ три обязательных поля адреса (с городом, улицей, домом). Вам следует предоставить chat_id и непосредственно сами значения в address из всего сообщения в качестве параметров, то есть без слов 'город', 'улица', 'дом' и т.д. Корпус и строение обозначайте одной буквой вместе с номером дома, например, 1к3 или 98с4, только так!",
             args_schema=save_address_to_request_args,
             return_direct=False,
             handle_tool_error=True,
@@ -263,9 +263,9 @@ class ChatAgent:
 
         # Tool: create_request_tool
         create_request_tool = StructuredTool.from_function(
-            func=self.create_request,
+            coroutine=self.create_request,
             name="Create_request",
-            description="Создает полностью заполненную новую заявку в 1С и по возможности определяет её номер. Вам следует предоставить chat_id и по отдельности сами значения ключей словаря (request) с текущей заявкой из вашего системного промпта в качестве соответствующих параметров инструмента, кроме ключа address_line_2. Из его же значения выделите и передайте отдельно при наличии непосредственно сами численно-буквенные значения apartment, entrance, floor и intercom (т.е. без слов) из всего address_line_2 в качестве остальных соответствующих параметров инструмента.",
+            description="Создает полностью заполненную новую заявку в 1С и по возможности определяет её номер. Вам следует предоставить chat_id и по отдельности сами значения ключей словаря (request) с текущей заявкой из вашего системного промпта в качестве соответствующих параметров инструмента, кроме ключа address_line_2. Из его же значения выделите и передайте отдельно при наличии непосредственно сами численно-буквенные значения apartment, entrance, floor и intercom (т.е. без слов) из всего address_line_2 в качестве остальных соответствующих параметров инструмента. Из address же передавайте непосредственно сами значения в качестве параметров, то есть без слов 'город', 'улица', 'дом' и т.д. Корпус и строение обозначайте одной буквой вместе с номером дома, например, 1к3 или 98с4, только так!",
             args_schema=create_request_args,
             return_direct=False,
             handle_tool_error=True,
@@ -315,7 +315,8 @@ class ChatAgent:
             verbose=True,
             handle_parsing_errors=True,
             early_stopping_method="generate",
-            max_iterations=20
+            max_iterations=20,
+            return_intermediate_steps=True
         )
     
     def distance_calculation(self, latitude, longitude, affilate_coordinates):
@@ -374,7 +375,7 @@ class ChatAgent:
             ) or (
                 self.affilate != "Москва" and distance > 40
             ):
-                return "Указанный пользователем адрес находится вне зоны бесплатного выезда мастера. Предложите пользователю связаться с нами по нашему контактному телефону 8 495 723 723 8, указав его, и прекратите далее оформлять заявку!"
+                return "Указанный пользователем адрес находится вне зоны бесплатного выезда мастера. Предложите пользователю связаться с нами по нашему контактному телефону 8 495 723 723 0, указав его, и прекратите далее оформлять заявку!"
         except Exception as e:
             self.logger.error(f"Error in distance calculation: {e}")
         
@@ -399,6 +400,16 @@ class ChatAgent:
         return "Адрес пользователя был сохранен в заявку"
 
     async def save_address_to_request(self, chat_id, address):
+        del_pattern = re.compile(
+            r"улица\s*|ул\.*\s|дом(\s|,)|д\.*\s|город(\s|,)|гор\.*\s|г\.*\s",
+            re.IGNORECASE
+        )
+        ch_pattern = r'(,*\sстроение|,*\sстр\.*|,*\sс\.*)\s(\d+)|(,*\sкорпус|,*\sкорп\.*|,*\sк\.*)\s(\d+)'
+        replacement = lambda m: f"с{m.group(2)}" if m.group(1) else f"к{m.group(4)}" if m.group(3) else m.group(0)
+
+        address = re.sub(ch_pattern, replacement, address, flags=re.IGNORECASE)
+        address = re.sub(del_pattern, '', address)
+
         self.logger.info(f"save_address_to_request address: {address}")
         try:
             geolocator = Nominatim(user_agent="my_app")
@@ -420,7 +431,7 @@ class ChatAgent:
             ) or (
                 self.affilate != "Москва" and distance > 40
             ):
-                return "Указанный пользователем адрес находится вне зоны бесплатного выезда мастера. Предложите пользователю связаться с нами по нашему контактному телефону 8 495 723 723 8, указав его, и прекратите далее оформлять заявку!"
+                return "Указанный пользователем адрес находится вне зоны бесплатного выезда мастера. Предложите пользователю связаться с нами по нашему контактному телефону 8 495 723 723 0, указав его, и прекратите далее оформлять заявку!"
         except Exception as e:
             self.logger.error(f"Error in distance calculation: {e}")
         
@@ -500,7 +511,7 @@ class ChatAgent:
         self.logger.info("Comment was saved in the request")
         return "Комментарий был сохранен в заявку"
 
-    def create_request(
+    async def create_request(
         self,
         chat_id,
         direction,
@@ -535,12 +546,24 @@ class ChatAgent:
             order_params["order"]["address"]["intercom"] = intercom
         except Exception as e:
             self.logger.error(f"Error in getting order params: {e}")
+        
+        if latitude == 0 and longitude == 0:
+            try:
+                latitude = (await self.request_service.read_request(chat_id))["latitude"]
+                longitude = (await self.request_service.read_request(chat_id))["longitude"]
+            except Exception as e:
+                self.logger.error(f"Error in reading current request files: {e}")
+                return "Вы не сохранили адрес! Перед 'Create_request' используйте сначала остальные инструменты для сохранения всех полученных данных"
+        if direction not in self.config["divisions"].values():
+            return "Выбрано некорректное направление обращения, определите сами повторно подходящее именно из вашего списка"
 
         try:
             if self.company == "OpenAI":
-                client = OpenAI(api_key=os.environ.get("OPENAI_API_KEY", ""))
-                response = client.chat.completions.create(
-                    model=self.config["model"],
+                client = AsyncOpenAI(
+                    api_key=os.environ.get("OPENAI_API_KEY", "")
+                )
+                response = await client.chat.completions.create(
+                    model=self.config["oai_model"],
                     temperature=0,
                     seed=654321,
                     messages=[
@@ -561,8 +584,10 @@ class ChatAgent:
                 )
                 comment = response.choices[0].message.content
             elif self.company == "Anthropic":
-                client = Anthropic(api_key=os.environ.get("ANTHROPIC_API_KEY", ""))
-                response = client.messages.create(
+                client = AsyncAnthropic(
+                    api_key=os.environ.get("ANTHROPIC_API_KEY", "")
+                )
+                response = await client.messages.create(
                     model=self.config["a_model"],
                     temperature=0,
                     system="Вы - сотрудник по сохранности конфиденциальных данных. В передаваемом вами тексте никогда не должно быть никакой следующей информации: любых номеров телефонов; значений подъезда, этажа, квартиры, домофона. Возвращайте в ответе ТОЛЬКО полученный текст с УБРАННОЙ всей перечисленной выше информацией, НИ В КОЕМ СЛУЧАЕ НЕ ваш ответ с размышлениями. Если текст изначально пустой, также возвращайте пустую строку - ''.",
@@ -600,10 +625,20 @@ class ChatAgent:
                 ) or (
                     self.affilate != "Москва" and distance > 40
                 ):
-                    return "Указанный пользователем адрес находится вне зоны бесплатного выезда мастера. Предложите пользователю связаться с нами по нашему контактному телефону 8 495 723 723 8, указав его, и прекратите далее оформлять заявку!"
+                    return "Указанный пользователем адрес находится вне зоны бесплатного выезда мастера. Предложите пользователю связаться с нами по нашему контактному телефону 8 495 723 723 0, указав его, и прекратите далее оформлять заявку!"
             except Exception as e:
                 self.logger.error(f"Error in distance calculation: {e}")
-            
+
+        del_pattern = re.compile(
+            r"улица\s*|ул\.*\s|дом(\s|,)|д\.*\s|город(\s|,)|гор\.*\s|г\.*\s",
+            re.IGNORECASE
+        )
+        ch_pattern = r'(,*\sстроение|,*\sстр\.*|,*\sс\.*)\s(\d+)|(,*\sкорпус|,*\sкорп\.*|,*\sк\.*)\s(\d+)'
+        replacement = lambda m: f"с{m.group(2)}" if m.group(1) else f"к{m.group(4)}" if m.group(3) else m.group(0)
+
+        address = re.sub(ch_pattern, replacement, address, flags=re.IGNORECASE)
+        address = re.sub(del_pattern, '', address)
+
         try:
             order_params["order"]["services"][0]["service_id"] = direction
             order_params["order"]["desired_dt"] = date
@@ -654,7 +689,8 @@ class ChatAgent:
         except Exception as e:
             self.logger.error(f"Error in creating request: {e}")
             return f"Ошибка при создании заявки: {e}"
-        self.logger.info(f"Result:\n{order.status_code}\n{order.text}")
+        finally:
+            self.logger.info(f"Result:\n{order.status_code}\n{order.text}")
 
         try:
             results = requests.post(
@@ -731,7 +767,7 @@ class ChatAgent:
                     f"Заявка {number} от {values['date']}; {values['division']}"
                 )
             markup.add("🏠 Вернуться в меню")
-            self.bot_instance.send_message(chat_id, text, reply_markup=markup)
+            await self.bot_instance.send_message(chat_id, text, reply_markup=markup)
             return "У пользователя был только запрошен номер заявки, в рамках которой сейчас идёт диалог"
         else:
             return "У пользователя нет существующих заявок"
