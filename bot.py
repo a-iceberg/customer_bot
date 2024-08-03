@@ -81,6 +81,10 @@ class Application:
         os.environ["CHAT_HISTORY_TOKEN"] = cm.get("CHAT_HISTORY_TOKEN", "")
         os.environ["HISTORY_CHANNEL_ID"] = cm.get("HISTORY_CHANNEL_ID", "")
         os.environ["HISTORY_GROUP_ID"] = cm.get("HISTORY_GROUP_ID", "")
+        os.environ["DB_USER"] = cm.get("DB_USER", "")
+        os.environ["DB_PASSWORD"] = cm.get("DB_PASSWORD", "")
+        os.environ["DB_HOST"] = cm.get("DB_HOST", "")
+        os.environ["DB_PORT"] = cm.get("DB_PORT", "")
 
         self.logger.info("Auth data set successfully")
 
