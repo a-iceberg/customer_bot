@@ -71,6 +71,12 @@ class FileService:
         message_text,
         username
     ):
+        if self.pool is None:
+            self.pool = AsyncConnectionPool(
+                f"dbname='customer_bot' user={os.environ.get('DB_USER', '')} password={os.environ.get('DB_PASSWORD', '')} host={os.environ.get('DB_HOST', '')} port={os.environ.get('DB_PORT', '')}",
+                min_size=1,
+                max_size=10
+            )
         async with self.pool.connection() as self.conn:
             async with self.conn.cursor() as cursor:
                 await cursor.execute("""
@@ -106,12 +112,6 @@ class FileService:
                 api_hash=os.environ.get("TELEGRAM_API_HASH", ""),
                 bot_token=token
             )
-        if self.pool is None:
-            self.pool = AsyncConnectionPool(
-                f"dbname='customer_bot' user={os.environ.get('DB_USER', '')} password={os.environ.get('DB_PASSWORD', '')} host={os.environ.get('DB_HOST', '')} port={os.environ.get('DB_PORT', '')}",
-                min_size=1,
-                max_size=10
-            )
 
         self.logger.info(f"Reading chat history for chat id: {chat_id}")
         try:
@@ -136,29 +136,28 @@ class FileService:
                     else:
                         chat_history.append(HumanMessage(content=message.text))
 
-            pair_messages = [messages[-2], messages[-1]]
-            for m in pair_messages:
-                if m.from_user and m.chat.id==chat_id and m.text not in service_messages and m.date > datetime.strptime(chat_history_date, '%Y-%m-%d %H:%M:%S'):
-                    first_name = m.from_user.first_name if m.from_user.first_name else None
-                    last_name = m.from_user.last_name if m.from_user.last_name else None
-                    username = m.from_user.username if m.from_user.username else None
-                    is_bot = m.from_user.is_bot
-                    user_id = m.from_user.id
-                    msg_id = m.id
-                    send_time = m.date
-                    message_text = m.text
+            message = messages[-1]
+            if message.from_user and message.chat.id==chat_id and message.text not in service_messages and message.date > datetime.strptime(chat_history_date, '%Y-%m-%d %H:%M:%S'):
+                first_name = message.from_user.first_name if message.from_user.first_name else None
+                last_name = message.from_user.last_name if message.from_user.last_name else None
+                username = message.from_user.username if message.from_user.username else None
+                is_bot = message.from_user.is_bot
+                user_id = message.from_user.id
+                msg_id = message.id
+                send_time = message.date
+                message_text = message.text
 
-                    await self.insert_message_to_sql(
-                        first_name,
-                        last_name,
-                        is_bot,
-                        user_id,
-                        chat_id,
-                        msg_id,
-                        send_time,
-                        message_text,
-                        username
-                    )
+                await self.insert_message_to_sql(
+                    first_name,
+                    last_name,
+                    is_bot,
+                    user_id,
+                    chat_id,
+                    msg_id,
+                    send_time,
+                    message_text,
+                    username
+                )
         return chat_history[:-1]
 
     def delete_files(self, chat_id: str):
