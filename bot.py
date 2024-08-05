@@ -57,12 +57,12 @@ class Application:
         self.base_error_answer = "Извините, произошла ошибка в работе системы. Cвяжитесь с нами по телефону 8 495 723 723 0 для дальнейшей помощи."
         self.llm_error_answer = "Извините, произошла ошибка в работе системы. Попробуйте сформулировать ваше сообщение по-другому или же свяжитесь с нами по телефону 8 495 723 723 0 для дальнейшей помощи."
 
-        # self.white_list = [
-        #     106129214,
-        #     697168049,
-        #     -1002186198012,
-        #     -1002201179628
-        #     ]
+        self.white_list = [
+            106129214,
+            697168049,
+            -1002220622998,
+            -1002242327717
+            ]
 
     def text_response(self, text):
         return JSONResponse(content={"type": "text", "body": str(text)})
@@ -116,8 +116,8 @@ class Application:
                 )
             self.logger.info(message)
 
-            # if int(message["chat"]["id"]) not in self.white_list:
-            #     return self.empty_response
+            if int(message["chat"]["id"]) not in self.white_list:
+                return self.empty_response
 
             if authorization and authorization.startswith("Bearer "):
                 self.TOKEN = authorization.split(" ")[1]
