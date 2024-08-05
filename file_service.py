@@ -7,6 +7,7 @@ import aiofiles
 from pathlib import Path
 from pyrogram import Client
 from datetime import datetime
+from psycopg_pool import AsyncConnectionPool
 from langchain.schema import AIMessage, HumanMessage
 
 
@@ -15,72 +16,10 @@ class FileService:
         self.data_dir = data_dir
         self.logger = logger
         self.chat_history_client = None
+        self.pool = None
 
     def file_path(self, chat_id):
         return os.path.join(self.data_dir, str(chat_id))
-
-    # async def save_to_chat_history(
-    #     self,
-    #     chat_id,
-    #     message_text,
-    #     message_id,
-    #     message_type,
-    #     event_id="default",
-    #     date_override=None,
-    # ):
-    #     self.logger.info(
-    #         f"[{event_id}] Saving message to chat history for chat_id: {chat_id} for message_id: {message_id}"
-    #     )
-    #     if date_override is None:
-    #         message_date = time.strftime("%Y-%m-%d-%H-%M-%S", time.localtime())
-    #         parsed_time = time.strptime(message_date, "%Y-%m-%d-%H-%M-%S")
-    #         unix_timestamp = int(time.mktime(parsed_time))
-    #     else:
-    #         unix_timestamp = date_override
-    #         message_date = time.strftime(
-    #             "%Y-%m-%d-%H-%M-%S", time.localtime(unix_timestamp)
-    #         )
-    #     log_file_name = f"{unix_timestamp}_{message_id}_{event_id}.json"
-
-    #     chat_log_dir = self.file_path(chat_id)
-    #     Path(chat_log_dir).mkdir(parents=True, exist_ok=True)
-
-    #     full_path = os.path.join(chat_log_dir, log_file_name)
-    #     async with aiofiles.open(full_path, "w") as log_file:
-    #         await log_file.write(
-    #             json.dumps(
-    #                 {
-    #                     "type": message_type,
-    #                     "text": message_text,
-    #                     "date": message_date,
-    #                     "message_id": message_id
-    #                 },
-    #                 ensure_ascii=False,
-    #             )
-    #         )
-
-    # async def read_chat_history(self, chat_id: str, message_id: int):
-    #     """Reads the chat history from a folder and returns it as a list of messages."""
-    #     chat_history = []
-    #     chat_log_path = self.file_path(chat_id)
-    #     Path(chat_log_path).mkdir(parents=True, exist_ok=True)
-    #     self.logger.info(f"Reading chat history from: {chat_log_path}")
-
-    #     for log_file in sorted(os.listdir(chat_log_path)):
-    #         full_path = os.path.join(chat_log_path, log_file)
-    #         try:
-    #             with open(full_path, "r") as file:
-    #                 message = json.load(file)
-    #                 if message["type"] == "AIMessage":
-    #                     chat_history.append(AIMessage(content=message["text"]))
-    #                 elif message["type"] == "HumanMessage":
-    #                     chat_history.append(HumanMessage(content=message["text"]))
-    #         except Exception as e:
-    #             self.logger.error(f"Error reading chat history file {log_file}: {e}")
-    #             # Remove problematic file
-    #             os.remove(full_path)
-
-    #     return chat_history
 
     async def save_message_id(self, chat_id, message_id):
         chat_dir = self.file_path(chat_id)
@@ -119,6 +58,31 @@ class FileService:
             await f.write(
                 json.dumps(data, ensure_ascii=False)
             )
+    
+    async def insert_message_to_sql(
+        self,
+        first_name,
+        last_name,
+        is_bot,
+        user_id,
+        chat_id,
+        message_id,
+        send_time,
+        message_text,
+        username
+    ):
+        if self.pool is None:
+            self.pool = AsyncConnectionPool(
+                f"dbname='customer_bot' user={os.environ.get('DB_USER', '')} password={os.environ.get('DB_PASSWORD', '')} host={os.environ.get('DB_HOST', '')} port={os.environ.get('DB_PORT', '')}",
+                min_size=1,
+                max_size=10
+            )
+        async with self.pool.connection() as self.conn:
+            async with self.conn.cursor() as cursor:
+                await cursor.execute("""
+                    INSERT INTO chats_history (first_name, last_name, is_bot, user_id, chat_id, message_id, send_time, message_text, username)
+                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
+                """, (first_name, last_name, is_bot, user_id, chat_id, message_id, send_time, message_text, username))
 
     async def read_chat_history(
         self,
@@ -152,7 +116,7 @@ class FileService:
         self.logger.info(f"Reading chat history for chat id: {chat_id}")
         try:
             await self.chat_history_client.start()
-            message_ids = list(range(message_id-200, message_id))
+            message_ids = list(range(message_id-199, message_id+1))
             messages = await self.chat_history_client.get_messages(
                 chat_id,
                 message_ids
@@ -171,7 +135,30 @@ class FileService:
                         chat_history.append(AIMessage(content=message.text))
                     else:
                         chat_history.append(HumanMessage(content=message.text))
-        return chat_history
+
+            message = messages[-1]
+            if message.from_user and message.chat.id==chat_id and message.text not in service_messages and message.date > datetime.strptime(chat_history_date, '%Y-%m-%d %H:%M:%S'):
+                first_name = message.from_user.first_name if message.from_user.first_name else None
+                last_name = message.from_user.last_name if message.from_user.last_name else None
+                username = message.from_user.username if message.from_user.username else None
+                is_bot = message.from_user.is_bot
+                user_id = message.from_user.id
+                msg_id = message.id
+                send_time = message.date
+                message_text = message.text
+
+                await self.insert_message_to_sql(
+                    first_name,
+                    last_name,
+                    is_bot,
+                    user_id,
+                    chat_id,
+                    msg_id,
+                    send_time,
+                    message_text,
+                    username
+                )
+        return chat_history[:-1]
 
     def delete_files(self, chat_id: str):
         """Deletes folder and all its content."""

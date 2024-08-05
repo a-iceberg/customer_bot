@@ -8,6 +8,7 @@ import asyncio
 import aiofiles
 from uuid import uuid4
 from pathlib import Path
+from datetime import datetime
 
 import telebot.async_telebot
 
@@ -81,6 +82,10 @@ class Application:
         os.environ["CHAT_HISTORY_TOKEN"] = cm.get("CHAT_HISTORY_TOKEN", "")
         os.environ["HISTORY_CHANNEL_ID"] = cm.get("HISTORY_CHANNEL_ID", "")
         os.environ["HISTORY_GROUP_ID"] = cm.get("HISTORY_GROUP_ID", "")
+        os.environ["DB_USER"] = cm.get("DB_USER", "")
+        os.environ["DB_PASSWORD"] = cm.get("DB_PASSWORD", "")
+        os.environ["DB_HOST"] = cm.get("DB_HOST", "")
+        os.environ["DB_PORT"] = cm.get("DB_PORT", "")
 
         self.logger.info("Auth data set successfully")
 
@@ -217,10 +222,10 @@ class Application:
                 )
 
             if "location" in message:
-                user_message = f"Мои координаты - {message['location']}"
+                self.user_message = f"Мои координаты - {message['location']}"
 
             elif "text" in message:
-                user_message = message["text"]
+                self.user_message = message["text"]
 
             elif (
                 "audio" in message
@@ -292,7 +297,7 @@ class Application:
 
                 self.logger.info("Transcribing audio..")
                 try:
-                    user_message = transcribe_audio_file(file_path)
+                    self.user_message = transcribe_audio_file(file_path)
                 except Exception as e:
                     self.logger.error(f"Error transcribing audio file: {e}")
                     return self.text_response("Пожалуйста, попробуйте текстом")                
@@ -300,7 +305,7 @@ class Application:
             else:
                 return self.empty_response
 
-            if user_message == "/start":
+            if self.user_message == "/start":
                 await bot.delete_message(self.chat_id, self.message_id)
                 self.request_service.delete_files(self.chat_id)
                 await self.chat_data_service.update_chat_history_date(self.chat_id)
@@ -317,7 +322,7 @@ class Application:
                     reply_markup=markup
                 )
             
-            elif user_message == "📑 Выбрать свою активную заявку":
+            elif self.user_message == "📑 Выбрать свою активную заявку":
                 await bot.delete_message(self.chat_id, self.message_id)
                 token = os.environ.get("1С_TOKEN", "")
                 login = os.environ.get("1C_LOGIN", "")
@@ -384,7 +389,7 @@ class Application:
                         "К сожалению, у вас нет текущих активных заявок. Буду рад помочь оформить новую! 😃"
                     )
             
-            elif user_message =="🏠 Вернуться в меню":
+            elif self.user_message =="🏠 Вернуться в меню":
                 await bot.delete_message(self.chat_id, self.message_id)
                 markup = ReplyKeyboardMarkup(
                     resize_keyboard=True,
@@ -401,7 +406,7 @@ class Application:
                     reply_markup=markup
                 )
 
-            elif user_message == "/requestreset":
+            elif self.user_message == "/requestreset":
                 await bot.delete_message(self.chat_id, self.message_id)
                 self.request_service.delete_files(self.chat_id)
                 answer = await bot.send_message(
@@ -411,7 +416,7 @@ class Application:
                 await asyncio.sleep(5)
                 await bot.delete_message(self.chat_id, answer.message_id)
 
-            elif user_message == "/fullreset":
+            elif self.user_message == "/fullreset":
                 await bot.delete_message(self.chat_id, self.message_id)
                 self.request_service.delete_files(self.chat_id)
                 await self.chat_data_service.update_chat_history_date(self.chat_id)
@@ -426,7 +431,7 @@ class Application:
                 try:
                     await bot.send_message(
                         self.GROUP_ID,
-                        user_message,
+                        self.user_message,
                         reply_to_message_id=self.channel_posts[self.chat_id]
                     )
                 except:
@@ -559,7 +564,7 @@ chat_id текущего пользователя - {self.chat_id}"""
                             bot_response = await self.chat_agent.agent_executor.ainvoke(
                                 {
                                     "system_prompt": system_prompt,
-                                    "input": user_message,
+                                    "input": self.user_message,
                                     "chat_history": chat_history,
                                 }
                             )
@@ -571,7 +576,7 @@ chat_id текущего пользователя - {self.chat_id}"""
                             bot_response = await self.chat_agent.agent_executor.ainvoke(
                                 {
                                     "system_prompt": system_prompt,
-                                    "input": user_message,
+                                    "input": self.user_message,
                                     "chat_history": chat_history,
                                 }
                             )
@@ -582,7 +587,7 @@ chat_id текущего пользователя - {self.chat_id}"""
                         bot_response = await self.chat_agent.agent_executor.ainvoke(
                             {
                                 "system_prompt": system_prompt+f". Сейчас вы получили следующую ошибку при своей работе, попробуйте действовать иначе: {first_error}",
-                                "input": user_message,
+                                "input": self.user_message,
                                 "chat_history": chat_history,
                             }
                         )
@@ -600,6 +605,7 @@ chat_id текущего пользователя - {self.chat_id}"""
                         )
                         output = bot_response["output"]
                         steps = bot_response["intermediate_steps"]
+
                     if "адрес" in output.lower() and "вне" in output.lower() and "зон" in output.lower() and "723" in output.lower() and (len(steps)==0 or (len(steps)>0 and steps[-1][0].tool != "Create_request" and steps[-1][0].tool != "Saving_address" and steps[-1][0].tool != "Saving_GPS-coordinates")):
                         self.logger.error(f"Detected deceptive hallucination in LLM answer, reanswering..")
                         bot_response = await self.chat_agent.agent_executor.ainvoke(
@@ -611,6 +617,7 @@ chat_id текущего пользователя - {self.chat_id}"""
                         )
                         output = bot_response["output"]
                         steps = bot_response["intermediate_steps"]
+
                     self.logger.info("Replying in " + str(self.chat_id))
                     self.logger.info(f"Answer: {output}")
                     answer = await bot.send_message(
@@ -620,6 +627,22 @@ chat_id текущего пользователя - {self.chat_id}"""
                     self.message_id = answer.message_id
 
                     try:
+                        await self.chat_data_service.insert_message_to_sql(
+                            answer.from_user.first_name if answer.from_user.first_name else None,
+                            answer.from_user.last_name if answer.from_user.last_name else None,
+                            answer.from_user.is_bot,
+                            answer.from_user.id,
+                            self.chat_id,
+                            self.message_id,
+                            datetime.fromtimestamp(answer.date).strftime("%Y-%m-%d %H:%M:%S"),
+                            output,
+                            answer.from_user.username if answer.from_user.username else None
+                        )
+                    except Exception as error:
+                        self.logger.error(
+                            f"Error in saving message to SQL: {error}"
+                        )
+                    try:
                         await bot.send_message(
                             self.GROUP_ID,
                             output,
@@ -628,17 +651,30 @@ chat_id текущего пользователя - {self.chat_id}"""
                     except:
                         self.logger.info("Chat id not received yet")
                 except Exception as second_error:
-                    await self.chat_data_service.save_message_id(
-                        self.chat_id,
-                        self.message_id
-                    )
                     self.logger.error(
                         f"Error in agent run: {second_error}, sending auto answer"
                     )
-                    return await bot.send_message(
+                    answer = await bot.send_message(
                         self.chat_id,
                         self.llm_error_answer
                     )
+                    self.message_id = answer.message_id
+                    try:
+                        await self.chat_data_service.insert_message_to_sql(
+                            answer.from_user.first_name if answer.from_user.first_name else None,
+                            answer.from_user.last_name if answer.from_user.last_name else None,
+                            answer.from_user.is_bot,
+                            answer.from_user.id,
+                            self.chat_id,
+                            self.message_id,
+                            datetime.fromtimestamp(answer.date).strftime("%Y-%m-%d %H:%M:%S"),
+                            output,
+                            answer.from_user.username if answer.from_user.username else None
+                        )
+                    except Exception as error:
+                        self.logger.error(
+                            f"Error in saving message to SQL: {error}"
+                        )
                 return await self.chat_data_service.save_message_id(
                     self.chat_id,
                     self.message_id
