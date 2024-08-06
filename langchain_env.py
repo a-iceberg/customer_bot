@@ -9,7 +9,7 @@ from openai import AsyncOpenAI
 from anthropic import AsyncAnthropic
 from datetime import datetime
 from geopy.distance import geodesic
-from geopy.geocoders import Nominatim
+from geopy.geocoders import Nominatim, Yandex
 from pydantic.v1 import BaseModel, Field
 from telebot.types import ReplyKeyboardMarkup
 
@@ -265,7 +265,7 @@ class ChatAgent:
         create_request_tool = StructuredTool.from_function(
             coroutine=self.create_request,
             name="Create_request",
-            description="Создает полностью заполненную новую заявку в 1С и по возможности определяет её номер. Вам следует предоставить chat_id и по отдельности сами значения ключей словаря (request) с текущей заявкой из вашего системного промпта в качестве соответствующих параметров инструмента, кроме ключа address_line_2. Из его же значения выделите и передайте отдельно при наличии непосредственно сами численно-буквенные значения apartment, entrance, floor и intercom (т.е. без слов) из всего address_line_2 в качестве остальных соответствующих параметров инструмента. Из address же передавайте непосредственно сами значения в качестве параметров, то есть без слов 'город', 'улица', 'дом' и т.д. Корпус и строение обозначайте одной буквой вместе с номером дома, например, 1к3 или 98с4, только так!",
+            description="Создает полностью заполненную новую заявку в 1С и при доступности определяет её номер. Вам следует предоставить chat_id и по отдельности сами значения ключей словаря (request) с текущей заявкой из вашего системного промпта в качестве соответствующих параметров инструмента, кроме ключа address_line_2. Из его же значения выделите и передайте отдельно при наличии непосредственно сами численно-буквенные значения apartment, entrance, floor и intercom (т.е. без слов) из всего address_line_2 в качестве остальных соответствующих параметров инструмента. Из address же передавайте непосредственно сами значения в качестве параметров, то есть без слов 'город', 'улица', 'дом' и т.д. Корпус и строение обозначайте одной буквой вместе с номером дома, например, 1к3 или 98с4, только так!",
             args_schema=create_request_args,
             return_direct=False,
             handle_tool_error=True,
@@ -378,10 +378,22 @@ class ChatAgent:
                 return "Указанный пользователем адрес находится вне зоны бесплатного выезда мастера. Предложите пользователю связаться с нами по нашему контактному телефону 8 495 723 723 0, указав его, и прекратите далее оформлять заявку!"
         except Exception as e:
             self.logger.error(f"Error in distance calculation: {e}")
-        
+
         try:
-            geolocator = Nominatim(user_agent="my_app")
-            address = geolocator.reverse(f"{latitude}, {longitude}").address
+            try:
+                geolocator = Nominatim(user_agent="my_app")
+                address = geolocator.reverse(f"{latitude}, {longitude}").address
+            except Exception as e:
+                self.logger.error(
+                    f"Error in getting address: {e}, using Yandex geolocator"
+                )
+                geolocator = Yandex(
+                    api_key=os.environ.get("YANDEX_GEOCODER_KEY", "")
+                )
+                address = geolocator.reverse(
+                    f"{latitude}, {longitude}"
+                ).address
+
             await self.request_service.save_to_request(
                 chat_id,
                 latitude,
@@ -392,10 +404,15 @@ class ChatAgent:
                 longitude,
                 "longitude"
             )
-            await self.request_service.save_to_request(chat_id, address, "address")
+            await self.request_service.save_to_request(
+                chat_id,
+                address,
+                "address"
+            )
         except Exception as e:
             self.logger.error(f"Error in saving address: {e}")
             return f"Ошибка при сохранении адреса: {e}"
+        
         self.logger.info("Address was saved in the request")
         return "Адрес пользователя был сохранен в заявку"
 
@@ -412,12 +429,24 @@ class ChatAgent:
 
         self.logger.info(f"save_address_to_request address: {address}")
         try:
-            geolocator = Nominatim(user_agent="my_app")
-            location = geolocator.geocode(address)
-            latitude = location.latitude
-            longitude = location.longitude
+            try:
+                geolocator = Nominatim(user_agent="my_app")
+                location = geolocator.geocode(address)
+                latitude = location.latitude
+                longitude = location.longitude
+            except Exception as e:
+                self.logger.error(
+                    f"Error in geocoding address: {e}, using Yandex geolocator"
+                )
+                geolocator = Yandex(
+                    api_key=os.environ.get("YANDEX_GEOCODER_KEY", "")
+                )
+                location = geolocator.geocode(address)
+                latitude = location.latitude
+                longitude = location.longitude
         except Exception as e:
-            self.logger.error(f"Error in geocoding address: {e}")
+            self.logger.error(
+                f"Error in geocoding address: {e}")
             return "Не удалось получить координаты адреса. Запросите адрес ещё раз"
         
         try:
@@ -436,8 +465,20 @@ class ChatAgent:
             self.logger.error(f"Error in distance calculation: {e}")
         
         try:
-            geolocator = Nominatim(user_agent="my_app")
-            address = geolocator.reverse(f"{latitude}, {longitude}").address
+            try:
+                geolocator = Nominatim(user_agent="my_app")
+                address = geolocator.reverse(f"{latitude}, {longitude}").address
+            except Exception as e:
+                self.logger.error(
+                    f"Error in getting address: {e}, using Yandex geolocator"
+                )
+                geolocator = Yandex(
+                    api_key=os.environ.get("YANDEX_GEOCODER_KEY", "")
+                )
+                address = geolocator.reverse(
+                    f"{latitude}, {longitude}"
+                ).address
+
             await self.request_service.save_to_request(
                 chat_id,
                 latitude,
@@ -448,10 +489,15 @@ class ChatAgent:
                 longitude,
                 "longitude"
             )
-            await self.request_service.save_to_request(chat_id, address, "address")
+            await self.request_service.save_to_request(
+                chat_id,
+                address,
+                "address"
+            )
         except Exception as e:
             self.logger.error(f"Error in saving address: {e}")
             return f"Ошибка при сохранении адреса: {e}"
+        
         self.logger.info("Address was saved in the request")
         return "Адрес пользователя был сохранен в заявку"
 
@@ -708,6 +754,7 @@ class ChatAgent:
         if order.status_code == 200:
             self.logger.info(f"number: {request_number}")
             self.request_service.delete_files(chat_id)
+            self.affilate = None
             if request_number:
                 return f"Заявка была создана с номером {request_number}"
             else:

@@ -4,8 +4,8 @@
     "request_dir": "./data/vlad/requests/",
     "openai_model": "gpt-4o-2024-05-13",
     "anthropic_model": "claude-3-5-sonnet-20240620",
-    "openai_temperature": 0.5,
-    "anthropic_temperature": 0.5,
+    "openai_temperature": 0.3,
+    "anthropic_temperature": 0.3,
     "proxy_url": "https://service.icecorp.ru:7405",
     "order_path": {
         "crm": "http://10.2.4.141/Test_CRM/hs/yandex/v1/order/"
