@@ -20,6 +20,7 @@ from langchain_core.prompts import ChatPromptTemplate
 from langchain.agents import AgentExecutor, create_tool_calling_agent
 
 from file_service import FileService
+from config_manager import ConfigManager
 
 
 class save_name_to_request_args(BaseModel):
@@ -134,6 +135,7 @@ class ChatAgent:
             self.config["chats_dir"],
             self.logger
         )
+        self.ban_manager = ConfigManager("./data/banned_users.json")
 
     def initialize_agent(self, company="OpenAI"):
         self.company = company
@@ -371,6 +373,12 @@ class ChatAgent:
                 self.config["affilates"].items()
             )
             if (
+                self.affilate == "Москва" and distance > 100
+            ) or (
+                self.affilate != "Москва" and distance > 90
+            ):
+                return "Указанный пользователем адрес находится вне зоны работы компании. Вежливо донесите это до пользователя и прекратите далее оформлять заявку!"
+            elif (
                 self.affilate == "Москва" and distance > 50
             ) or (
                 self.affilate != "Москва" and distance > 40
@@ -456,6 +464,12 @@ class ChatAgent:
                 self.config["affilates"].items()
             )
             if (
+                self.affilate == "Москва" and distance > 100
+            ) or (
+                self.affilate != "Москва" and distance > 90
+            ):
+                return "Указанный пользователем адрес находится вне зоны работы компании. Вежливо донесите это до пользователя и прекратите далее оформлять заявку!"
+            elif (
                 self.affilate == "Москва" and distance > 50
             ) or (
                 self.affilate != "Москва" and distance > 40
@@ -578,6 +592,21 @@ class ChatAgent:
         password = os.environ.get("1C_PASSWORD", "")
 
         try:
+            if await self.request_selection(
+                chat_id,
+                request_creating=True
+            ) == "Ban":
+                self.ban_manager.set(
+                    chat_id,
+                    time.strftime("%Y-%m-%d %H:%M", time.localtime())
+                )
+                return "Пользователем создано подозрительное число заявок за день. Передайте ему, что в целях безопасности ему необходимо оформлять далее заявки с другого Телеграм аккаунта и прекратите далее оформлять заявку!"
+        except Exception as error:
+            self.logger.error(
+                f"Error in receiving today customer requests: {error}"
+            )
+
+        try:
             with open("./data/template.json", "r", encoding="utf-8") as f:
                 order_params = json.load(f)
         except Exception as e:
@@ -667,6 +696,12 @@ class ChatAgent:
                     self.config["affilates"].items()
                 )
                 if (
+                    self.affilate == "Москва" and distance > 100
+                ) or (
+                    self.affilate != "Москва" and distance > 90
+                ):
+                    return "Указанный пользователем адрес находится вне зоны работы компании. Вежливо донесите это до пользователя и прекратите далее оформлять заявку!"
+                elif (
                     self.affilate == "Москва" and distance > 50
                 ) or (
                     self.affilate != "Москва" and distance > 40
@@ -763,10 +798,11 @@ class ChatAgent:
             self.logger.error(f"Error in creating request: {order.text}")
             return f"Ошибка при создании заявки: {order.text}"
 
-    async def request_selection(self, chat_id):
+    async def request_selection(self, chat_id, request_creating=False):
         token = os.environ.get("1С_TOKEN", "")
         login = os.environ.get("1C_LOGIN", "")
         password = os.environ.get("1C_PASSWORD", "")
+        request_creating=request_creating
 
         try:
             ws_url = f"{self.config['proxy_url']}/ws"        
@@ -803,21 +839,26 @@ class ChatAgent:
             self.logger.error(f"Error in receiving request numbers: {e}")
             return f"Ошибка при получении списка заявок: {e}"
 
-        if len(request_numbers) > 0:
-            markup = ReplyKeyboardMarkup(
-                resize_keyboard=True,
-                one_time_keyboard=True
-            )
-            text = "Секунду..."
-            for number, values in request_numbers.items():
-                markup.add(
-                    f"Заявка {number} от {values['date']}; {values['division']}"
+        if len(request_numbers) >= 3 and request_creating==True:
+            if sum(1 for request in request_numbers.values() if request['date'] == time.strftime("%d.%m.%Y", time.localtime())) >= 3:
+                return "Ban"
+        
+        if request_creating==False:
+            if len(request_numbers) > 0:
+                markup = ReplyKeyboardMarkup(
+                    resize_keyboard=True,
+                    one_time_keyboard=True
                 )
-            markup.add("🏠 Вернуться в меню")
-            await self.bot_instance.send_message(chat_id, text, reply_markup=markup)
-            return "У пользователя был только запрошен номер заявки, в рамках которой сейчас идёт диалог"
-        else:
-            return "У пользователя нет существующих заявок"
+                text = "Секунду..."
+                for number, values in request_numbers.items():
+                    markup.add(
+                        f"Заявка {number} от {values['date']}; {values['division']}"
+                    )
+                markup.add("🏠 Вернуться в меню")
+                await self.bot_instance.send_message(chat_id, text, reply_markup=markup)
+                return "У пользователя был только запрошен номер заявки, в рамках которой сейчас идёт диалог"
+            else:
+                return "У пользователя нет существующих заявок"
     
     def change_request(self, request_number, field_name, field_value):
         token = os.environ.get("1С_TOKEN", "")
