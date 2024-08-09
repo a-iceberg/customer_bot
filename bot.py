@@ -28,6 +28,7 @@ class Application:
     def __init__(self):
         self.ban_manager = ConfigManager("./data/banned_users.json")
         self.config_manager = ConfigManager("./data/config.json")
+        self.channel_manager = ConfigManager("./data/channel_posts.json")
         self.coordinates_manager = ConfigManager(
             "./data/affilates_coordinates.json"
         )
@@ -48,10 +49,11 @@ class Application:
         self.setup_routes()
         self.chat_agent = None
         self.chat_history_client = None
-        self.channel_posts = {}
         self.TOKEN = os.environ.get("BOT_TOKEN", "")
         self.CHANNEL_ID = os.environ.get("HISTORY_CHANNEL_ID", "")
         self.GROUP_ID = os.environ.get("HISTORY_GROUP_ID", "")
+        self.CHANNEL_IDS = os.environ.get("TELEGRAM_CHANNEL_IDS", [])
+        self.channel_posts = self.channel_manager.load_config()
 
         self.banned_accounts = self.ban_manager.load_config()
         self.user_last_message_time = defaultdict(datetime.now)
@@ -59,8 +61,14 @@ class Application:
         self.spam_count_threshold = 5
         self.user_spam_count = defaultdict(int)
 
-        self.base_error_answer = "Извините, произошла ошибка в работе системы. Cвяжитесь с нами по телефону 8 495 723 723 0 для дальнейшей помощи."
-        self.llm_error_answer = "Извините, произошла ошибка в работе системы. Попробуйте сформулировать ваше сообщение по-другому или же свяжитесь с нами по телефону 8 495 723 723 0 для дальнейшей помощи."
+        self.base_error_answer = """
+           Извините, произошла ошибка в работе системы.
+           Cвяжитесь с нами по телефону 8 495 723 723 0 для дальнейшей помощи.
+        """
+        self.llm_error_answer = """
+            Извините, произошла ошибка в работе системы.
+            Попробуйте сформулировать ваше сообщение по-другому или же свяжитесь с нами по телефону 8 495 723 723 0 для дальнейшей помощи.
+        """
 
     def text_response(self, text):
         return JSONResponse(content={"type": "text", "body": str(text)})
@@ -85,6 +93,7 @@ class Application:
         os.environ["DB_HOST"] = cm.get("DB_HOST", "")
         os.environ["DB_PORT"] = cm.get("DB_PORT", "")
         os.environ["YANDEX_GEOCODER_KEY"] = cm.get("YANDEX_GEOCODER_KEY", "")
+        os.environ["TELEGRAM_CHANNEL_IDS"] = cm.get("TELEGRAM_CHANNEL_IDS", [])
 
         self.logger.info("Auth data set successfully")
 
@@ -108,7 +117,6 @@ class Application:
 
             if authorization and authorization.startswith("Bearer "):
                 self.TOKEN = authorization.split(" ")[1]
-
             if self.TOKEN:
                 server_api_uri = 'http://localhost:8081/bot{0}/{1}'
                 apihelper.API_URL = server_api_uri
@@ -134,9 +142,10 @@ class Application:
 
             self.user_id = message["from"]["id"]
             current_time = datetime.now()
-            time_since_last_message = current_time - self.user_last_message_time[self.user_id]
+            last_message_time = current_time - self.user_last_message_time[self.user_id]
 
-            if time_since_last_message <= self.spam_threshold:
+            # Automatic spam detection and banning
+            if last_message_time <= self.spam_threshold and message["chat"]["id"] not in self.CHANNEL_IDS:
                 self.user_spam_count[self.user_id] += 1
                 if self.user_spam_count[self.user_id] >= self.spam_count_threshold:
                     self.ban_manager.set(
@@ -146,11 +155,12 @@ class Application:
                     self.banned_accounts = self.ban_manager.load_config()
                     self.logger.info(
                         f'Banned user with chat_id {message["chat"]["id"]}'
-                        )
+                    )
             else:
                 self.user_spam_count[self.user_id] = 0
             self.user_last_message_time[self.user_id] = current_time
 
+            # Manual banning
             if message["chat"]["id"] == int(self.GROUP_ID) and "text" in message and "reply_to_message" in message:
                 if message["text"] == "/ban":
                     banned_id = re.search(
@@ -166,7 +176,9 @@ class Application:
                         answer = await bot.send_message(
                             self.GROUP_ID,
                             f"Пользователь с chat_id {banned_id} был забанен",
-                            reply_to_message_id=self.channel_posts[self.chat_id]
+                            reply_to_message_id=self.channel_posts[
+                                self.chat_id
+                            ]
                         )
                         await asyncio.sleep(5)
                         await bot.delete_message(
@@ -189,7 +201,9 @@ class Application:
                             answer = await bot.send_message(
                                 self.GROUP_ID,
                                 f"Пользователь с chat_id {unbanned_id} был разбанен",
-                                reply_to_message_id=self.channel_posts[self.chat_id]
+                                reply_to_message_id=self.channel_posts[
+                                    self.chat_id
+                                ]
                             )
                             await asyncio.sleep(5)
                             await bot.delete_message(
@@ -205,7 +219,9 @@ class Application:
                         answer = await bot.send_message(
                             self.GROUP_ID,
                             f"Пользователь с chat_id {unbanned_id} не был забанен",
-                            reply_to_message_id=self.channel_posts[self.chat_id]
+                            reply_to_message_id=self.channel_posts[
+                                self.chat_id
+                            ]
                         )
                         await asyncio.sleep(5)
                         await bot.delete_message(self.GROUP_ID, answer.message_id)
@@ -216,10 +232,19 @@ class Application:
             if message["from"]["first_name"] == "Telegram":
                 if self.chat_id not in self.channel_posts:
                     if 'message_thread_id' in message:
-                        self.channel_posts[self.chat_id] = message['message_thread_id']
+                        self.channel_manager.set(
+                            self.chat_id,
+                            message["message_thread_id"]
+                        )
+                        self.channel_posts = self.channel_manager.load_config()
                     else:
-                        self.channel_posts[self.chat_id] = message["message_id"]
+                        self.channel_manager.set(
+                            self.chat_id,
+                            message["message_id"]
+                        )
+                        self.channel_posts = self.channel_manager.load_config()
 
+            # Ignoring service and bot messages
             if message["from"]["is_bot"] or message["from"]["first_name"] == "Telegram":
                 return self.empty_response
 
@@ -230,6 +255,7 @@ class Application:
                 self.message_id
             )
 
+            # Post with a messages resended to a telegram channel
             if self.chat_id not in self.channel_posts:
                 name = f'@{message["from"]["username"]}' if "username" in message["from"] else message["from"]["first_name"]
                 await bot.send_message(
@@ -237,6 +263,7 @@ class Application:
                     f'Chat with {name} (Chat ID: {self.chat_id})'
                 )
 
+            # Message type processing
             if "location" in message:
                 self.user_message = f"Мои координаты - {message['location']}"
 
@@ -316,7 +343,9 @@ class Application:
                     self.user_message = transcribe_audio_file(file_path)
                 except Exception as e:
                     self.logger.error(f"Error transcribing audio file: {e}")
-                    return self.text_response("Пожалуйста, попробуйте текстом")                
+                    return self.text_response(
+                        "Пожалуйста, попробуйте текстом"
+                    )                
                 self.logger.info("Transcription finished")
             else:
                 return self.empty_response
@@ -324,9 +353,13 @@ class Application:
             if self.user_message == "/start":
                 await bot.delete_message(self.chat_id, self.message_id)
                 self.request_service.delete_files(self.chat_id)
-                await self.chat_data_service.update_chat_history_date(self.chat_id)
-
-                markup = ReplyKeyboardMarkup(resize_keyboard=True, one_time_keyboard=True)
+                await self.chat_data_service.update_chat_history_date(
+                    self.chat_id
+                )
+                markup = ReplyKeyboardMarkup(
+                    resize_keyboard=True,
+                    one_time_keyboard=True
+                )
                 markup.add("📝 Хочу оформить новую заявку")
                 markup.add("📑 Выбрать свою активную заявку")
                 welcome_message = (
@@ -345,7 +378,7 @@ class Application:
                 password = os.environ.get("1C_PASSWORD", "")
 
                 try:
-                    ws_url = f"{self.config_manager.get('proxy_url')}/ws"        
+                    ws_url = f'{self.config_manager.get("proxy_url")}/ws'        
                     ws_params = {
                         "Идентификатор": "bid_numbers",
                         "НомерПартнера": str(self.chat_id),
@@ -402,7 +435,8 @@ class Application:
                 else:
                     await bot.send_message(
                         self.chat_id,
-                        "К сожалению, у вас нет текущих активных заявок. Буду рад помочь оформить новую! 😃"
+                        """К сожалению, у вас нет текущих активных заявок.
+                        Буду рад помочь оформить новую! 😃"""
                     )
             
             elif self.user_message =="🏠 Вернуться в меню":
@@ -444,6 +478,7 @@ class Application:
                 await bot.delete_message(self.chat_id, answer.message_id)
 
             else:
+                # Resending user message to Telegram group
                 try:
                     await bot.send_message(
                         self.GROUP_ID,
@@ -459,7 +494,9 @@ class Application:
                 try:
                     request = await self.request_service.read_request(self.chat_id)
                 except Exception as e:
-                    self.logger.error(f"Error in reading current request files: {e}")
+                    self.logger.error(
+                        f"Error in reading current request files: {e}"
+                    )
                 user_name = message["from"]["first_name"]
 
                 try:
@@ -548,7 +585,6 @@ class Application:
 НЕ здоровайтесь ПОВТОРНО в рамках одного диалога, но однократно в начале нужно.
 chat_id текущего пользователя - {self.chat_id}"""
 
-                # Read chat history in LLM fromat
                 chat_history = await self.chat_data_service.read_chat_history(
                     self.chat_id,
                     self.message_id,
@@ -556,6 +592,7 @@ chat_id текущего пользователя - {self.chat_id}"""
                 )
                 self.logger.info(f"History for {self.chat_id}: {chat_history}")
 
+                # Creating chat agent
                 if self.chat_agent is None:
                     self.chat_agent = ChatAgent(
                         self.config_manager.get("openai_model"),
@@ -574,6 +611,7 @@ chat_id текущего пользователя - {self.chat_id}"""
                         bot,
                     )
                     self.chat_agent.initialize_agent()
+                # Reply to user message
                 try:        
                     try:
                         try:
@@ -584,9 +622,11 @@ chat_id текущего пользователя - {self.chat_id}"""
                                     "chat_history": chat_history,
                                 }
                             )
+                        # Answer by alternative LLM
                         except RateLimitError as oai_limit_error:
                             self.logger.error(
-                                f"Exceeded OpenAI quota: {oai_limit_error}, change agent to Anthropic model"
+                                f"""Exceeded OpenAI quota: {oai_limit_error},
+                                change agent to Anthropic model"""
                             )
                             self.chat_agent.initialize_agent("Anthropic")
                             bot_response = await self.chat_agent.agent_executor.ainvoke(
@@ -596,6 +636,7 @@ chat_id текущего пользователя - {self.chat_id}"""
                                     "chat_history": chat_history,
                                 }
                             )
+                    # Answer with error handling
                     except Exception as first_error:
                         self.logger.error(
                             f"Error in agent run: {first_error}, second try"
@@ -610,24 +651,47 @@ chat_id текущего пользователя - {self.chat_id}"""
                     output = bot_response["output"]
                     steps = bot_response["intermediate_steps"]
 
-                    if "заявка" in output.lower() and ("создана" in output.lower() or "оформлена" in output.lower()) and ((len(steps)>0 and steps[-1][0].tool != "Create_request") or len(steps)==0):
-                        self.logger.error(f"Detected deceptive hallucination in LLM answer, reanswering..")
+                    # Detecting LLM hallucinations and reanswering
+                    if "заявка" in output.lower() and (
+                        "создана" in output.lower() or "оформлена" in output.lower()
+                    ) and (
+                        (
+                            len(steps)>0 and steps[-1][0].tool != "Create_request"
+                        ) or len(steps)==0
+                    ):
+                        self.logger.error(
+                            f"Detected deceptive hallucination in LLM answer, reanswering.."
+                        )
                         bot_response = await self.chat_agent.agent_executor.ainvoke(
                             {
                                 "system_prompt": system_prompt,
-                                "input": "Вы же на самом деле не создали сейчас заявку и не использовали инструмент, исправьтесь! ОБЯЗАТЕЛЬНО сначала создайте сейчас заявку, используя ИНСТРУМЕНТ 'Create_request'. Пользователю давать знать об этой вашей ошибке НЕ нужно, отвечайте дальше после создания, как обычно, как если бы её не было",
+                                "input": """
+                                    Вы же на самом деле не создали сейчас заявку и не использовали инструмент, исправьтесь!
+                                    ОБЯЗАТЕЛЬНО сначала создайте сейчас заявку, используя ИНСТРУМЕНТ 'Create_request'.
+                                    Пользователю давать знать об этой вашей ошибке НЕ нужно, отвечайте дальше после создания, как обычно, как если бы её не было
+                                """,
                                 "chat_history": chat_history,
                             }
                         )
                         output = bot_response["output"]
                         steps = bot_response["intermediate_steps"]
 
-                    if "адрес" in output.lower() and "вне" in output.lower() and "зон" in output.lower() and "723" in output.lower() and (len(steps)==0 or (len(steps)>0 and steps[-1][0].tool != "Create_request" and steps[-1][0].tool != "Saving_address" and steps[-1][0].tool != "Saving_GPS-coordinates")):
-                        self.logger.error(f"Detected deceptive hallucination in LLM answer, reanswering..")
+                    if "адрес" in output.lower() and "вне" in output.lower() and "зон" in output.lower() and "723" in output.lower() and (
+                        len(steps)==0 or (
+                            len(steps)>0 and steps[-1][0].tool != "Create_request" and steps[-1][0].tool != "Saving_address" and steps[-1][0].tool != "Saving_GPS-coordinates"
+                        )
+                    ):
+                        self.logger.error(
+                            f"Detected deceptive hallucination in LLM answer, reanswering.."
+                        )
                         bot_response = await self.chat_agent.agent_executor.ainvoke(
                             {
                                 "system_prompt": system_prompt,
-                                "input": "Вы же на самом деле не сохраняли сейчас адрес и не использовали инструмент, исправьтесь! ОБЯЗАТЕЛЬНО сначала сохраните сейчас новый полученный адрес, используя ИНСТРУМЕНТ. Уточнять его заново и давать знать пользователю об этой вашей ошибке НЕ нужно, отвечайте дальше после использования, как обычно, как если бы её не было.",
+                                "input": """
+                                    Вы же на самом деле не сохраняли сейчас адрес и не использовали инструмент, исправьтесь!
+                                    ОБЯЗАТЕЛЬНО сначала сохраните сейчас новый полученный адрес, используя ИНСТРУМЕНТ.
+                                    Уточнять его заново и давать знать пользователю об этой вашей ошибке НЕ нужно, отвечайте дальше после использования, как обычно, как если бы её не было.
+                                """,
                                 "chat_history": chat_history,
                             }
                         )
@@ -636,12 +700,15 @@ chat_id текущего пользователя - {self.chat_id}"""
 
                     self.logger.info("Replying in " + str(self.chat_id))
                     self.logger.info(f"Answer: {output}")
+
+                    # Bot LLM answer
                     answer = await bot.send_message(
                         self.chat_id,
                         output
                     )
                     self.message_id = answer.message_id
 
+                    # Saving bot answer to SQL DB
                     try:
                         await self.chat_data_service.insert_message_to_sql(
                             answer.from_user.first_name if answer.from_user.first_name else None,
@@ -650,7 +717,9 @@ chat_id текущего пользователя - {self.chat_id}"""
                             answer.from_user.id,
                             self.chat_id,
                             self.message_id,
-                            datetime.fromtimestamp(answer.date).strftime("%Y-%m-%d %H:%M:%S"),
+                            datetime.fromtimestamp(
+                                answer.date
+                            ).strftime("%Y-%m-%d %H:%M:%S"),
                             output,
                             answer.from_user.username if answer.from_user.username else None
                         )
@@ -658,11 +727,15 @@ chat_id текущего пользователя - {self.chat_id}"""
                         self.logger.error(
                             f"Error in saving message to SQL: {error}"
                         )
+
+                    # Resending bot message to Telegram group
                     try:
                         await bot.send_message(
                             self.GROUP_ID,
                             output,
-                            reply_to_message_id=self.channel_posts[self.chat_id]
+                            reply_to_message_id=self.channel_posts[
+                                self.chat_id
+                            ]
                         )
                     except:
                         self.logger.info("Chat id not received yet")
@@ -670,11 +743,15 @@ chat_id текущего пользователя - {self.chat_id}"""
                     self.logger.error(
                         f"Error in agent run: {second_error}, sending auto answer"
                     )
+
+                    # Automatic bot answer by LLM error
                     answer = await bot.send_message(
                         self.chat_id,
                         self.llm_error_answer
                     )
                     self.message_id = answer.message_id
+
+                    # Saving bot answer to SQL DB
                     try:
                         await self.chat_data_service.insert_message_to_sql(
                             answer.from_user.first_name if answer.from_user.first_name else None,
@@ -683,7 +760,9 @@ chat_id текущего пользователя - {self.chat_id}"""
                             answer.from_user.id,
                             self.chat_id,
                             self.message_id,
-                            datetime.fromtimestamp(answer.date).strftime("%Y-%m-%d %H:%M:%S"),
+                            datetime.fromtimestamp(
+                                answer.date
+                            ).strftime("%Y-%m-%d %H:%M:%S"),
                             output,
                             answer.from_user.username if answer.from_user.username else None
                         )
@@ -697,8 +776,11 @@ chat_id текущего пользователя - {self.chat_id}"""
                     self.message_id
                 )
 
+        # Splitting audio into chunks
         def split_audio_ffmpeg(audio_path, chunk_length=10 * 60):
-            cmd_duration = f"ffprobe -v error -show_entries format=duration -of default=noprint_wrappers=1:nokey=1 {audio_path}"
+            cmd_duration = f"""
+                ffprobe -v error -show_entries format=duration -of default=noprint_wrappers=1:nokey=1 {audio_path}
+            """
             duration = float(os.popen(cmd_duration).read())
 
             chunks_count = int(duration // chunk_length) + (
@@ -709,11 +791,14 @@ chat_id текущего пользователя - {self.chat_id}"""
             for i in range(chunks_count):
                 start_time = i * chunk_length
                 chunk_filename = f"/tmp/{uuid4()}.mp3"
-                cmd_extract = f"ffmpeg -ss {start_time} -t {chunk_length} -i {audio_path} -acodec copy {chunk_filename}"
+                cmd_extract = f"""
+                    ffmpeg -ss {start_time} -t {chunk_length} -i {audio_path} -acodec copy {chunk_filename}
+                """
                 os.system(cmd_extract)
                 chunk_paths.append(chunk_filename)
             return chunk_paths
 
+        # Transcibing audio
         def transcribe_audio_file(audio_path):
             OPENAI_API_KEY = os.environ.get("OPENAI_API_KEY", "")
             client = OpenAI(api_key=OPENAI_API_KEY)
@@ -741,6 +826,7 @@ chat_id текущего пользователя - {self.chat_id}"""
             self.logger.info("Transcription length: " + str(len(text)))
             return text
 
+        # Endpoint for get chat history
         @self.app.get("/history/{received_token}/{partner_id}")
         async def get_chat_history(received_token: str, partner_id: str):
             correct_token = os.environ.get("CHAT_HISTORY_TOKEN", "")
