@@ -855,7 +855,11 @@ class ChatAgent:
                         f"Заявка {number} от {values['date']}; {values['division']}"
                     )
                 markup.add("🏠 Вернуться в меню")
-                await self.bot_instance.send_message(chat_id, text, reply_markup=markup)
+                await self.bot_instance.send_message(
+                    chat_id,
+                    text,
+                    reply_markup=markup
+                )
                 return "У пользователя был только запрошен номер заявки, в рамках которой сейчас идёт диалог"
             else:
                 return "У пользователя нет существующих заявок"

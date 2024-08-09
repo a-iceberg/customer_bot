@@ -145,7 +145,7 @@ class Application:
             last_message_time = current_time - self.user_last_message_time[self.user_id]
 
             # Automatic spam detection and banning
-            if last_message_time <= self.spam_threshold and message["chat"]["id"] not in self.CHANNEL_IDS:
+            if last_message_time <= self.spam_threshold and str(message["chat"]["id"]) not in self.CHANNEL_IDS:
                 self.user_spam_count[self.user_id] += 1
                 if self.user_spam_count[self.user_id] >= self.spam_count_threshold:
                     self.ban_manager.set(
