@@ -136,7 +136,10 @@ class ChatAgent:
             self.config["chats_dir"],
             self.logger
         )
-        self.ban_manager = ConfigManager("./data/banned_users.json")
+        self.ban_manager = ConfigManager(
+            "./data/banned_users.json",
+            self.logger
+        )
 
     def initialize_agent(self, company="OpenAI"):
         # Agent initialization depending on different LLMs

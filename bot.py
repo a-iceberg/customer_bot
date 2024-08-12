@@ -26,13 +26,23 @@ from config_manager import ConfigManager
 
 class Application:
     def __init__(self):
-        self.ban_manager = ConfigManager("./data/banned_users.json")
-        self.config_manager = ConfigManager("./data/config.json")
-        self.channel_manager = ConfigManager("./data/channel_posts.json")
-        self.coordinates_manager = ConfigManager(
-            "./data/affilates_coordinates.json"
-        )
         self.logger = self.setup_logging()
+        self.ban_manager = ConfigManager(
+            "./data/banned_users.json",
+            self.logger
+        )
+        self.config_manager = ConfigManager(
+            "./data/config.json",
+            self.logger
+        )
+        self.channel_manager = ConfigManager(
+            "./data/channel_posts.json",
+            self.logger
+        )
+        self.coordinates_manager = ConfigManager(
+            "./data/affilates_coordinates.json",
+            self.logger
+        )
         self.set_keys()
         self.chat_data_service = FileService(
             self.config_manager.get("chats_dir"),
@@ -57,9 +67,13 @@ class Application:
 
         self.banned_accounts = self.ban_manager.load_config()
         self.user_last_message_time = defaultdict(datetime.now)
-        self.spam_threshold = timedelta(seconds=5)
-        self.spam_count_threshold = 5
-        self.user_spam_count = defaultdict(int)
+        self.SPAM_THRESHOLD = timedelta(
+            seconds=self.config_manager.get("spam_threshold")
+        )
+        self.SPAM_COUNT_THRESHOLD = self.config_manager.get(
+            "spam_count_threshold"
+        )
+        self.USER_SPAM_COUNT = defaultdict(int)
 
         self.base_error_answer = """
            Извините, произошла ошибка в работе системы.
@@ -74,7 +88,7 @@ class Application:
         return JSONResponse(content={"type": "text", "body": str(text)})
 
     def set_keys(self):
-        cm = ConfigManager("./data/auth.json")
+        cm = ConfigManager("./data/auth.json", self.logger)
 
         os.environ["LANGCHAIN_API_KEY"] = cm.get("LANGCHAIN_API_KEY", "")
         os.environ["OPENAI_API_KEY"] = cm.get("OPENAI_API_KEY", "")
@@ -93,8 +107,9 @@ class Application:
         os.environ["DB_HOST"] = cm.get("DB_HOST", "")
         os.environ["DB_PORT"] = cm.get("DB_PORT", "")
         os.environ["YANDEX_GEOCODER_KEY"] = cm.get("YANDEX_GEOCODER_KEY", "")
-        os.environ["TELEGRAM_CHANNEL_IDS"] = cm.get("TELEGRAM_CHANNEL_IDS", [])
-
+        os.environ["TELEGRAM_CHANNEL_IDS"] = json.dumps(
+            cm.load_config()["TELEGRAM_CHANNEL_IDS"]
+        )
         self.logger.info("Auth data set successfully")
 
     def setup_logging(self):
@@ -113,7 +128,7 @@ class Application:
             request: Request,
             authorization: str = Header(None)
         ):
-            self.logger.info("handle_message")
+            self.logger.info("Handle_message")
 
             if authorization and authorization.startswith("Bearer "):
                 self.TOKEN = authorization.split(" ")[1]
@@ -145,9 +160,9 @@ class Application:
             last_message_time = current_time - self.user_last_message_time[self.user_id]
 
             # Automatic spam detection and banning
-            if last_message_time <= self.spam_threshold and str(message["chat"]["id"]) not in self.CHANNEL_IDS:
-                self.user_spam_count[self.user_id] += 1
-                if self.user_spam_count[self.user_id] >= self.spam_count_threshold:
+            if last_message_time <= self.SPAM_THRESHOLD and str(message["chat"]["id"]) not in self.CHANNEL_IDS and str(message["chat"]["id"]) not in self.banned_accounts:
+                self.USER_SPAM_COUNT[self.user_id] += 1
+                if self.USER_SPAM_COUNT[self.user_id] >= self.SPAM_COUNT_THRESHOLD:
                     self.ban_manager.set(
                         message["chat"]["id"],
                         time.strftime("%Y-%m-%d %H:%M:%S", time.localtime())
@@ -157,7 +172,7 @@ class Application:
                         f'Banned user with chat_id {message["chat"]["id"]}'
                     )
             else:
-                self.user_spam_count[self.user_id] = 0
+                self.USER_SPAM_COUNT[self.user_id] = 0
             self.user_last_message_time[self.user_id] = current_time
 
             # Manual banning
@@ -167,27 +182,49 @@ class Application:
                         r'Chat ID: (\d+)',
                         message["reply_to_message"]["text"]
                     ).group(1)
-                    self.ban_manager.set(
-                        banned_id,
-                        time.strftime("%Y-%m-%d %H:%M:%S", time.localtime())
-                    )
-                    self.banned_accounts = self.ban_manager.load_config()
-                    try:
-                        answer = await bot.send_message(
-                            self.GROUP_ID,
-                            f"Пользователь с chat_id {banned_id} был забанен",
-                            reply_to_message_id=self.channel_posts[
-                                self.chat_id
-                            ]
+                    if banned_id not in self.banned_accounts:
+                        self.ban_manager.set(
+                            banned_id,
+                            time.strftime("%Y-%m-%d %H:%M:%S", time.localtime())
                         )
-                        await asyncio.sleep(5)
-                        await bot.delete_message(
-                            self.GROUP_ID,
-                            answer.message_id
+                        self.banned_accounts = self.ban_manager.load_config()
+                        try:
+                            answer = await bot.send_message(
+                                self.GROUP_ID,
+                                f"Пользователь с chat_id {banned_id} был забанен",
+                                reply_to_message_id=self.channel_posts[
+                                    str(self.chat_id)
+                                ]
+                            )
+                            await asyncio.sleep(5)
+                            await bot.delete_message(
+                                self.GROUP_ID,
+                                answer.message_id
+                            )
+                        except:
+                            self.logger.info("Chat id not received yet")
+                        self.logger.info(
+                            f"Banned user with chat_id {banned_id}"
                         )
-                    except:
-                        self.logger.info("Chat id not received yet")
-                    self.logger.info(f"Banned user with chat_id {banned_id}")
+                    else:
+                        self.logger.info(
+                            f"User with chat_id {banned_id} already banned"
+                        )
+                        try:
+                            answer = await bot.send_message(
+                                self.GROUP_ID,
+                                f"Пользователь с chat_id {banned_id} уже был забанен ранее",
+                                reply_to_message_id=self.channel_posts[
+                                    str(self.chat_id)
+                                ]
+                            )
+                            await asyncio.sleep(5)
+                            await bot.delete_message(
+                                self.GROUP_ID,
+                                answer.message_id
+                            )
+                        except:
+                            self.logger.info("Chat id not received yet")
 
                 if message["text"] == "/unban":
                     try:
@@ -195,14 +232,14 @@ class Application:
                             r'Chat ID: (\d+)',
                             message["reply_to_message"]["text"]
                         ).group(1)
-                        self.ban_manager.delete(str(unbanned_id))
+                        self.ban_manager.delete(unbanned_id)
                         self.banned_accounts = self.ban_manager.load_config()
                         try:
                             answer = await bot.send_message(
                                 self.GROUP_ID,
                                 f"Пользователь с chat_id {unbanned_id} был разбанен",
                                 reply_to_message_id=self.channel_posts[
-                                    self.chat_id
+                                    str(self.chat_id)
                                 ]
                             )
                             await asyncio.sleep(5)
@@ -216,21 +253,27 @@ class Application:
                             f'Unbanned user with chat_id {unbanned_id}'
                         )
                     except:
-                        answer = await bot.send_message(
-                            self.GROUP_ID,
-                            f"Пользователь с chat_id {unbanned_id} не был забанен",
-                            reply_to_message_id=self.channel_posts[
-                                self.chat_id
-                            ]
-                        )
-                        await asyncio.sleep(5)
-                        await bot.delete_message(self.GROUP_ID, answer.message_id)
+                        try:
+                            answer = await bot.send_message(
+                                self.GROUP_ID,
+                                f"Пользователь с chat_id {unbanned_id} не был забанен",
+                                reply_to_message_id=self.channel_posts[
+                                    str(self.chat_id)
+                                ]
+                            )
+                            await asyncio.sleep(5)
+                            await bot.delete_message(
+                                self.GROUP_ID,
+                                answer.message_id
+                            )
+                        except:
+                            self.logger.info("Chat id not received yet")
                         self.logger.info(
-                            f"User with chat_id {unbanned_id} isn't banned"
-                        )
+                                f"User with chat_id {unbanned_id} isn't banned"
+                            )
 
             if message["from"]["first_name"] == "Telegram":
-                if self.chat_id not in self.channel_posts:
+                if str(self.chat_id) not in self.channel_posts:
                     if 'message_thread_id' in message:
                         self.channel_manager.set(
                             self.chat_id,
@@ -256,7 +299,7 @@ class Application:
             )
 
             # Post with a messages resended to a telegram channel
-            if self.chat_id not in self.channel_posts:
+            if str(self.chat_id) not in self.channel_posts:
                 name = f'@{message["from"]["username"]}' if "username" in message["from"] else message["from"]["first_name"]
                 await bot.send_message(
                     self.CHANNEL_ID,
@@ -483,7 +526,9 @@ class Application:
                     await bot.send_message(
                         self.GROUP_ID,
                         self.user_message,
-                        reply_to_message_id=self.channel_posts[self.chat_id]
+                        reply_to_message_id=self.channel_posts[
+                            str(self.chat_id)
+                        ]
                     )
                 except:
                     self.logger.info("Chat id not received yet")
@@ -734,7 +779,7 @@ chat_id текущего пользователя - {self.chat_id}"""
                             self.GROUP_ID,
                             output,
                             reply_to_message_id=self.channel_posts[
-                                self.chat_id
+                                str(self.chat_id)
                             ]
                         )
                     except:
