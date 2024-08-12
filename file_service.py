@@ -45,6 +45,7 @@ class FileService:
             )
 
     async def update_chat_history_date(self, chat_id):
+        # Updating chat history avaliable for LLM by updating the threshold date
         chat_dir = self.file_path(chat_id)
         full_path = os.path.join(chat_dir, 'chat_data.json')
 
@@ -71,6 +72,7 @@ class FileService:
         message_text,
         username
     ):
+        # Saving messages from chat history to SQL DB 
         if self.pool is None:
             self.pool = AsyncConnectionPool(
                 f"dbname='customer_bot' user={os.environ.get('DB_USER', '')} password={os.environ.get('DB_PASSWORD', '')} host={os.environ.get('DB_HOST', '')} port={os.environ.get('DB_PORT', '')}",
@@ -90,7 +92,7 @@ class FileService:
         message_id: int,
         token: str
     ):
-        """Reads the chat history from a telegram server and returns it as a list of messages."""
+        # Reads the chat history from a telegram server and returns it as a list of messages
         chat_dir = self.file_path(chat_id)
         full_path = os.path.join(chat_dir, 'chat_data.json')
         async with aiofiles.open(full_path, "r", encoding="utf-8") as f:
@@ -161,7 +163,7 @@ class FileService:
         return chat_history[:-1]
 
     def delete_files(self, chat_id: str):
-        """Deletes folder and all its content."""
+        # Deletes folder and all its content
         log_path = Path(self.file_path(chat_id))
         if log_path.exists() and log_path.is_dir():
             try:
@@ -183,6 +185,7 @@ class FileService:
         message_type,
         date_override=None,
     ):
+        # Saving request item to folder
         self.logger.info(
             f"[{message_type}] Saving request item to request for chat_id: {chat_id}"
         )
@@ -197,8 +200,9 @@ class FileService:
 
         request_dir = self.file_path(chat_id)
         Path(request_dir).mkdir(parents=True, exist_ok=True)
-
         full_path = os.path.join(request_dir, log_file_name)
+
+        # Adding a comment to the same string
         if Path(full_path).exists() and message_type == "comment":
             async with aiofiles.open(
                 full_path,
@@ -223,7 +227,7 @@ class FileService:
             )
 
     async def read_request(self, chat_id: str):
-        """Reads request items from a folder and returns it."""
+        # Reads request items from a folder and returns it
         request_items = {}
         request_path = self.file_path(chat_id)
         Path(request_path).mkdir(parents=True, exist_ok=True)
