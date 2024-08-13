@@ -9,7 +9,7 @@ from openai import AsyncOpenAI
 from anthropic import AsyncAnthropic
 from datetime import datetime
 from geopy.distance import geodesic
-from geopy.geocoders import Nominatim
+from geopy.geocoders import Nominatim, Yandex
 from pydantic.v1 import BaseModel, Field
 from telebot.types import ReplyKeyboardMarkup
 
@@ -20,8 +20,10 @@ from langchain_core.prompts import ChatPromptTemplate
 from langchain.agents import AgentExecutor, create_tool_calling_agent
 
 from file_service import FileService
+from config_manager import ConfigManager
 
 
+# Definition args schemas for tools
 class save_name_to_request_args(BaseModel):
     chat_id: int = Field(description="chat_id")
     name: str = Field(description="name")
@@ -134,8 +136,13 @@ class ChatAgent:
             self.config["chats_dir"],
             self.logger
         )
+        self.ban_manager = ConfigManager(
+            "./data/banned_users.json",
+            self.logger
+        )
 
     def initialize_agent(self, company="OpenAI"):
+        # Agent initialization depending on different LLMs
         self.company = company
         if self.company == "OpenAI":
             llm = ChatOpenAI(
@@ -156,12 +163,16 @@ class ChatAgent:
                 f'Anthropic ChatAgent init with model: {self.config["a_model"]} and temperature: {self.config["a_temperature"]}'
             )
         tools = []
+        # Definition args schemas for tools
 
         # Tool: save_name_tool
         save_name_tool = StructuredTool.from_function(
             coroutine=self.save_name_to_request,
             name="Saving_name",
-            description="Сохраняет имя пользователя в новую заявку. Используйте этот инструмент ОБЯЗАТЕЛЬНО ВСЕГДА и СРАЗУ, если имеющееся у вас или полученное имя выглядит как настоящее человеческое. Вам следует предоставить chat_id и непосредственно само name в качестве параметров.",
+            description="""
+                Сохраняет имя пользователя в новую заявку. Используйте этот инструмент ОБЯЗАТЕЛЬНО ВСЕГДА и СРАЗУ, если имеющееся у вас или полученное имя выглядит как настоящее человеческое.
+                Вам следует предоставить chat_id и непосредственно само name в качестве параметров
+            """,
             args_schema=save_name_to_request_args,
             return_direct=False,
             handle_tool_error=True,
@@ -174,7 +185,10 @@ class ChatAgent:
         save_direction_tool = StructuredTool.from_function(
             coroutine=self.save_direction_to_request,
             name="Saving_direction",
-            description="Сохраняет подходящее под запрос пользователя направление, причину обращения из имеющегося списка направлений в новую заявку. Нужно соотнести запрос и выбрать подходящее только из тех, что в этом списке. Вам следует предоставить chat_id и непосредственно сам direction из списка в качестве параметров.",
+            description="""
+                Сохраняет подходящее под запрос пользователя направление, причину обращения из имеющегося списка направлений в новую заявку. Нужно соотнести запрос и выбрать подходящее только из тех, что в этом списке.
+                Вам следует предоставить chat_id и непосредственно сам direction из списка в качестве параметров
+            """,
             args_schema=SaveDirectionToRequestArgs,
             return_direct=False,
             handle_tool_error=True,
@@ -187,7 +201,10 @@ class ChatAgent:
         save_gps_tool = StructuredTool.from_function(
             coroutine=self.save_gps_to_request,
             name="Saving_GPS-coordinates",
-            description="Сохраняет адрес на основании полученнных GPS-координат в новую заявку, только если ранее уже не был использован инструмент Saving_address. Вам следует предоставить значения chat_id, latitude и longitude в качестве параметров.",
+            description="""
+                Сохраняет адрес на основании полученнных GPS-координат в новую заявку, только если ранее уже не был использован инструмент Saving_address.
+                Вам следует предоставить значения chat_id, latitude и longitude в качестве параметров
+            """,
             args_schema=save_gps_to_request_args,
             return_direct=False,
             handle_tool_error=True,
@@ -200,7 +217,10 @@ class ChatAgent:
         save_address_tool = StructuredTool.from_function(
             coroutine=self.save_address_to_request,
             name="Saving_address",
-            description="Сохраняет полученнный адрес в новую заявку. При сохранении убедитесь, что у вас есть ВСЕ три обязательных поля адреса (с городом, улицей, домом). Вам следует предоставить chat_id и непосредственно сами значения в address из всего сообщения в качестве параметров, то есть без слов 'город', 'улица', 'дом' и т.д. Корпус и строение обозначайте одной буквой вместе с номером дома, например, 1к3 или 98с4, только так!",
+            description="""
+                Сохраняет полученнный адрес в новую заявку. При сохранении убедитесь, что у вас есть ВСЕ три обязательных поля адреса (с городом, улицей, домом).
+                Вам следует предоставить chat_id и непосредственно сами значения в address из всего сообщения в качестве параметров, то есть без слов 'город', 'улица', 'дом' и т.д. Корпус и строение обозначайте одной буквой вместе с номером дома, например, 1к3 или 98с4, только так!
+            """,
             args_schema=save_address_to_request_args,
             return_direct=False,
             handle_tool_error=True,
@@ -213,7 +233,10 @@ class ChatAgent:
         save_address_line_2_tool = StructuredTool.from_function(
             coroutine=self.save_address_line_2_to_request,
             name="Saving_address_line_2",
-            description="Сохраняет полученнную дополнительную информацию по адресу в новую заявку. Вам следует предоставить chat_id и непосредственно сам address_line_2 из всего сообщения в качестве параметов.",
+            description="""
+                Сохраняет полученнную дополнительную информацию по адресу в новую заявку.
+                Вам следует предоставить chat_id и непосредственно сам address_line_2 из всего сообщения в качестве параметов
+            """,
             args_schema=save_address_line_2_to_request_args,
             return_direct=False,
             handle_tool_error=True,
@@ -226,7 +249,10 @@ class ChatAgent:
         save_phone_tool = StructuredTool.from_function(
             coroutine=self.save_phone_to_request,
             name="Saving_phone_number",
-            description="Сохраняет полученнный телефон в новую заявку. Вам следует предоставить chat_id и непосредственно сам phone из всего сообщения в качестве параметов.",
+            description="""
+                Сохраняет полученнный телефон в новую заявку.
+                Вам следует предоставить chat_id и непосредственно сам phone из всего сообщения в качестве параметов
+            """,
             args_schema=save_phone_to_request_args,
             return_direct=False,
             handle_tool_error=True,
@@ -239,7 +265,10 @@ class ChatAgent:
         save_date_tool = StructuredTool.from_function(
             coroutine=self.save_date_to_request,
             name="Saving_visit_date",
-            description="Сохраняет нужную дату визита в новую заявку. Вам следует САМИМ предоставить в инструмент chat_id и непосредственно саму date в формате 'yyyy-mm-ddT00:00Z', определённую вами самостоятельно по умолчанию или же полученную из сообщения пользователя в качестве параметров. ПРИНИМАЙТЕ дату от пользователя в ЛЮБОМ свободном формате (например, 'сегодня' или 'завтра'), а НЕ в том, что выше. Главное используйте сами потом в указанном, отформатировав при необходимости.",
+            description="""
+                Сохраняет нужную дату визита в новую заявку. Вам следует САМИМ предоставить в инструмент chat_id и непосредственно саму date в формате 'yyyy-mm-ddT00:00Z', определённую вами самостоятельно по умолчанию или же полученную из сообщения пользователя в качестве параметров.
+                ПРИНИМАЙТЕ дату от пользователя в ЛЮБОМ свободном формате (например, 'сегодня' или 'завтра'), а НЕ в том, что выше. Главное используйте сами потом в указанном, отформатировав при необходимости
+            """,
             args_schema=save_date_to_request_args,
             return_direct=False,
             handle_tool_error=True,
@@ -252,7 +281,10 @@ class ChatAgent:
         save_comment_tool = StructuredTool.from_function(
             coroutine=self.save_comment_to_request,
             name="Saving_comment",
-            description="Сохраняет полезные по вашему мнению комментарии пользователя в новую заявку. Ни в коем случае НЕЛЬЗЯ передавать здесь информацию, содержающую детали адреса (квартира, подъезд и т.п.) или ЛЮБЫЕ телефоны клиента, даже если он просит, в таком случае НЕ используйте этот инструмент. Вам следует предоставить chat_id и непосредственно сам comment в качестве параметров.",
+            description="""
+                Сохраняет полезные по вашему мнению комментарии пользователя в новую заявку. Ни в коем случае НЕЛЬЗЯ передавать здесь информацию, содержающую детали адреса (квартира, подъезд и т.п.) или ЛЮБЫЕ телефоны клиента, даже если он просит, в таком случае НЕ используйте этот инструмент.
+                Вам следует предоставить chat_id и непосредственно сам comment в качестве параметров
+            """,
             args_schema=save_comment_to_request_args,
             return_direct=False,
             handle_tool_error=True,
@@ -265,7 +297,11 @@ class ChatAgent:
         create_request_tool = StructuredTool.from_function(
             coroutine=self.create_request,
             name="Create_request",
-            description="Создает полностью заполненную новую заявку в 1С и по возможности определяет её номер. Вам следует предоставить chat_id и по отдельности сами значения ключей словаря (request) с текущей заявкой из вашего системного промпта в качестве соответствующих параметров инструмента, кроме ключа address_line_2. Из его же значения выделите и передайте отдельно при наличии непосредственно сами численно-буквенные значения apartment, entrance, floor и intercom (т.е. без слов) из всего address_line_2 в качестве остальных соответствующих параметров инструмента. Из address же передавайте непосредственно сами значения в качестве параметров, то есть без слов 'город', 'улица', 'дом' и т.д. Корпус и строение обозначайте одной буквой вместе с номером дома, например, 1к3 или 98с4, только так!",
+            description="""
+                Создает полностью заполненную новую заявку в 1С и при доступности определяет её номер.
+                Вам следует предоставить chat_id и по отдельности сами значения ключей словаря (request) с текущей заявкой из вашего системного промпта в качестве соответствующих параметров инструмента, кроме ключа address_line_2. Из его же значения выделите и передайте отдельно при наличии непосредственно сами численно-буквенные значения apartment, entrance, floor и intercom (т.е. без слов) из всего address_line_2 в качестве остальных соответствующих параметров инструмента.
+                Из address же передавайте непосредственно сами значения в качестве параметров, то есть без слов 'город', 'улица', 'дом' и т.д. Корпус и строение обозначайте одной буквой вместе с номером дома, например, 1к3 или 98с4, только так!
+            """,
             args_schema=create_request_args,
             return_direct=False,
             handle_tool_error=True,
@@ -278,7 +314,10 @@ class ChatAgent:
         request_selection_tool = StructuredTool.from_function(
             coroutine=self.request_selection,
             name="Request_selection",
-            description="Находит и предоставляет пользователю список его ОФОРМЛЕННЫХ заявок для выбора, чтобы определить контекст всего диалога, если речь идёт уже о каких-либо созданных заявках, а НЕ об оформлении новой. Используйте этот инструмент ВСЕГДА ОБЯЗАТЕЛЬНО, когда спрашивайте номер заявки у пользователя, но ТОЛЬКО ОДИН РАЗ, когда вам нужно понять, о какой именно заявке идёт речь, например, СРАЗУ, как только пользователь захочет изменить или дополнить данные по уже существующей заявке. Если вы уже явно получили от пользователя номер заявки, повторно НИ В КОЕМ СЛУЧАЕ НЕ используйте этот инструмент! Вам следует предоставить chat_id в качестве параметра.",
+            description="""
+                Находит и предоставляет пользователю список его ОФОРМЛЕННЫХ заявок для выбора, чтобы определить контекст всего диалога, если речь идёт уже о каких-либо созданных заявках, а НЕ об оформлении новой. Используйте этот инструмент ВСЕГДА ОБЯЗАТЕЛЬНО, когда спрашивайте номер заявки у пользователя, но ТОЛЬКО ОДИН РАЗ, когда вам нужно понять, о какой именно заявке идёт речь, например, СРАЗУ, как только пользователь захочет изменить или дополнить данные по уже существующей заявке.
+                Если вы уже явно получили от пользователя номер заявки, повторно НИ В КОЕМ СЛУЧАЕ НЕ используйте этот инструмент! Вам следует предоставить chat_id в качестве параметра
+            """,
             args_schema=request_selection_args,
             return_direct=False,
             handle_tool_error=True,
@@ -291,7 +330,10 @@ class ChatAgent:
         change_request_tool = StructuredTool.from_function(
             func=self.change_request,
             name="Change_request",
-            description="Изменяет нужные данные / значения полей в уже СУЩЕСТВУЮЩЕЙ заявке. Допустимо обрабатывать ТОЛЬКО ЛЮБУЮ ДОПОЛНИТЕЛЬНУЮ ИНФОРМАЦИЮ КАК КОММЕНТАРИЙ или ТЕЛЕФОН. Для редактирования уже имеющихся СОЗДАННЫХ заявок используйте ТОЛЬКО ЭТОТ инструмент, а НЕ обычные с добавлением информации в новую! Вам следует предоставить сам номер текущей заявки request_number; field_name - подходящее название поля: 'comment' или 'phone'; а также само новое значение поля, полученное от пользователя (field_value) в качестве параметров.",
+            description="""
+                Изменяет нужные данные / значения полей в уже СУЩЕСТВУЮЩЕЙ заявке. Допустимо обрабатывать ТОЛЬКО ЛЮБУЮ ДОПОЛНИТЕЛЬНУЮ ИНФОРМАЦИЮ КАК КОММЕНТАРИЙ или ТЕЛЕФОН. Для редактирования уже имеющихся СОЗДАННЫХ заявок используйте ТОЛЬКО ЭТОТ инструмент, а НЕ обычные с добавлением информации в новую!
+                Вам следует предоставить сам номер текущей заявки request_number; field_name - подходящее название поля: 'comment' или 'phone'; а также само новое значение поля, полученное от пользователя (field_value) в качестве параметров
+            """,
             args_schema=change_request_args,
             return_direct=False,
             handle_tool_error=True,
@@ -371,6 +413,12 @@ class ChatAgent:
                 self.config["affilates"].items()
             )
             if (
+                self.affilate == "Москва" and distance > 100
+            ) or (
+                self.affilate != "Москва" and distance > 90
+            ):
+                return "Указанный пользователем адрес находится вне зоны работы компании. Вежливо донесите это до пользователя и прекратите далее оформлять заявку!"
+            elif (
                 self.affilate == "Москва" and distance > 50
             ) or (
                 self.affilate != "Москва" and distance > 40
@@ -378,10 +426,22 @@ class ChatAgent:
                 return "Указанный пользователем адрес находится вне зоны бесплатного выезда мастера. Предложите пользователю связаться с нами по нашему контактному телефону 8 495 723 723 0, указав его, и прекратите далее оформлять заявку!"
         except Exception as e:
             self.logger.error(f"Error in distance calculation: {e}")
-        
+
         try:
-            geolocator = Nominatim(user_agent="my_app")
-            address = geolocator.reverse(f"{latitude}, {longitude}").address
+            try:
+                geolocator = Nominatim(user_agent="my_app")
+                address = geolocator.reverse(f"{latitude}, {longitude}").address
+            except Exception as e:
+                self.logger.error(
+                    f"Error in getting address: {e}, using Yandex geolocator"
+                )
+                geolocator = Yandex(
+                    api_key=os.environ.get("YANDEX_GEOCODER_KEY", "")
+                )
+                address = geolocator.reverse(
+                    f"{latitude}, {longitude}"
+                ).address
+
             await self.request_service.save_to_request(
                 chat_id,
                 latitude,
@@ -392,10 +452,15 @@ class ChatAgent:
                 longitude,
                 "longitude"
             )
-            await self.request_service.save_to_request(chat_id, address, "address")
+            await self.request_service.save_to_request(
+                chat_id,
+                address,
+                "address"
+            )
         except Exception as e:
             self.logger.error(f"Error in saving address: {e}")
             return f"Ошибка при сохранении адреса: {e}"
+        
         self.logger.info("Address was saved in the request")
         return "Адрес пользователя был сохранен в заявку"
 
@@ -412,12 +477,24 @@ class ChatAgent:
 
         self.logger.info(f"save_address_to_request address: {address}")
         try:
-            geolocator = Nominatim(user_agent="my_app")
-            location = geolocator.geocode(address)
-            latitude = location.latitude
-            longitude = location.longitude
+            try:
+                geolocator = Nominatim(user_agent="my_app")
+                location = geolocator.geocode(address)
+                latitude = location.latitude
+                longitude = location.longitude
+            except Exception as e:
+                self.logger.error(
+                    f"Error in geocoding address: {e}, using Yandex geolocator"
+                )
+                geolocator = Yandex(
+                    api_key=os.environ.get("YANDEX_GEOCODER_KEY", "")
+                )
+                location = geolocator.geocode(address)
+                latitude = location.latitude
+                longitude = location.longitude
         except Exception as e:
-            self.logger.error(f"Error in geocoding address: {e}")
+            self.logger.error(
+                f"Error in geocoding address: {e}")
             return "Не удалось получить координаты адреса. Запросите адрес ещё раз"
         
         try:
@@ -427,6 +504,12 @@ class ChatAgent:
                 self.config["affilates"].items()
             )
             if (
+                self.affilate == "Москва" and distance > 100
+            ) or (
+                self.affilate != "Москва" and distance > 90
+            ):
+                return "Указанный пользователем адрес находится вне зоны работы компании. Вежливо донесите это до пользователя и прекратите далее оформлять заявку!"
+            elif (
                 self.affilate == "Москва" and distance > 50
             ) or (
                 self.affilate != "Москва" and distance > 40
@@ -436,8 +519,20 @@ class ChatAgent:
             self.logger.error(f"Error in distance calculation: {e}")
         
         try:
-            geolocator = Nominatim(user_agent="my_app")
-            address = geolocator.reverse(f"{latitude}, {longitude}").address
+            try:
+                geolocator = Nominatim(user_agent="my_app")
+                address = geolocator.reverse(f"{latitude}, {longitude}").address
+            except Exception as e:
+                self.logger.error(
+                    f"Error in getting address: {e}, using Yandex geolocator"
+                )
+                geolocator = Yandex(
+                    api_key=os.environ.get("YANDEX_GEOCODER_KEY", "")
+                )
+                address = geolocator.reverse(
+                    f"{latitude}, {longitude}"
+                ).address
+
             await self.request_service.save_to_request(
                 chat_id,
                 latitude,
@@ -448,10 +543,15 @@ class ChatAgent:
                 longitude,
                 "longitude"
             )
-            await self.request_service.save_to_request(chat_id, address, "address")
+            await self.request_service.save_to_request(
+                chat_id,
+                address,
+                "address"
+            )
         except Exception as e:
             self.logger.error(f"Error in saving address: {e}")
             return f"Ошибка при сохранении адреса: {e}"
+        
         self.logger.info("Address was saved in the request")
         return "Адрес пользователя был сохранен в заявку"
 
@@ -532,6 +632,23 @@ class ChatAgent:
         password = os.environ.get("1C_PASSWORD", "")
 
         try:
+            if await self.request_selection(
+                chat_id,
+                request_creating=True
+            ) == "Ban":
+                self.ban_manager.set(
+                    chat_id,
+                    time.strftime("%Y-%m-%d %H:%M", time.localtime())
+                )
+                return """Пользователем создано подозрительное число заявок за день.
+                Передайте ему это, а также то, что в целях безопасности ему необходимо оформлять далее заявки с другого Телеграм аккаунта. И прекратите далее оформлять заявку!
+                """
+        except Exception as error:
+            self.logger.error(
+                f"Error in receiving today customer requests: {error}"
+            )
+
+        try:
             with open("./data/template.json", "r", encoding="utf-8") as f:
                 order_params = json.load(f)
         except Exception as e:
@@ -552,11 +669,14 @@ class ChatAgent:
                 latitude = (await self.request_service.read_request(chat_id))["latitude"]
                 longitude = (await self.request_service.read_request(chat_id))["longitude"]
             except Exception as e:
-                self.logger.error(f"Error in reading current request files: {e}")
+                self.logger.error(
+                    f"Error in reading current request files: {e}"
+                )
                 return "Вы не сохранили адрес! Перед 'Create_request' используйте сначала остальные инструменты для сохранения всех полученных данных"
         if direction not in self.config["divisions"].values():
             return "Выбрано некорректное направление обращения, определите сами повторно подходящее именно из вашего списка"
 
+        # Double-check of personal data
         try:
             if self.company == "OpenAI":
                 client = AsyncOpenAI(
@@ -621,11 +741,19 @@ class ChatAgent:
                     self.config["affilates"].items()
                 )
                 if (
+                    self.affilate == "Москва" and distance > 100
+                ) or (
+                    self.affilate != "Москва" and distance > 90
+                ):
+                    return """Указанный пользователем адрес находится вне зоны работы компании.
+                    Вежливо донесите это до пользователя и прекратите далее оформлять заявку!"""
+                elif (
                     self.affilate == "Москва" and distance > 50
                 ) or (
                     self.affilate != "Москва" and distance > 40
                 ):
-                    return "Указанный пользователем адрес находится вне зоны бесплатного выезда мастера. Предложите пользователю связаться с нами по нашему контактному телефону 8 495 723 723 0, указав его, и прекратите далее оформлять заявку!"
+                    return """Указанный пользователем адрес находится вне зоны бесплатного выезда мастера.
+                    Предложите пользователю связаться с нами по нашему контактному телефону 8 495 723 723 0, указав его, и прекратите далее оформлять заявку!"""
             except Exception as e:
                 self.logger.error(f"Error in distance calculation: {e}")
 
@@ -693,6 +821,7 @@ class ChatAgent:
             self.logger.info(f"Result:\n{order.status_code}\n{order.text}")
 
         try:
+            # Receiving number of new request
             results = requests.post(
                 ws_url,
                 json={"config": ws_data, "params": ws_params, "token": token}
@@ -708,6 +837,7 @@ class ChatAgent:
         if order.status_code == 200:
             self.logger.info(f"number: {request_number}")
             self.request_service.delete_files(chat_id)
+            self.affilate = None
             if request_number:
                 return f"Заявка была создана с номером {request_number}"
             else:
@@ -716,10 +846,11 @@ class ChatAgent:
             self.logger.error(f"Error in creating request: {order.text}")
             return f"Ошибка при создании заявки: {order.text}"
 
-    async def request_selection(self, chat_id):
+    async def request_selection(self, chat_id, request_creating=False):
         token = os.environ.get("1С_TOKEN", "")
         login = os.environ.get("1C_LOGIN", "")
         password = os.environ.get("1C_PASSWORD", "")
+        request_creating=request_creating
 
         try:
             ws_url = f"{self.config['proxy_url']}/ws"        
@@ -756,21 +887,31 @@ class ChatAgent:
             self.logger.error(f"Error in receiving request numbers: {e}")
             return f"Ошибка при получении списка заявок: {e}"
 
-        if len(request_numbers) > 0:
-            markup = ReplyKeyboardMarkup(
-                resize_keyboard=True,
-                one_time_keyboard=True
-            )
-            text = "Секунду..."
-            for number, values in request_numbers.items():
-                markup.add(
-                    f"Заявка {number} от {values['date']}; {values['division']}"
+        # Cheking the count of request in today
+        if len(request_numbers) >= 3 and request_creating==True:
+            if sum(1 for request in request_numbers.values() if request['date'] == time.strftime("%d.%m.%Y", time.localtime())) >= 3:
+                return "Ban"
+        
+        if request_creating==False:
+            if len(request_numbers) > 0:
+                markup = ReplyKeyboardMarkup(
+                    resize_keyboard=True,
+                    one_time_keyboard=True
                 )
-            markup.add("🏠 Вернуться в меню")
-            await self.bot_instance.send_message(chat_id, text, reply_markup=markup)
-            return "У пользователя был только запрошен номер заявки, в рамках которой сейчас идёт диалог"
-        else:
-            return "У пользователя нет существующих заявок"
+                text = "Секунду..."
+                for number, values in request_numbers.items():
+                    markup.add(
+                        f"Заявка {number} от {values['date']}; {values['division']}"
+                    )
+                markup.add("🏠 Вернуться в меню")
+                await self.bot_instance.send_message(
+                    chat_id,
+                    text,
+                    reply_markup=markup
+                )
+                return "У пользователя был только запрошен номер заявки, в рамках которой сейчас идёт диалог"
+            else:
+                return "У пользователя нет существующих заявок"
     
     def change_request(self, request_number, field_name, field_value):
         token = os.environ.get("1С_TOKEN", "")
@@ -797,12 +938,14 @@ class ChatAgent:
             self.logger.error(f"Error in getting web service params: {e}")
             return f"Ошибка при получении параметров вэб-сервиса: {e}"
         
+        # Unloading items critical for change
         try:
             results = requests.post(
                 ws_url,
                 json={"config": ws_data, "params": ws_params, "token": token}
             ).json()["result"]
             self.logger.info(f"results: {results}")
+            
             for value in results.values():
                 if len(value) > 0:
                     partner_number = str(value[0]["id"])
@@ -853,6 +996,7 @@ class ChatAgent:
             change_params["order"]["address"]["name_components"][0]["name"] = locality
             change_params["order"]["revision"] = revision + 1
 
+            # Validation of value types
             if field_name == "comment":
                 change_params["order"]["comment"] = field_value
                 self.logger.info(f"Parametrs: {change_params}")
@@ -864,6 +1008,7 @@ class ChatAgent:
                 self.logger.info(f"Parametrs: {change_params}")
                 return "Получено или сформулировано недопустимое для изменения значение. Доступны только коммментарий или телефон"
             
+            # Change of request
             try:
                 change_url = f"{self.config['proxy_url']}/ex"
                 change_data = {
