@@ -57,11 +57,13 @@ class Application:
         )
         self.app = FastAPI()
         self.setup_routes()
+        self.is_llm_active = True
         self.chat_agent = None
         self.chat_history_client = None
         self.TOKEN = os.environ.get("BOT_TOKEN", "")
         self.CHANNEL_ID = os.environ.get("HISTORY_CHANNEL_ID", "")
         self.GROUP_ID = os.environ.get("HISTORY_GROUP_ID", "")
+        self.WHITE_LIST_IDS = os.environ.get("WHITE_LIST_IDS", [])
         self.CHANNEL_IDS = os.environ.get("TELEGRAM_CHANNEL_IDS", [])
         self.channel_posts = self.channel_manager.load_config()
 
@@ -77,11 +79,15 @@ class Application:
 
         self.base_error_answer = """
            Извините, произошла ошибка в работе системы.
-           Cвяжитесь с нами по телефону 8 495 723 723 0 для дальнейшей помощи.
+Cвяжитесь с нами по телефону 8 495 723 723 0 для дальнейшей помощи.
         """
         self.llm_error_answer = """
             Извините, произошла ошибка в работе системы.
-            Попробуйте сформулировать ваше сообщение по-другому или же свяжитесь с нами по телефону 8 495 723 723 0 для дальнейшей помощи.
+Попробуйте сформулировать ваше сообщение по-другому или же свяжитесь с нами по телефону 8 495 723 723 0 для дальнейшей помощи.
+        """
+        self.inactive_answer = """
+           Извините, по техническим причинам сервис временно недоступен.
+Cвяжитесь с нами по телефону 8 495 723 723 0 для дальнейшей помощи.
         """
 
     def text_response(self, text):
@@ -107,6 +113,9 @@ class Application:
         os.environ["DB_HOST"] = cm.get("DB_HOST", "")
         os.environ["DB_PORT"] = cm.get("DB_PORT", "")
         os.environ["YANDEX_GEOCODER_KEY"] = cm.get("YANDEX_GEOCODER_KEY", "")
+        os.environ["WHITE_LIST_IDS"] = json.dumps(
+            cm.load_config()["WHITE_LIST_IDS"]
+        )
         os.environ["TELEGRAM_CHANNEL_IDS"] = json.dumps(
             cm.load_config()["TELEGRAM_CHANNEL_IDS"]
         )
@@ -298,7 +307,7 @@ class Application:
                 self.message_id
             )
 
-            # Post with a messages resended to a telegram channel
+            # Create post with a messages resended to a telegram channel
             if str(self.chat_id) not in self.channel_posts:
                 name = f'@{message["from"]["username"]}' if "username" in message["from"] else message["from"]["first_name"]
                 await bot.send_message(
@@ -392,8 +401,92 @@ class Application:
                 self.logger.info("Transcription finished")
             else:
                 return self.empty_response
+            
+            # Banned accounts processing
+            if str(self.chat_id) in self.banned_accounts:
+                # Resending user message to Telegram group
+                try:
+                    await bot.send_message(
+                        self.GROUP_ID,
+                        self.user_message,
+                        reply_to_message_id=self.channel_posts[
+                            str(self.chat_id)
+                        ]
+                    )
+                except:
+                    self.logger.info("Chat id not received yet")
+                return self.empty_response
+            
+            # Maintenance processing
+            if not self.is_llm_active and str(self.chat_id) not in self.WHITE_LIST_IDS:
+                # Resending user message to Telegram group
+                try:
+                    await bot.send_message(
+                        self.GROUP_ID,
+                        self.user_message,
+                        reply_to_message_id=self.channel_posts[
+                            str(self.chat_id)
+                        ]
+                    )
+                except:
+                    self.logger.info("Chat id not received yet")
+                return await bot.send_message(
+                    self.chat_id,
+                    self.inactive_answer
+                )
 
-            if self.user_message == "/start":
+            # Command processing
+            if self.user_message == "/disable" and str(self.chat_id) in self.WHITE_LIST_IDS:
+                await bot.delete_message(self.chat_id, self.message_id)
+                self.is_llm_active = False
+                answer = await bot.send_message(
+                    self.chat_id,
+                    "Ответы бота пользователям переведены в режим техобслуживания"
+                )
+                await asyncio.sleep(5)
+                await bot.delete_message(self.chat_id, answer.message_id)
+                for user in self.WHITE_LIST_IDS:
+                    try:
+                        if message["from"]["first_name"]:
+                            id = message["from"]["first_name"]
+                        elif message["from"]["username"]:
+                            id = message["from"]["username"]
+                        else:
+                            id = message["from"]["id"]
+                        await bot.send_message(
+                            user,
+                            f"Ответы бота пользователям были переведены в режим техобслуживания следующим сотрудником - {id}"
+                        )
+                    except Exception as e:
+                        self.logger.error(
+                            f"Error in sending message about maintenance to {user}: {e}"
+                        )
+            elif self.user_message == "/enable" and str(self.chat_id) in self.WHITE_LIST_IDS:
+                await bot.delete_message(self.chat_id, self.message_id)
+                self.is_llm_active = True
+                answer = await bot.send_message(
+                    self.chat_id,
+                    "Ответы бота пользователям переведены в обычный режим"
+                )
+                await asyncio.sleep(5)
+                await bot.delete_message(self.chat_id, answer.message_id)
+                for user in self.WHITE_LIST_IDS:
+                    try:
+                        if message["from"]["first_name"]:
+                            id = message["from"]["first_name"]
+                        elif message["from"]["username"]:
+                            id = message["from"]["username"]
+                        else:
+                            id = message["from"]["id"]
+                        await bot.send_message(
+                            user,
+                            f"Ответы бота пользователям были переведены в обычный режим следующим сотрудником - {id}"
+                        )
+                    except Exception as e:
+                        self.logger.error(
+                            f"Error in sending message about maintenance to {user}: {e}"
+                        )
+            elif self.user_message == "/start":
                 await bot.delete_message(self.chat_id, self.message_id)
                 self.request_service.delete_files(self.chat_id)
                 await self.chat_data_service.update_chat_history_date(
@@ -413,6 +506,26 @@ class Application:
                     welcome_message,
                     reply_markup=markup
                 )
+            elif self.user_message == "/requestreset":
+                await bot.delete_message(self.chat_id, self.message_id)
+                self.request_service.delete_files(self.chat_id)
+                answer = await bot.send_message(
+                    self.chat_id,
+                    "Информация по заявкам была очищена"
+                )
+                await asyncio.sleep(5)
+                await bot.delete_message(self.chat_id, answer.message_id)
+
+            elif self.user_message == "/fullreset":
+                await bot.delete_message(self.chat_id, self.message_id)
+                self.request_service.delete_files(self.chat_id)
+                await self.chat_data_service.update_chat_history_date(self.chat_id)
+                answer = await bot.send_message(
+                    self.chat_id,
+                    "Полная история чата была очищена"
+                )
+                await asyncio.sleep(5)
+                await bot.delete_message(self.chat_id, answer.message_id)
             
             elif self.user_message == "📑 Выбрать свою активную заявку":
                 await bot.delete_message(self.chat_id, self.message_id)
@@ -499,27 +612,7 @@ class Application:
                     reply_markup=markup
                 )
 
-            elif self.user_message == "/requestreset":
-                await bot.delete_message(self.chat_id, self.message_id)
-                self.request_service.delete_files(self.chat_id)
-                answer = await bot.send_message(
-                    self.chat_id,
-                    "Информация по заявкам была очищена"
-                )
-                await asyncio.sleep(5)
-                await bot.delete_message(self.chat_id, answer.message_id)
-
-            elif self.user_message == "/fullreset":
-                await bot.delete_message(self.chat_id, self.message_id)
-                self.request_service.delete_files(self.chat_id)
-                await self.chat_data_service.update_chat_history_date(self.chat_id)
-                answer = await bot.send_message(
-                    self.chat_id,
-                    "Полная история чата была очищена"
-                )
-                await asyncio.sleep(5)
-                await bot.delete_message(self.chat_id, answer.message_id)
-
+            # Default processing
             else:
                 # Resending user message to Telegram group
                 try:
@@ -532,9 +625,6 @@ class Application:
                     )
                 except:
                     self.logger.info("Chat id not received yet")
-
-                if str(self.chat_id) in self.banned_accounts:
-                    return self.empty_response
 
                 try:
                     request = await self.request_service.read_request(self.chat_id)
