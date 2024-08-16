@@ -31,6 +31,10 @@ class Application:
             "./data/banned_users.json",
             self.logger
         )
+        self.auth_manager = ConfigManager(
+            "./data/auth.json",
+            self.logger
+        )
         self.config_manager = ConfigManager(
             "./data/config.json",
             self.logger
@@ -57,14 +61,14 @@ class Application:
         )
         self.app = FastAPI()
         self.setup_routes()
-        self.is_llm_active = True
         self.chat_agent = None
         self.chat_history_client = None
+        self.is_llm_active = self.config_manager.get("is_llm_active")
         self.TOKEN = os.environ.get("BOT_TOKEN", "")
         self.CHANNEL_ID = os.environ.get("HISTORY_CHANNEL_ID", "")
         self.GROUP_ID = os.environ.get("HISTORY_GROUP_ID", "")
-        self.WHITE_LIST_IDS = os.environ.get("WHITE_LIST_IDS", [])
-        self.CHANNEL_IDS = os.environ.get("TELEGRAM_CHANNEL_IDS", [])
+        self.WHITE_LIST_IDS = self.auth_manager.get("WHITE_LIST_IDS", [])
+        self.CHANNEL_IDS = self.auth_manager.get("TELEGRAM_CHANNEL_IDS", [])
         self.channel_posts = self.channel_manager.load_config()
 
         self.banned_accounts = self.ban_manager.load_config()
@@ -94,30 +98,49 @@ Cвяжитесь с нами по телефону 8 495 723 723 0 для да�
         return JSONResponse(content={"type": "text", "body": str(text)})
 
     def set_keys(self):
-        cm = ConfigManager("./data/auth.json", self.logger)
-
-        os.environ["LANGCHAIN_API_KEY"] = cm.get("LANGCHAIN_API_KEY", "")
-        os.environ["OPENAI_API_KEY"] = cm.get("OPENAI_API_KEY", "")
-        os.environ["ANTHROPIC_API_KEY"] = cm.get("ANTHROPIC_API_KEY", "")
-        os.environ["1С_TOKEN"] = cm.get("1С_TOKEN", "")
-        os.environ["1C_LOGIN"] = cm.get("1C_LOGIN", "")
-        os.environ["1C_PASSWORD"] = cm.get("1C_PASSWORD", "")
-        os.environ["TELEGRAM_API_ID"] = cm.get("TELEGRAM_API_ID", "")
-        os.environ["TELEGRAM_API_HASH"] = cm.get("TELEGRAM_API_HASH", "")
-        os.environ["BOT_TOKEN"] = cm.get("BOT_TOKEN", "")
-        os.environ["CHAT_HISTORY_TOKEN"] = cm.get("CHAT_HISTORY_TOKEN", "")
-        os.environ["HISTORY_CHANNEL_ID"] = cm.get("HISTORY_CHANNEL_ID", "")
-        os.environ["HISTORY_GROUP_ID"] = cm.get("HISTORY_GROUP_ID", "")
-        os.environ["DB_USER"] = cm.get("DB_USER", "")
-        os.environ["DB_PASSWORD"] = cm.get("DB_PASSWORD", "")
-        os.environ["DB_HOST"] = cm.get("DB_HOST", "")
-        os.environ["DB_PORT"] = cm.get("DB_PORT", "")
-        os.environ["YANDEX_GEOCODER_KEY"] = cm.get("YANDEX_GEOCODER_KEY", "")
-        os.environ["WHITE_LIST_IDS"] = json.dumps(
-            cm.load_config()["WHITE_LIST_IDS"]
+        os.environ["BOT_TOKEN"] = self.auth_manager.get("BOT_TOKEN", "")
+        os.environ["1С_TOKEN"] = self.auth_manager.get("1С_TOKEN", "")
+        os.environ["1C_LOGIN"] = self.auth_manager.get("1C_LOGIN", "")
+        os.environ["1C_PASSWORD"] = self.auth_manager.get("1C_PASSWORD", "")
+        os.environ["DB_USER"] = self.auth_manager.get("DB_USER", "")
+        os.environ["DB_PASSWORD"] = self.auth_manager.get("DB_PASSWORD", "")
+        os.environ["DB_HOST"] = self.auth_manager.get("DB_HOST", "")
+        os.environ["DB_PORT"] = self.auth_manager.get("DB_PORT", "")
+        os.environ["LANGCHAIN_API_KEY"] = self.auth_manager.get(
+            "LANGCHAIN_API_KEY",
+            ""
         )
-        os.environ["TELEGRAM_CHANNEL_IDS"] = json.dumps(
-            cm.load_config()["TELEGRAM_CHANNEL_IDS"]
+        os.environ["OPENAI_API_KEY"] = self.auth_manager.get(
+            "OPENAI_API_KEY",
+            ""
+        )
+        os.environ["ANTHROPIC_API_KEY"] = self.auth_manager.get(
+            "ANTHROPIC_API_KEY",
+            ""
+        )
+        os.environ["TELEGRAM_API_ID"] = self.auth_manager.get(
+            "TELEGRAM_API_ID",
+            ""
+        )
+        os.environ["TELEGRAM_API_HASH"] = self.auth_manager.get(
+            "TELEGRAM_API_HASH",
+            ""
+        )
+        os.environ["CHAT_HISTORY_TOKEN"] = self.auth_manager.get(
+            "CHAT_HISTORY_TOKEN",
+            ""
+        )
+        os.environ["HISTORY_CHANNEL_ID"] = self.auth_manager.get(
+            "HISTORY_CHANNEL_ID",
+            ""
+        )
+        os.environ["HISTORY_GROUP_ID"] = self.auth_manager.get(
+            "HISTORY_GROUP_ID",
+            ""
+        )
+        os.environ["YANDEX_GEOCODER_KEY"] = self.auth_manager.get(
+            "YANDEX_GEOCODER_KEY",
+            ""
         )
         self.logger.info("Auth data set successfully")
 
@@ -438,14 +461,15 @@ Cвяжитесь с нами по телефону 8 495 723 723 0 для да�
             # Command processing
             if self.user_message == "/disable" and str(self.chat_id) in self.WHITE_LIST_IDS:
                 await bot.delete_message(self.chat_id, self.message_id)
-                self.is_llm_active = False
+                self.config_manager.set("is_llm_active", False)
+                self.is_llm_active = self.config_manager.get("is_llm_active")
                 answer = await bot.send_message(
                     self.chat_id,
                     "Ответы бота пользователям переведены в режим техобслуживания"
                 )
                 await asyncio.sleep(5)
                 await bot.delete_message(self.chat_id, answer.message_id)
-                for user in self.WHITE_LIST_IDS:
+                for user in (u for u in self.WHITE_LIST_IDS if u != str(self.chat_id)):
                     try:
                         if message["from"]["first_name"]:
                             id = message["from"]["first_name"]
@@ -463,14 +487,15 @@ Cвяжитесь с нами по телефону 8 495 723 723 0 для да�
                         )
             elif self.user_message == "/enable" and str(self.chat_id) in self.WHITE_LIST_IDS:
                 await bot.delete_message(self.chat_id, self.message_id)
-                self.is_llm_active = True
+                self.config_manager.set("is_llm_active", True)
+                self.is_llm_active = self.config_manager.get("is_llm_active")
                 answer = await bot.send_message(
                     self.chat_id,
                     "Ответы бота пользователям переведены в обычный режим"
                 )
                 await asyncio.sleep(5)
                 await bot.delete_message(self.chat_id, answer.message_id)
-                for user in self.WHITE_LIST_IDS:
+                for user in (u for u in self.WHITE_LIST_IDS if u != str(self.chat_id)):
                     try:
                         if message["from"]["first_name"]:
                             id = message["from"]["first_name"]
