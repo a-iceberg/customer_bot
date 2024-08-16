@@ -240,6 +240,10 @@ class FileService:
                     message = json.load(file)
                     if message["type"] == "direction":
                         request_items["direction"] = message["text"]
+                    elif message["type"] == "circumstances":
+                        request_items["circumstances"] = message["text"]
+                    elif message["type"] == "brand":
+                        request_items["brand"] = message["text"]
                     elif message["type"] == "phone":
                         request_items["phone"] = message["text"]
                     elif message["type"] == "latitude":
