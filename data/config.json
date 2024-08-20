@@ -14,9 +14,9 @@
         "crm": "http://10.2.4.141/Test_CRM/hs/yandex/v1/order/"
     },
     "ws_paths": {
-        "msk": "http://10.2.4.141/Test_CallCentr/ws/OuterQuery?wsdl",
-        "spb": "http://10.2.4.141/Test_Piter_MRM/ws/OuterQuery?wsdl",
-        "reg": "http://10.2.4.141/Test_Region_MRM/ws/OuterQuery?wsdl"
+        "msk": "http://10.2.4.141/Test_CallCentr/ws/ws2.1cws?wsdl",
+        "spb": "http://10.2.4.141/Test_Piter_MRM/ws/ws2.1cws?wsdl",
+        "reg": "http://10.2.4.141/Test_Region_MRM/ws/ws2.1cws?wsdl"
     },
     "change_path": {
         "crm": "https://exchange.iceberg.ru/yandex/v1/order/"
