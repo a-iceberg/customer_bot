@@ -1,13 +1,14 @@
 {
-    "chats_dir": "./data/cc/chats/",
-    "audio_dir": "./data/cc/audio/",
-    "request_dir": "./data/cc/requests/",
+    "chats_dir": "./data/chats/",
+    "audio_dir": "./data/audio/",
+    "request_dir": "./data/requests/",
     "openai_model": "gpt-4o-2024-05-13",
     "anthropic_model": "claude-3-5-sonnet-20240620",
     "openai_temperature": 0.3,
     "anthropic_temperature": 0.3,
     "spam_threshold": 5,
     "spam_count_threshold": 5,
+    "is_llm_active": true,
     "proxy_url": "https://service.icecorp.ru:7405",
     "order_path": {
         "crm": "http://10.2.4.123/api/hs/yandex/v1/order/"

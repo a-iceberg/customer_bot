@@ -30,4 +30,4 @@ class ConfigManager:
 
     def save_config(self):
         with open(self.config_path, 'w', encoding='utf-8') as config_file:
-            json.dump(self.config, config_file, ensure_ascii=False)
+            json.dump(self.config, config_file, ensure_ascii=False, indent=4)
