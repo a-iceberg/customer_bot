@@ -29,9 +29,19 @@ class save_name_to_request_args(BaseModel):
     name: str = Field(description="name")
 
 
-class SaveDirectionToRequestArgs(BaseModel):
+class save_direction_to_request_args(BaseModel):
     chat_id: int = Field(description="chat_id")
     direction: str = Field(description="direction")
+
+
+class save_circumstances_to_request_args(BaseModel):
+    chat_id: int = Field(description="chat_id")
+    circumstances: str = Field(description="circumstances")
+
+
+class save_brand_to_request_args(BaseModel):
+    chat_id: int = Field(description="chat_id")
+    brand: str = Field(description="brand")
 
 
 class save_gps_to_request_args(BaseModel):
@@ -68,6 +78,8 @@ class save_comment_to_request_args(BaseModel):
 class create_request_args(BaseModel):
     chat_id: int = Field(description="chat_id")
     direction: str = Field(description="direction")
+    circumstances: str = Field(description="circumstances")
+    brand: str = Field(description="brand")
     date: str = Field(description="date")
     phone: str = Field(description="phone")
     latitude: float = Field(description="latitude")
@@ -171,7 +183,7 @@ class ChatAgent:
             name="Saving_name",
             description="""
                 Сохраняет имя пользователя в новую заявку. Используйте этот инструмент ОБЯЗАТЕЛЬНО ВСЕГДА и СРАЗУ, если имеющееся у вас или полученное имя выглядит как настоящее человеческое.
-                Вам следует предоставить chat_id и непосредственно само name в качестве параметров
+Вам следует предоставить chat_id и непосредственно само name в качестве параметров
             """,
             args_schema=save_name_to_request_args,
             return_direct=False,
@@ -187,9 +199,9 @@ class ChatAgent:
             name="Saving_direction",
             description="""
                 Сохраняет подходящее под запрос пользователя направление, причину обращения из имеющегося списка направлений в новую заявку. Нужно соотнести запрос и выбрать подходящее только из тех, что в этом списке.
-                Вам следует предоставить chat_id и непосредственно сам direction из списка в качестве параметров
+Вам следует предоставить chat_id и непосредственно само direction из списка в качестве параметров
             """,
-            args_schema=SaveDirectionToRequestArgs,
+            args_schema=save_direction_to_request_args,
             return_direct=False,
             handle_tool_error=True,
             handle_validation_error=True,
@@ -197,13 +209,46 @@ class ChatAgent:
         )
         tools.append(save_direction_tool)
 
+        # Tool: save_circumstances_tool
+        save_circumstances_tool = StructuredTool.from_function(
+            coroutine=self.save_circumstances_to_request,
+            name="Saving_circumstances",
+            description="""
+                Сохраняет полученную дополнительную информацию по обстоятельствам, характеристикам обращения в новую заявку.
+При возможном отказе в предоставлении подобной информации ничего сохранять и  вообще использовать этот инструмент не нужно!
+Вам следует предоставить chat_id и непосредственно сами circumstances в качестве параметов
+            """,
+            args_schema=save_circumstances_to_request_args,
+            return_direct=False,
+            handle_tool_error=True,
+            handle_validation_error=True,
+            verbose=True,
+        )
+        tools.append(save_circumstances_tool)
+
+        # Tool: save_brand_tool
+        save_brand_tool = StructuredTool.from_function(
+            coroutine=self.save_brand_to_request,
+            name="Saving_brand",
+            description="""
+                Сохраняет полученнный бренд / модель, ТОЛЬКО если речь идёт о технике, в новую заявку. Например, окна, двери или сантехника техникой НЕ являются, в таком случае использовать этот инструмент не нужно!
+Вам следует предоставить chat_id и непосредственно сам brand из всего сообщения в качестве параметов
+            """,
+            args_schema=save_brand_to_request_args,
+            return_direct=False,
+            handle_tool_error=True,
+            handle_validation_error=True,
+            verbose=True,
+        )
+        tools.append(save_brand_tool)
+
         # Tool: save_gps_tool
         save_gps_tool = StructuredTool.from_function(
             coroutine=self.save_gps_to_request,
             name="Saving_GPS-coordinates",
             description="""
                 Сохраняет адрес на основании полученнных GPS-координат в новую заявку, только если ранее уже не был использован инструмент Saving_address.
-                Вам следует предоставить значения chat_id, latitude и longitude в качестве параметров
+Вам следует предоставить значения chat_id, latitude и longitude в качестве параметров
             """,
             args_schema=save_gps_to_request_args,
             return_direct=False,
@@ -219,7 +264,7 @@ class ChatAgent:
             name="Saving_address",
             description="""
                 Сохраняет полученнный адрес в новую заявку. При сохранении убедитесь, что у вас есть ВСЕ три обязательных поля адреса (с городом, улицей, домом).
-                Вам следует предоставить chat_id и непосредственно сами значения в address из всего сообщения в качестве параметров, то есть без слов 'город', 'улица', 'дом' и т.д. Корпус и строение обозначайте одной буквой вместе с номером дома, например, 1к3 или 98с4, только так!
+Вам следует предоставить chat_id и непосредственно сами значения в address из всего сообщения в качестве параметров, то есть без слов 'город', 'улица', 'дом' и т.д. Корпус и строение обозначайте одной буквой вместе с номером дома, например, 1к3 или 98с4, только так!
             """,
             args_schema=save_address_to_request_args,
             return_direct=False,
@@ -235,7 +280,7 @@ class ChatAgent:
             name="Saving_address_line_2",
             description="""
                 Сохраняет полученнную дополнительную информацию по адресу в новую заявку.
-                Вам следует предоставить chat_id и непосредственно сам address_line_2 из всего сообщения в качестве параметов
+Вам следует предоставить chat_id и непосредственно сам address_line_2 из всего сообщения в качестве параметов
             """,
             args_schema=save_address_line_2_to_request_args,
             return_direct=False,
@@ -251,7 +296,7 @@ class ChatAgent:
             name="Saving_phone_number",
             description="""
                 Сохраняет полученнный телефон в новую заявку.
-                Вам следует предоставить chat_id и непосредственно сам phone из всего сообщения в качестве параметов
+Вам следует предоставить chat_id и непосредственно сам phone из всего сообщения в качестве параметов
             """,
             args_schema=save_phone_to_request_args,
             return_direct=False,
@@ -267,7 +312,7 @@ class ChatAgent:
             name="Saving_visit_date",
             description="""
                 Сохраняет нужную дату визита в новую заявку. Вам следует САМИМ предоставить в инструмент chat_id и непосредственно саму date в формате 'yyyy-mm-ddT00:00Z', определённую вами самостоятельно по умолчанию или же полученную из сообщения пользователя в качестве параметров.
-                ПРИНИМАЙТЕ дату от пользователя в ЛЮБОМ свободном формате (например, 'сегодня' или 'завтра'), а НЕ в том, что выше. Главное используйте сами потом в указанном, отформатировав при необходимости
+ПРИНИМАЙТЕ дату от пользователя в ЛЮБОМ свободном формате (например, 'сегодня' или 'завтра'), а НЕ в том, что выше. Главное используйте сами потом в указанном, отформатировав при необходимости
             """,
             args_schema=save_date_to_request_args,
             return_direct=False,
@@ -282,8 +327,8 @@ class ChatAgent:
             coroutine=self.save_comment_to_request,
             name="Saving_comment",
             description="""
-                Сохраняет полезные по вашему мнению комментарии пользователя в новую заявку. Ни в коем случае НЕЛЬЗЯ передавать здесь информацию, содержающую детали адреса (квартира, подъезд и т.п.) или ЛЮБЫЕ телефоны клиента, даже если он просит, в таком случае НЕ используйте этот инструмент.
-                Вам следует предоставить chat_id и непосредственно сам comment в качестве параметров
+                Сохраняет любые полезные по вашему мнению комментарии пользователя, а также важную информацию (например, факт того, что была озвучена стоимость диагностики) в диалоге в новую заявку. Ни в коем случае НЕЛЬЗЯ передавать здесь информацию, содержающую детали адреса (квартира, подъезд и т.п.) или ЛЮБЫЕ телефоны клиента, даже если он просит, в таком случае НЕ используйте этот инструмент.
+Вам следует предоставить chat_id и comment своими словами в качестве параметров
             """,
             args_schema=save_comment_to_request_args,
             return_direct=False,
@@ -299,8 +344,9 @@ class ChatAgent:
             name="Create_request",
             description="""
                 Создает полностью заполненную новую заявку в 1С и при доступности определяет её номер.
-                Вам следует предоставить chat_id и по отдельности сами значения ключей словаря (request) с текущей заявкой из вашего системного промпта в качестве соответствующих параметров инструмента, кроме ключа address_line_2. Из его же значения выделите и передайте отдельно при наличии непосредственно сами численно-буквенные значения apartment, entrance, floor и intercom (т.е. без слов) из всего address_line_2 в качестве остальных соответствующих параметров инструмента.
-                Из address же передавайте непосредственно сами значения в качестве параметров, то есть без слов 'город', 'улица', 'дом' и т.д. Корпус и строение обозначайте одной буквой вместе с номером дома, например, 1к3 или 98с4, только так!
+Вам следует предоставить chat_id и по отдельности сами значения ключей словаря (request) с текущей заявкой из вашего системного промпта в качестве соответствующих параметров инструмента, кроме ключа address_line_2. Из его же значения выделите и передайте отдельно при наличии непосредственно сами численно-буквенные значения apartment, entrance, floor и intercom (т.е. без слов) из всего address_line_2 в качестве остальных соответствующих параметров инструмента.
+Из address же передавайте непосредственно сами значения в качестве параметров, то есть без слов 'город', 'улица', 'дом' и т.д. Корпус и строение обозначайте одной буквой вместе с номером дома, например, 1к3 или 98с4, только так!
+При отсутствии у вас значений каких-либо параметров передавайте на их месте просто пустые строки - ''
             """,
             args_schema=create_request_args,
             return_direct=False,
@@ -316,7 +362,7 @@ class ChatAgent:
             name="Request_selection",
             description="""
                 Находит и предоставляет пользователю список его ОФОРМЛЕННЫХ заявок для выбора, чтобы определить контекст всего диалога, если речь идёт уже о каких-либо созданных заявках, а НЕ об оформлении новой. Используйте этот инструмент ВСЕГДА ОБЯЗАТЕЛЬНО, когда спрашивайте номер заявки у пользователя, но ТОЛЬКО ОДИН РАЗ, когда вам нужно понять, о какой именно заявке идёт речь, например, СРАЗУ, как только пользователь захочет изменить или дополнить данные по уже существующей заявке.
-                Если вы уже явно получили от пользователя номер заявки, повторно НИ В КОЕМ СЛУЧАЕ НЕ используйте этот инструмент! Вам следует предоставить chat_id в качестве параметра
+Если вы уже явно получили от пользователя номер заявки, повторно НИ В КОЕМ СЛУЧАЕ НЕ используйте этот инструмент! Вам следует предоставить chat_id в качестве параметра
             """,
             args_schema=request_selection_args,
             return_direct=False,
@@ -331,8 +377,8 @@ class ChatAgent:
             func=self.change_request,
             name="Change_request",
             description="""
-                Изменяет нужные данные / значения полей в уже СУЩЕСТВУЮЩЕЙ заявке. Допустимо обрабатывать ТОЛЬКО ЛЮБУЮ ДОПОЛНИТЕЛЬНУЮ ИНФОРМАЦИЮ КАК КОММЕНТАРИЙ или ТЕЛЕФОН. Для редактирования уже имеющихся СОЗДАННЫХ заявок используйте ТОЛЬКО ЭТОТ инструмент, а НЕ обычные с добавлением информации в новую!
-                Вам следует предоставить сам номер текущей заявки request_number; field_name - подходящее название поля: 'comment' или 'phone'; а также само новое значение поля, полученное от пользователя (field_value) в качестве параметров
+                Изменяет нужные данные / значения полей в уже СУЩЕСТВУЮЩЕЙ заявке. Допустимо обрабатывать ТОЛЬКО ТЕЛЕФОН или ЛЮБУЮ ДОПОЛНИТЕЛЬНУЮ ИНФОРМАЦИЮ КАК КОММЕНТАРИЙ. Для редактирования уже имеющихся СОЗДАННЫХ заявок используйте ТОЛЬКО ЭТОТ инструмент, а НЕ обычные с добавлением информации в новую!
+Вам следует предоставить сам номер текущей заявки request_number; field_name - подходящее название поля: 'comment' или 'phone'; а также само новое значение поля, полученное от пользователя (field_value) в качестве параметров
             """,
             args_schema=change_request_args,
             return_direct=False,
@@ -401,6 +447,32 @@ class ChatAgent:
             return f"Ошибка при сохранении направления обращения: {e}"
         self.logger.info("Direction was saved in the request")
         return "Направление, причина обращения было сохранено в заявку"
+
+    async def save_circumstances_to_request(self, chat_id, circumstances):
+        self.logger.info(f"save_circumstances_to_request circumstances: {circumstances}")
+        try:
+            await self.request_service.save_to_request(
+                chat_id,
+                circumstances,
+                "circumstances"
+            )
+        except Exception as e:
+            self.logger.error(f"Error in saving circumstances: {e}")
+        self.logger.info("Circumstances was saved in the request")
+        return "Обстоятельства обращения были сохранены в заявку"
+
+    async def save_brand_to_request(self, chat_id, brand):
+        self.logger.info(f"save_brand_to_request brand: {brand}")
+        try:
+            await self.request_service.save_to_request(
+                chat_id,
+                brand,
+                "brand"
+            )
+        except Exception as e:
+            self.logger.error(f"Error in saving brand: {e}")
+        self.logger.info("Brand was saved in the request")
+        return "Бренд / модель были сохранены в заявку"
 
     async def save_gps_to_request(self, chat_id, latitude, longitude):
         self.logger.info(
@@ -625,7 +697,9 @@ class ChatAgent:
         floor="",
         intercom="",
         name="Не названо",
-        comment=""
+        comment="",
+        circumstances="",
+        brand=""
     ):
         token = os.environ.get("1С_TOKEN", "")
         login = os.environ.get("1C_LOGIN", "")
@@ -675,6 +749,10 @@ class ChatAgent:
                 return "Вы не сохранили адрес! Перед 'Create_request' используйте сначала остальные инструменты для сохранения всех полученных данных"
         if direction not in self.config["divisions"].values():
             return "Выбрано некорректное направление обращения, определите сами повторно подходящее именно из вашего списка"
+        
+        for detail in [brand, circumstances]:
+            if detail !="":
+                comment += f"\n{detail}"
 
         # Double-check of personal data
         try:
@@ -818,7 +896,8 @@ class ChatAgent:
             self.logger.error(f"Error in creating request: {e}")
             return f"Ошибка при создании заявки: {e}"
         finally:
-            self.logger.info(f"Result:\n{order.status_code}\n{order.text}")
+            if order:
+                self.logger.info(f"Result:\n{order.status_code}\n{order.text}")
 
         try:
             # Receiving number of new request
