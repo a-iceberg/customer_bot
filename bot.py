@@ -511,7 +511,7 @@ Cвяжитесь с нами по телефону 8 495 723 723 0 для да�
                         self.logger.error(
                             f"Error in sending message about maintenance to {user}: {e}"
                         )
-            elif self.user_message == "/start":
+            elif self.user_message.startswith("/start"):
                 await bot.delete_message(self.chat_id, self.message_id)
                 self.request_service.delete_files(self.chat_id)
                 await self.chat_data_service.update_chat_history_date(
@@ -531,6 +531,8 @@ Cвяжитесь с нами по телефону 8 495 723 723 0 для да�
                     welcome_message,
                     reply_markup=markup
                 )
+                self.logger.info(self.user_message.split()[1]) if len(self.user_message.split()) > 1 else None
+
             elif self.user_message == "/requestreset":
                 await bot.delete_message(self.chat_id, self.message_id)
                 self.request_service.delete_files(self.chat_id)
