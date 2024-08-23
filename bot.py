@@ -531,7 +531,7 @@ Cвяжитесь с нами по телефону 8 495 723 723 0 для да�
                     welcome_message,
                     reply_markup=markup
                 )
-                self.logger.info(self.user_message.split()[1]) if len(self.user_message.split()) > 1 else None
+                self.logger.info(f"Source - {self.user_message.split()[1]}") if len(self.user_message.split()) > 1 else None
 
             elif self.user_message == "/requestreset":
                 await bot.delete_message(self.chat_id, self.message_id)
@@ -592,7 +592,10 @@ Cвяжитесь с нами по телефону 8 495 723 723 0 для да�
                             for request in value:
                                 request_numbers[request["id"]] = {
                                     "date": request["date"][:10],
-                                    "division": divisions[request["division"]]
+                                    "division": divisions.get(
+                                        request["division"],
+                                        "Тест"
+                                    )
                                 }
                     self.logger.info(f"request_numbers: {request_numbers}")
                 except Exception as e:

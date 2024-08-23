@@ -10,7 +10,7 @@ from anthropic import AsyncAnthropic
 from datetime import datetime
 from geopy.distance import geodesic
 from geopy.geocoders import Nominatim, Yandex
-from pydantic.v1 import BaseModel, Field
+from pydantic import BaseModel, Field
 from telebot.types import ReplyKeyboardMarkup
 
 from langchain_openai import ChatOpenAI
@@ -101,6 +101,15 @@ class change_request_args(BaseModel):
     request_number: str = Field(description="request_number")
     field_name: str = Field(description="field_name")
     field_value: str = Field(description="field_value")
+
+
+class Step(BaseModel):
+    explanation: str
+    output: str
+
+class ConfidentialSafeResponse(BaseModel):
+    steps: list[Step]
+    final_answer: str
 
 
 class ChatAgent:
@@ -760,10 +769,11 @@ class ChatAgent:
                 client = AsyncOpenAI(
                     api_key=os.environ.get("OPENAI_API_KEY", "")
                 )
-                response = await client.chat.completions.create(
-                    model=self.config["oai_model"],
+                response = await client.beta.chat.completions.parse(
+                    model="gpt-4o-2024-08-06",
                     temperature=0,
                     seed=654321,
+                    response_format=ConfidentialSafeResponse,
                     messages=[
                         {
                             "role": "system",
@@ -780,7 +790,32 @@ class ChatAgent:
                         {"role": "user", "content": comment},
                     ]
                 )
-                comment = response.choices[0].message.content
+                comment = response.choices[0].message
+                if comment.parsed:
+                    comment = comment.parsed.final_answer
+                else:
+                    response = await client.chat.completions.create(
+                        model=self.config["oai_model"],
+                        temperature=0,
+                        seed=654321,
+                        messages=[
+                            {
+                                "role": "system",
+                                "content": "Вы - сотрудник по сохранности конфиденциальных данных. В передаваемом вами тексте никогда не должно быть никакой следующей информации: любых номеров телефонов; значений подъезда, этажа, квартиры, домофона. Возвращайте в ответе ТОЛЬКО полученный текст с УБРАННОЙ всей перечисленной выше информацией, НИ В КОЕМ СЛУЧАЕ НЕ ваш ответ с размышлениями. Если текст изначально пустой, также возвращайте пустую строку - ''.",
+                            },
+                            {
+                                "role": "user",
+                                "content": "проход под аркой домофон 45к7809в, этаж 10, квартира 45, подъезд 3, дополнительный телефон 89760932378",
+                            },
+                            {
+                                "role": "assistant",
+                                "content": "проход под аркой домофон, этаж, квартира, подъезд, дополнительный телефон",
+                            },
+                            {"role": "user", "content": comment},
+                        ]
+                    )
+                    comment = response.choices[0].message.content
+
             elif self.company == "Anthropic":
                 client = AsyncAnthropic(
                     api_key=os.environ.get("ANTHROPIC_API_KEY", "")
@@ -959,7 +994,10 @@ class ChatAgent:
                     for request in value:
                         request_numbers[request["id"]] = {
                             "date": request["date"][:10],
-                            "division": divisions[request["division"]]
+                            "division": divisions.get(
+                                request["division"],
+                                "Тест"
+                            )
                         }
             self.logger.info(f"request_numbers: {request_numbers}")
         except Exception as e:
