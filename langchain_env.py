@@ -727,9 +727,12 @@ class ChatAgent:
 
     async def save_phone_to_request(self, chat_id, phone):
         self.logger.info(f"save_phone_to_request phone: {phone}")
-        phone = re.sub(r"[^\d]", "", phone)
-        if len(phone) < 10:
-            return "Пользователь предоставил некорректный номер телефона, запросите его ещё раз. Передайте, что возможно, не хватает кода оператора / города"
+        phone = re.sub(r"[\d]", "", phone)
+        if len(phone) == 11 and phone[0] in '78':
+            if phone[1] in '489':
+                phone=phone[1:]
+        elif not (len(phone) == 10 and (phone[0] in '49' or (phone[0] == '8' and phone[1] not in '89'))):
+            return "Пользователь предоставил некорректный номер телефона, запросите его ещё раз"
         
         try:
             await self.request_service.save_to_request(
