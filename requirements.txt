@@ -21,3 +21,4 @@ zeep==4.2.1
 psycopg-binary==3.2.1
 psycopg-pool==3.2.2
 psycopg==3.2.1
+phonenumbers==8.13.44
