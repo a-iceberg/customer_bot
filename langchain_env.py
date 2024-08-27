@@ -3,7 +3,9 @@ import re
 import time
 import json
 import requests
+
 import numpy as np
+import phonenumbers
 
 from openai import AsyncOpenAI
 from anthropic import AsyncAnthropic
@@ -209,6 +211,7 @@ class ChatAgent:
             name="Saving_direction",
             description="""
                 Сохраняет подходящее под запрос пользователя направление, причину обращения из имеющегося списка направлений в новую заявку. Нужно соотнести запрос и выбрать подходящее только из тех, что в этом списке.
+Если вы не уверены, какаую точно причину назвал пользователь, например, просто какая-то машинка, СНАЧАЛА уточните это ещё раз, прежде чем использовать этот инструмент и сохранять какое-либо направление.
 Вам следует предоставить chat_id и непосредственно само direction из списка в качестве параметров
             """,
             args_schema=save_direction_to_request_args,
@@ -457,7 +460,7 @@ class ChatAgent:
                     {"role": "user", "content": comment}
                 ]
                 response = await client.beta.chat.completions.parse(
-                    model="gpt-4o-2024-08-06",
+                    model="gpt-4o-mini-2024-07-18",
                     temperature=temperature,
                     seed=seed,
                     response_format=ConfidentialSafeResponse,
@@ -727,17 +730,27 @@ class ChatAgent:
 
     async def save_phone_to_request(self, chat_id, phone):
         self.logger.info(f"save_phone_to_request phone: {phone}")
-        phone = re.sub(r"[\d]", "", phone)
-        if len(phone) == 11 and phone[0] in '78':
-            if phone[1] in '489':
-                phone=phone[1:]
-        elif not (len(phone) == 10 and (phone[0] in '49' or (phone[0] == '8' and phone[1] not in '89'))):
+        phones = phonenumbers.PhoneNumberMatcher(phone, "RU")
+        if phones:
+            for num in phones:
+                if phonenumbers.is_valid_number(num.number):
+                    phone = str(num.number.national_number)
+        elif phonenumbers.is_valid_number(
+            phonenumbers.parse("".join(re.findall(r"[\d]", phone)), "RU")
+        ):
+            phone = str(
+                phonenumbers.parse(
+                    "".join(re.findall(r"[\d]", phone)),
+                    "RU"
+                ).national_number
+            )
+        else:
             return "Пользователь предоставил некорректный номер телефона, запросите его ещё раз"
         
         try:
             await self.request_service.save_to_request(
                 chat_id,
-                "".join(re.findall(r"[\d]", phone)),
+                phone,
                 "phone"
             )
         except Exception as e:
