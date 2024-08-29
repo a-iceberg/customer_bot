@@ -54,7 +54,7 @@ class save_gps_to_request_args(BaseModel):
 
 class save_address_to_request_args(BaseModel):
     chat_id: int = Field(description="chat_id")
-    address: str = Field(description="address")
+    full_address: str = Field(description="full_address")
 
 
 class save_address_line_2_to_request_args(BaseModel):
@@ -276,8 +276,11 @@ class ChatAgent:
             coroutine=self.save_address_to_request,
             name="Saving_address",
             description="""
-                Сохраняет полученнный адрес в новую заявку. При сохранении убедитесь, что у вас есть ВСЕ три обязательных поля адреса (с городом, улицей, домом).
-Вам следует предоставить chat_id и непосредственно сами значения в address из всего сообщения в качестве параметров, то есть без слов 'город', 'улица', 'дом' и т.д. Корпус и строение обозначайте одной буквой вместе с номером дома, например, 1к3 или 98с4, только так!
+                Сохраняет ВЕСЬ ПОСЛЕДНИЙ полученнный адрес в новую заявку.
+При получениии нового уточняющего адреса вызывайте этот инструмент ещё раз, не забудьте!
+Вам следует предоставить chat_id и непосредственно сам ПОЛНЫЙ full_address ЦЕЛИКОМ из всего ПОСЛЕДНЕГО с ним сообщения в качестве параметров.
+Передавайте именно ПОСЛЕДНИЙ полученный адрес ПОЛНОСТЬЮ, как получили (например '128к2, Варшавское шоссе (дублёр), район Чертаново Северное, Москва, Центральный федеральный округ, 113587, Россия' при наличии подобной детализации).
+Корпус и строение обозначайте одной буквой вместе с номером дома, например, 1к3 или 98с4, только так!
             """,
             args_schema=save_address_to_request_args,
             return_direct=False,
@@ -357,8 +360,8 @@ class ChatAgent:
             name="Create_request",
             description="""
                 Создает полностью заполненную новую заявку в 1С и при доступности определяет её номер.
-Вам следует предоставить chat_id и по отдельности сами значения ключей словаря (request) с текущей заявкой из вашего системного промпта в качестве соответствующих параметров инструмента, кроме ключа address_line_2. Из его же значения выделите и передайте отдельно при наличии непосредственно сами численно-буквенные значения apartment, entrance, floor и intercom (т.е. без слов) из всего address_line_2 в качестве остальных соответствующих параметров инструмента.
-Из address же передавайте непосредственно сами значения в качестве параметров, то есть без слов 'город', 'улица', 'дом' и т.д. Корпус и строение обозначайте одной буквой вместе с номером дома, например, 1к3 или 98с4, только так!
+Вам следует предоставить chat_id и по отдельности сами значения ключей словаря (request) с текущей заявкой ТОЛЬКО из вашего системного промпта в качестве соответствующих параметров инструмента, кроме ключа address_line_2. Из его же значения выделите и передайте отдельно при наличии непосредственно сами численно-буквенные значения apartment, entrance, floor и intercom (т.е. без слов) из всего address_line_2 в качестве остальных соответствующих параметров инструмента.
+Корпус и строение в адресе обозначайте одной буквой вместе с номером дома, например, 1к3 или 98с4, только так!
 При отсутствии у вас значений каких-либо параметров передавайте на их месте просто пустые строки - ''
             """,
             args_schema=create_request_args,
@@ -622,38 +625,101 @@ class ChatAgent:
         self.logger.info("Address was saved in the request")
         return "Адрес пользователя был сохранен в заявку"
 
-    async def save_address_to_request(self, chat_id, address):
+    async def save_address_to_request(self, chat_id, full_address):
         del_pattern = re.compile(
-            r"улица\s*|ул\.*\s|дом(\s|,)|д\.*\s|город(\s|,)|гор\.*\s|г\.*\s",
+            r"ул\.*\s|дом(\s|,)|д\.*\s|город(\s|,)|гор\.*\s|г\.*\s",
             re.IGNORECASE
         )
         ch_pattern = r'(,*\sстроение|,*\sстр\.*|,*\sс\.*)\s(\d+)|(,*\sкорпус|,*\sкорп\.*|,*\sк\.*)\s(\d+)'
         replacement = lambda m: f"с{m.group(2)}" if m.group(1) else f"к{m.group(4)}" if m.group(3) else m.group(0)
 
-        address = re.sub(ch_pattern, replacement, address, flags=re.IGNORECASE)
-        address = re.sub(del_pattern, '', address)
+        nom_address = re.sub(
+            ch_pattern,
+            replacement,
+            full_address,
+            flags=re.IGNORECASE
+        )
+        nom_address = re.sub(del_pattern, '', nom_address)
 
-        self.logger.info(f"save_address_to_request address: {address}")
         try:
             try:
+                self.logger.info(
+                    f"save_address_to_request address: {nom_address}"
+                )
                 geolocator = Nominatim(user_agent="my_app")
-                location = geolocator.geocode(address)
-                latitude = location.latitude
-                longitude = location.longitude
+                locations = geolocator.geocode(
+                    nom_address,
+                    exactly_one=False,
+                    limit=10
+                )
+                addresses = []
+                points = []
+                for location in locations:
+                    if location.raw['addresstype'] == 'building':
+                        if location.raw['display_name'] not in addresses:
+                            addresses.append(location.raw['display_name'])
+                            points.append(location)
+                if len(points) > 1:
+                    markup = ReplyKeyboardMarkup(
+                        one_time_keyboard=True
+                    )
+                    text = "Секунду..."
+                    for address in addresses:
+                        markup.add(address)
+                    markup.add("🏠 Вернуться в меню")
+                    await self.bot_instance.send_message(
+                        chat_id,
+                        text,
+                        reply_markup=markup
+                    )
+                    return "Не удалось однозначно определить адрес. ОБЯЗАТЕЛЬНО ПРЕДЛОЖИТЕ пользователю ВЫБРАТЬ из нескольких подходящих адресов, автоматически уже отображенных в диалоге, либо самостоятельно ещё раз прислать корректный адрес. Предлагайте и то, и то сразу, первое обязательно! Сами никакие конкретные варианты адресов НЕ предлагайте и НЕ упоминайте"
+                else:
+                    latitude = points[0].latitude
+                    longitude = points[0].longitude
+                    full_address = addresses[0]
             except Exception as e:
                 self.logger.error(
                     f"Error in geocoding address: {e}, using Yandex geolocator"
                 )
+                self.logger.info(
+                    f"save_address_to_request address: {full_address}"
+                )
                 geolocator = Yandex(
                     api_key=os.environ.get("YANDEX_GEOCODER_KEY", "")
                 )
-                location = geolocator.geocode(address)
-                latitude = location.latitude
-                longitude = location.longitude
+                locations = geolocator.geocode(
+                    full_address,
+                    exactly_one=False
+                )
+                addresses = []
+                points = []
+                for location in locations:
+                    if location.raw['metaDataProperty']['GeocoderMetaData']['kind'] == 'house' and location.raw['metaDataProperty']['GeocoderMetaData']['precision'] in ['number', 'exact']:
+                        if location.raw['metaDataProperty']['GeocoderMetaData']['Address']['formatted'] not in addresses:
+                            addresses.append(location.raw['metaDataProperty']['GeocoderMetaData']['Address']['formatted'])
+                            points.append(location)
+                if len(points) > 1:
+                    markup = ReplyKeyboardMarkup(
+                        one_time_keyboard=True
+                    )
+                    text = "Секунду..."
+                    for address in addresses:
+                        markup.add(address)
+                    markup.add("🏠 Вернуться в меню")
+                    await self.bot_instance.send_message(
+                        chat_id,
+                        text,
+                        reply_markup=markup
+                    )
+                    return "Не удалось однозначно определить адрес. ОБЯЗАТЕЛЬНО ПРЕДЛОЖИТЕ пользователю ВЫБРАТЬ из нескольких подходящих адресов, автоматически уже отображенных в диалоге, либо самостоятельно ещё раз прислать корректный адрес. Предлагайте и то, и то сразу, первое обязательно! Сами никакие конкретные варианты адресов НЕ предлагайте и НЕ упоминайте"
+                else:
+                    latitude = points[0].latitude
+                    longitude = points[0].longitude
+                    full_address = addresses[0]
         except Exception as e:
             self.logger.error(
                 f"Error in geocoding address: {e}")
-            return "Не удалось получить координаты адреса. Запросите адрес ещё раз"
+            return "Не удалось определить координаты адреса. Запросите адрес ещё раз"
         
         try:
             distance, self.affilate = self.distance_calculation(
@@ -677,20 +743,6 @@ class ChatAgent:
             self.logger.error(f"Error in distance calculation: {e}")
         
         try:
-            try:
-                geolocator = Nominatim(user_agent="my_app")
-                address = geolocator.reverse(f"{latitude}, {longitude}").address
-            except Exception as e:
-                self.logger.error(
-                    f"Error in getting address: {e}, using Yandex geolocator"
-                )
-                geolocator = Yandex(
-                    api_key=os.environ.get("YANDEX_GEOCODER_KEY", "")
-                )
-                address = geolocator.reverse(
-                    f"{latitude}, {longitude}"
-                ).address
-
             await self.request_service.save_to_request(
                 chat_id,
                 latitude,
@@ -703,7 +755,7 @@ class ChatAgent:
             )
             await self.request_service.save_to_request(
                 chat_id,
-                address,
+                full_address,
                 "address"
             )
         except Exception as e:
