@@ -3,14 +3,16 @@ import re
 import time
 import json
 import requests
+
 import numpy as np
+import phonenumbers
 
 from openai import AsyncOpenAI
 from anthropic import AsyncAnthropic
 from datetime import datetime
 from geopy.distance import geodesic
 from geopy.geocoders import Nominatim, Yandex
-from pydantic.v1 import BaseModel, Field
+from pydantic import BaseModel, Field
 from telebot.types import ReplyKeyboardMarkup
 
 from langchain_openai import ChatOpenAI
@@ -52,7 +54,7 @@ class save_gps_to_request_args(BaseModel):
 
 class save_address_to_request_args(BaseModel):
     chat_id: int = Field(description="chat_id")
-    address: str = Field(description="address")
+    full_address: str = Field(description="full_address")
 
 
 class save_address_line_2_to_request_args(BaseModel):
@@ -101,6 +103,15 @@ class change_request_args(BaseModel):
     request_number: str = Field(description="request_number")
     field_name: str = Field(description="field_name")
     field_value: str = Field(description="field_value")
+
+
+class Step(BaseModel):
+    explanation: str
+    output: str
+
+class ConfidentialSafeResponse(BaseModel):
+    steps: list[Step]
+    confidential_safe_answer: str
 
 
 class ChatAgent:
@@ -160,7 +171,8 @@ class ChatAgent:
             llm = ChatOpenAI(
                 api_key=os.environ.get("OPENAI_API_KEY", ""),
                 model=self.config["oai_model"],
-                temperature=self.config["oai_temperature"]
+                temperature=self.config["oai_temperature"],
+                seed = 654321
             )
             self.logger.info(
                 f'OpenAI ChatAgent init with model: {self.config["oai_model"]} and temperature: {self.config["oai_temperature"]}'
@@ -199,6 +211,7 @@ class ChatAgent:
             name="Saving_direction",
             description="""
                 Сохраняет подходящее под запрос пользователя направление, причину обращения из имеющегося списка направлений в новую заявку. Нужно соотнести запрос и выбрать подходящее только из тех, что в этом списке.
+Если вы не уверены, какаую точно причину назвал пользователь, например, просто какая-то машинка, СНАЧАЛА уточните это ещё раз, прежде чем использовать этот инструмент и сохранять какое-либо направление.
 Вам следует предоставить chat_id и непосредственно само direction из списка в качестве параметров
             """,
             args_schema=save_direction_to_request_args,
@@ -263,8 +276,11 @@ class ChatAgent:
             coroutine=self.save_address_to_request,
             name="Saving_address",
             description="""
-                Сохраняет полученнный адрес в новую заявку. При сохранении убедитесь, что у вас есть ВСЕ три обязательных поля адреса (с городом, улицей, домом).
-Вам следует предоставить chat_id и непосредственно сами значения в address из всего сообщения в качестве параметров, то есть без слов 'город', 'улица', 'дом' и т.д. Корпус и строение обозначайте одной буквой вместе с номером дома, например, 1к3 или 98с4, только так!
+                Сохраняет ВЕСЬ ПОСЛЕДНИЙ полученнный адрес в новую заявку.
+При получениии нового уточняющего адреса вызывайте этот инструмент ещё раз, не забудьте!
+Вам следует предоставить chat_id и непосредственно сам ПОЛНЫЙ full_address ЦЕЛИКОМ из всего ПОСЛЕДНЕГО с ним сообщения в качестве параметров.
+Передавайте именно ПОСЛЕДНИЙ полученный адрес ПОЛНОСТЬЮ, как получили (например '128к2, Варшавское шоссе (дублёр), район Чертаново Северное, Москва, Центральный федеральный округ, 113587, Россия' при наличии подобной детализации).
+Корпус и строение обозначайте одной буквой вместе с номером дома, например, 1к3 или 98с4, только так!
             """,
             args_schema=save_address_to_request_args,
             return_direct=False,
@@ -344,8 +360,8 @@ class ChatAgent:
             name="Create_request",
             description="""
                 Создает полностью заполненную новую заявку в 1С и при доступности определяет её номер.
-Вам следует предоставить chat_id и по отдельности сами значения ключей словаря (request) с текущей заявкой из вашего системного промпта в качестве соответствующих параметров инструмента, кроме ключа address_line_2. Из его же значения выделите и передайте отдельно при наличии непосредственно сами численно-буквенные значения apartment, entrance, floor и intercom (т.е. без слов) из всего address_line_2 в качестве остальных соответствующих параметров инструмента.
-Из address же передавайте непосредственно сами значения в качестве параметров, то есть без слов 'город', 'улица', 'дом' и т.д. Корпус и строение обозначайте одной буквой вместе с номером дома, например, 1к3 или 98с4, только так!
+Вам следует предоставить chat_id и по отдельности сами значения ключей словаря (request) с текущей заявкой ТОЛЬКО из вашего системного промпта в качестве соответствующих параметров инструмента, кроме ключа address_line_2. Из его же значения выделите и передайте отдельно при наличии непосредственно сами численно-буквенные значения apartment, entrance, floor и intercom (т.е. без слов) из всего address_line_2 в качестве остальных соответствующих параметров инструмента.
+Корпус и строение в адресе обозначайте одной буквой вместе с номером дома, например, 1к3 или 98с4, только так!
 При отсутствии у вас значений каких-либо параметров передавайте на их месте просто пустые строки - ''
             """,
             args_schema=create_request_args,
@@ -374,7 +390,7 @@ class ChatAgent:
 
         # Tool: change_request_tool
         change_request_tool = StructuredTool.from_function(
-            func=self.change_request,
+            coroutine=self.change_request,
             name="Change_request",
             description="""
                 Изменяет нужные данные / значения полей в уже СУЩЕСТВУЮЩЕЙ заявке. Допустимо обрабатывать ТОЛЬКО ТЕЛЕФОН или ЛЮБУЮ ДОПОЛНИТЕЛЬНУЮ ИНФОРМАЦИЮ КАК КОММЕНТАРИЙ. Для редактирования уже имеющихся СОЗДАННЫХ заявок используйте ТОЛЬКО ЭТОТ инструмент, а НЕ обычные с добавлением информации в новую!
@@ -422,6 +438,79 @@ class ChatAgent:
                     ).kilometers
                     affilate = aff
         return distance, affilate
+    
+    async def check_personal_data(self, comment):
+        try:
+            if self.company == "OpenAI":
+                client = AsyncOpenAI(
+                    api_key=os.environ.get("OPENAI_API_KEY", "")
+                )
+                temperature = 0
+                seed = 654321
+                messages = [
+                    {
+                        "role": "system",
+                        "content": "Вы - сотрудник по сохранности конфиденциальных данных. В передаваемом вами тексте никогда не должно быть никакой следующей информации: любых номеров телефонов; значений подъезда, этажа, квартиры, домофона. Возвращайте в ответе ТОЛЬКО полученный текст с УБРАННОЙ всей перечисленной выше информацией, НИ В КОЕМ СЛУЧАЕ НЕ ваш ответ с размышлениями. Если текст изначально пустой, также возвращайте пустую строку - ''.",
+                    },
+                    {
+                        "role": "user",
+                        "content": "проход под аркой домофон 45к7809в, этаж 10, квартира 45, подъезд 3, дополнительный телефон 89760932378",
+                    },
+                    {
+                        "role": "assistant",
+                        "content": "проход под аркой домофон, этаж, квартира, подъезд, дополнительный телефон",
+                    },
+                    {"role": "user", "content": comment}
+                ]
+                response = await client.beta.chat.completions.parse(
+                    model="gpt-4o-mini-2024-07-18",
+                    temperature=temperature,
+                    seed=seed,
+                    response_format=ConfidentialSafeResponse,
+                    messages=messages
+                )
+                comment = response.choices[0].message
+                if comment.parsed:
+                    comment = comment.parsed.confidential_safe_answer
+                else:
+                    response = await client.chat.completions.create(
+                        model=self.config["oai_model"],
+                        temperature=temperature,
+                        seed=seed,
+                        messages=messages
+                    )
+                    comment = response.choices[0].message.content
+
+            elif self.company == "Anthropic":
+                client = AsyncAnthropic(
+                    api_key=os.environ.get("ANTHROPIC_API_KEY", "")
+                )
+                response = await client.messages.create(
+                    model=self.config["a_model"],
+                    temperature=0,
+                    system="Вы - сотрудник по сохранности конфиденциальных данных. В передаваемом вами тексте никогда не должно быть никакой следующей информации: любых номеров телефонов; значений подъезда, этажа, квартиры, домофона. Возвращайте в ответе ТОЛЬКО полученный текст с УБРАННОЙ всей перечисленной выше информацией, НИ В КОЕМ СЛУЧАЕ НЕ ваш ответ с размышлениями. Если текст изначально пустой, также возвращайте пустую строку - ''.",
+                    messages=[
+                        {
+                            "role": "user",
+                            "content": "проход под аркой домофон 45к7809в, этаж 10, квартира 45, подъезд 3, дополнительный телефон 89760932378",
+                        },
+                        {
+                            "role": "assistant",
+                            "content": "проход под аркой домофон, этаж, квартира, подъезд, дополнительный телефон",
+                        },
+                        {"role": "user", "content": comment},
+                    ]
+                )
+                comment = response.content.text
+
+            pattern = re.compile(
+                r"([+]?[\d]?\d{3}.*?\d{3}.*?\d{2}.*?\d{2})|подъезд|этаж|эт|квартир|кв|домофон|код",
+                re.IGNORECASE
+            )
+            comment = re.sub(pattern, '', comment)
+        except Exception as e:
+            self.logger.error(f"Error in checking personal data: {e}")
+        return comment
 
     async def save_name_to_request(self, chat_id, name):
         self.logger.info(f"save_name_to_request name: {name}")
@@ -536,38 +625,101 @@ class ChatAgent:
         self.logger.info("Address was saved in the request")
         return "Адрес пользователя был сохранен в заявку"
 
-    async def save_address_to_request(self, chat_id, address):
+    async def save_address_to_request(self, chat_id, full_address):
         del_pattern = re.compile(
-            r"улица\s*|ул\.*\s|дом(\s|,)|д\.*\s|город(\s|,)|гор\.*\s|г\.*\s",
+            r"ул\.*\s|дом(\s|,)|д\.*\s|город(\s|,)|гор\.*\s|г\.*\s",
             re.IGNORECASE
         )
         ch_pattern = r'(,*\sстроение|,*\sстр\.*|,*\sс\.*)\s(\d+)|(,*\sкорпус|,*\sкорп\.*|,*\sк\.*)\s(\d+)'
         replacement = lambda m: f"с{m.group(2)}" if m.group(1) else f"к{m.group(4)}" if m.group(3) else m.group(0)
 
-        address = re.sub(ch_pattern, replacement, address, flags=re.IGNORECASE)
-        address = re.sub(del_pattern, '', address)
+        nom_address = re.sub(
+            ch_pattern,
+            replacement,
+            full_address,
+            flags=re.IGNORECASE
+        )
+        nom_address = re.sub(del_pattern, '', nom_address)
 
-        self.logger.info(f"save_address_to_request address: {address}")
         try:
             try:
+                self.logger.info(
+                    f"save_address_to_request address: {nom_address}"
+                )
                 geolocator = Nominatim(user_agent="my_app")
-                location = geolocator.geocode(address)
-                latitude = location.latitude
-                longitude = location.longitude
+                locations = geolocator.geocode(
+                    nom_address,
+                    exactly_one=False,
+                    limit=10
+                )
+                addresses = []
+                points = []
+                for location in locations:
+                    if location.raw['addresstype'] == 'building':
+                        if location.raw['display_name'] not in addresses:
+                            addresses.append(location.raw['display_name'])
+                            points.append(location)
+                if len(points) > 1:
+                    markup = ReplyKeyboardMarkup(
+                        one_time_keyboard=True
+                    )
+                    text = "Секунду..."
+                    for address in addresses:
+                        markup.add(address)
+                    markup.add("🏠 Вернуться в меню")
+                    await self.bot_instance.send_message(
+                        chat_id,
+                        text,
+                        reply_markup=markup
+                    )
+                    return "Не удалось однозначно определить адрес. ОБЯЗАТЕЛЬНО ПРЕДЛОЖИТЕ пользователю ВЫБРАТЬ из нескольких подходящих адресов, автоматически уже отображенных в диалоге, либо самостоятельно ещё раз прислать корректный адрес. Предлагайте и то, и то сразу, первое обязательно! Сами никакие конкретные варианты адресов НЕ предлагайте и НЕ упоминайте"
+                else:
+                    latitude = points[0].latitude
+                    longitude = points[0].longitude
+                    full_address = addresses[0]
             except Exception as e:
                 self.logger.error(
                     f"Error in geocoding address: {e}, using Yandex geolocator"
                 )
+                self.logger.info(
+                    f"save_address_to_request address: {full_address}"
+                )
                 geolocator = Yandex(
                     api_key=os.environ.get("YANDEX_GEOCODER_KEY", "")
                 )
-                location = geolocator.geocode(address)
-                latitude = location.latitude
-                longitude = location.longitude
+                locations = geolocator.geocode(
+                    full_address,
+                    exactly_one=False
+                )
+                addresses = []
+                points = []
+                for location in locations:
+                    if location.raw['metaDataProperty']['GeocoderMetaData']['kind'] == 'house' and location.raw['metaDataProperty']['GeocoderMetaData']['precision'] in ['number', 'exact']:
+                        if location.raw['metaDataProperty']['GeocoderMetaData']['Address']['formatted'] not in addresses:
+                            addresses.append(location.raw['metaDataProperty']['GeocoderMetaData']['Address']['formatted'])
+                            points.append(location)
+                if len(points) > 1:
+                    markup = ReplyKeyboardMarkup(
+                        one_time_keyboard=True
+                    )
+                    text = "Секунду..."
+                    for address in addresses:
+                        markup.add(address)
+                    markup.add("🏠 Вернуться в меню")
+                    await self.bot_instance.send_message(
+                        chat_id,
+                        text,
+                        reply_markup=markup
+                    )
+                    return "Не удалось однозначно определить адрес. ОБЯЗАТЕЛЬНО ПРЕДЛОЖИТЕ пользователю ВЫБРАТЬ из нескольких подходящих адресов, автоматически уже отображенных в диалоге, либо самостоятельно ещё раз прислать корректный адрес. Предлагайте и то, и то сразу, первое обязательно! Сами никакие конкретные варианты адресов НЕ предлагайте и НЕ упоминайте"
+                else:
+                    latitude = points[0].latitude
+                    longitude = points[0].longitude
+                    full_address = addresses[0]
         except Exception as e:
             self.logger.error(
                 f"Error in geocoding address: {e}")
-            return "Не удалось получить координаты адреса. Запросите адрес ещё раз"
+            return "Не удалось определить координаты адреса. Запросите адрес ещё раз"
         
         try:
             distance, self.affilate = self.distance_calculation(
@@ -591,20 +743,6 @@ class ChatAgent:
             self.logger.error(f"Error in distance calculation: {e}")
         
         try:
-            try:
-                geolocator = Nominatim(user_agent="my_app")
-                address = geolocator.reverse(f"{latitude}, {longitude}").address
-            except Exception as e:
-                self.logger.error(
-                    f"Error in getting address: {e}, using Yandex geolocator"
-                )
-                geolocator = Yandex(
-                    api_key=os.environ.get("YANDEX_GEOCODER_KEY", "")
-                )
-                address = geolocator.reverse(
-                    f"{latitude}, {longitude}"
-                ).address
-
             await self.request_service.save_to_request(
                 chat_id,
                 latitude,
@@ -617,7 +755,7 @@ class ChatAgent:
             )
             await self.request_service.save_to_request(
                 chat_id,
-                address,
+                full_address,
                 "address"
             )
         except Exception as e:
@@ -644,14 +782,27 @@ class ChatAgent:
 
     async def save_phone_to_request(self, chat_id, phone):
         self.logger.info(f"save_phone_to_request phone: {phone}")
-        phone = re.sub(r"[^\d]", "", phone)
-        if len(phone) < 10:
-            return "Пользователь предоставил некорректный номер телефона, запросите его ещё раз. Передайте, что возможно, не хватает кода оператора / города"
+        phones = phonenumbers.PhoneNumberMatcher(phone, "RU")
+        if phones:
+            for num in phones:
+                if phonenumbers.is_valid_number(num.number):
+                    phone = str(num.number.national_number)
+        elif phonenumbers.is_valid_number(
+            phonenumbers.parse("".join(re.findall(r"[\d]", phone)), "RU")
+        ):
+            phone = str(
+                phonenumbers.parse(
+                    "".join(re.findall(r"[\d]", phone)),
+                    "RU"
+                ).national_number
+            )
+        else:
+            return "Пользователь предоставил некорректный номер телефона, запросите его ещё раз"
         
         try:
             await self.request_service.save_to_request(
                 chat_id,
-                "".join(re.findall(r"[\d]", phone)),
+                phone,
                 "phone"
             )
         except Exception as e:
@@ -755,61 +906,7 @@ class ChatAgent:
                 comment += f"\n{detail}"
 
         # Double-check of personal data
-        try:
-            if self.company == "OpenAI":
-                client = AsyncOpenAI(
-                    api_key=os.environ.get("OPENAI_API_KEY", "")
-                )
-                response = await client.chat.completions.create(
-                    model=self.config["oai_model"],
-                    temperature=0,
-                    seed=654321,
-                    messages=[
-                        {
-                            "role": "system",
-                            "content": "Вы - сотрудник по сохранности конфиденциальных данных. В передаваемом вами тексте никогда не должно быть никакой следующей информации: любых номеров телефонов; значений подъезда, этажа, квартиры, домофона. Возвращайте в ответе ТОЛЬКО полученный текст с УБРАННОЙ всей перечисленной выше информацией, НИ В КОЕМ СЛУЧАЕ НЕ ваш ответ с размышлениями. Если текст изначально пустой, также возвращайте пустую строку - ''.",
-                        },
-                        {
-                            "role": "user",
-                            "content": "проход под аркой домофон 45к7809в, этаж 10, квартира 45, подъезд 3, дополнительный телефон 89760932378",
-                        },
-                        {
-                            "role": "assistant",
-                            "content": "проход под аркой домофон, этаж, квартира, подъезд, дополнительный телефон",
-                        },
-                        {"role": "user", "content": comment},
-                    ]
-                )
-                comment = response.choices[0].message.content
-            elif self.company == "Anthropic":
-                client = AsyncAnthropic(
-                    api_key=os.environ.get("ANTHROPIC_API_KEY", "")
-                )
-                response = await client.messages.create(
-                    model=self.config["a_model"],
-                    temperature=0,
-                    system="Вы - сотрудник по сохранности конфиденциальных данных. В передаваемом вами тексте никогда не должно быть никакой следующей информации: любых номеров телефонов; значений подъезда, этажа, квартиры, домофона. Возвращайте в ответе ТОЛЬКО полученный текст с УБРАННОЙ всей перечисленной выше информацией, НИ В КОЕМ СЛУЧАЕ НЕ ваш ответ с размышлениями. Если текст изначально пустой, также возвращайте пустую строку - ''.",
-                    messages=[
-                        {
-                            "role": "user",
-                            "content": "проход под аркой домофон 45к7809в, этаж 10, квартира 45, подъезд 3, дополнительный телефон 89760932378",
-                        },
-                        {
-                            "role": "assistant",
-                            "content": "проход под аркой домофон, этаж, квартира, подъезд, дополнительный телефон",
-                        },
-                        {"role": "user", "content": comment},
-                    ]
-                )
-                comment = response.content.text
-        except Exception as e:
-            self.logger.error(f"Error in checking personal data: {e}")
-
-        pattern = re.compile(
-            r"([+]?[\d]?\d{3}.*?\d{3}.*?\d{2}.*?\d{2})|подъезд|этаж|эт|квартир|кв|домофон|код",
-            re.IGNORECASE
-        )
-        comment = re.sub(pattern, '', comment)
+        comment = await self.check_personal_data(comment)
 
         if not self.affilate:
             try:
@@ -959,7 +1056,10 @@ class ChatAgent:
                     for request in value:
                         request_numbers[request["id"]] = {
                             "date": request["date"][:10],
-                            "division": divisions[request["division"]]
+                            "division": divisions.get(
+                                request["division"],
+                                "Тест"
+                            )
                         }
             self.logger.info(f"request_numbers: {request_numbers}")
         except Exception as e:
@@ -992,7 +1092,7 @@ class ChatAgent:
             else:
                 return "У пользователя нет существующих заявок"
     
-    def change_request(self, request_number, field_name, field_value):
+    async def change_request(self, request_number, field_name, field_value):
         token = os.environ.get("1С_TOKEN", "")
         login = os.environ.get("1C_LOGIN", "")
         password = os.environ.get("1C_PASSWORD", "")
@@ -1077,12 +1177,17 @@ class ChatAgent:
 
             # Validation of value types
             if field_name == "comment":
+
+                # Double-check of personal data
+                field_value = await self.check_personal_data(field_value)
                 change_params["order"]["comment"] = field_value
                 self.logger.info(f"Parametrs: {change_params}")
+
             elif field_name == "phone":
                 change_params["order"]["client"]["phone"] = field_value
                 change_params["order"]["comment"] = comment
                 self.logger.info(f"Parametrs: {change_params}")
+
             else:
                 self.logger.info(f"Parametrs: {change_params}")
                 return "Получено или сформулировано недопустимое для изменения значение. Доступны только коммментарий или телефон"
