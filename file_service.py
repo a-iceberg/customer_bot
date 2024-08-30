@@ -127,8 +127,12 @@ class FileService:
             self.logger.error(
                 f"Error reading chat history for chat id {chat_id}: {e}"
             )
-        finally:
+        try:
             await self.chat_history_client.stop()
+        except Exception as e:
+            self.logger.error(
+                f"Error stopping chat history client for chat id {chat_id}: {e}"
+            )
 
         if messages:
             for message in messages:
@@ -144,7 +148,7 @@ class FileService:
                             )
                     elif message.location:
                         chat_history.append(
-                                HumanMessage(content=f"Координаты обращения - {message.location}")
+                                HumanMessage(content=f"Передаю координаты обращения для определения вами полного адреса - {message.location}")
                             )
 
             message = messages[-1]

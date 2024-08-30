@@ -276,7 +276,7 @@ class ChatAgent:
             coroutine=self.save_address_to_request,
             name="Saving_address",
             description="""
-                Сохраняет ВЕСЬ ПОСЛЕДНИЙ полученнный адрес в новую заявку.
+                Сохраняет ВЕСЬ ПОСЛЕДНИЙ полученнный адрес в новую заявку, только если ранее уже не был использован инструмент Saving_GPS-coordinates.
 При получениии нового уточняющего адреса вызывайте этот инструмент ещё раз, не забудьте!
 Вам следует предоставить chat_id и непосредственно сам ПОЛНЫЙ full_address ЦЕЛИКОМ из всего ПОСЛЕДНЕГО с ним сообщения в качестве параметров.
 Передавайте именно ПОСЛЕДНИЙ полученный адрес ПОЛНОСТЬЮ, как получили (например '128к2, Варшавское шоссе (дублёр), район Чертаново Северное, Москва, Центральный федеральный округ, 113587, Россия' при наличии подобной детализации).
@@ -591,18 +591,73 @@ class ChatAgent:
         try:
             try:
                 geolocator = Nominatim(user_agent="my_app")
-                address = geolocator.reverse(f"{latitude}, {longitude}").address
+                locations = geolocator.reverse(
+                    f"{latitude}, {longitude}",
+                    exactly_one=False
+                )
+                addresses = []
+                points = []
+                for location in locations:
+                    if location.raw['addresstype'] == 'building':
+                        if location.raw['display_name'] not in addresses:
+                            addresses.append(location.raw['display_name'])
+                            points.append(location)
+                if len(points) > 1:
+                    markup = ReplyKeyboardMarkup(
+                        one_time_keyboard=True
+                    )
+                    text = "Секунду..."
+                    for address in addresses:
+                        markup.add(address)
+                    markup.add("🏠 Вернуться в меню")
+                    await self.bot_instance.send_message(
+                        chat_id,
+                        text,
+                        reply_markup=markup
+                    )
+                    return "Не удалось однозначно определить адрес. ОБЯЗАТЕЛЬНО ПРЕДЛОЖИТЕ пользователю ВЫБРАТЬ из нескольких подходящих адресов, автоматически уже отображенных в диалоге, либо самостоятельно ещё раз прислать корректный адрес. Предлагайте и то, и то сразу, первое обязательно! Сами никакие конкретные варианты адресов НЕ предлагайте и НЕ упоминайте"
+                else:
+                    full_address = addresses[0]
             except Exception as e:
                 self.logger.error(
-                    f"Error in getting address: {e}, using Yandex geolocator"
+                    f"Error in geocoding address: {e}, using Yandex geolocator"
                 )
                 geolocator = Yandex(
                     api_key=os.environ.get("YANDEX_GEOCODER_KEY", "")
                 )
-                address = geolocator.reverse(
-                    f"{latitude}, {longitude}"
-                ).address
+                locations = geolocator.reverse(
+                    f"{latitude}, {longitude}",
+                    exactly_one=False
+                )
+                addresses = []
+                points = []
+                for location in locations:
+                    if location.raw['metaDataProperty']['GeocoderMetaData']['kind'] == 'house' and location.raw['metaDataProperty']['GeocoderMetaData']['precision'] in ['number', 'exact']:
+                        if location.raw['metaDataProperty']['GeocoderMetaData']['Address']['formatted'] not in addresses:
+                            addresses.append(location.raw['metaDataProperty']['GeocoderMetaData']['Address']['formatted'])
+                            points.append(location)
+                if len(points) > 1:
+                    markup = ReplyKeyboardMarkup(
+                        one_time_keyboard=True
+                    )
+                    text = "Секунду..."
+                    for address in addresses:
+                        markup.add(address)
+                    markup.add("🏠 Вернуться в меню")
+                    await self.bot_instance.send_message(
+                        chat_id,
+                        text,
+                        reply_markup=markup
+                    )
+                    return "Не удалось однозначно определить адрес. ОБЯЗАТЕЛЬНО ПРЕДЛОЖИТЕ пользователю ВЫБРАТЬ из нескольких подходящих адресов, автоматически уже отображенных в диалоге, либо самостоятельно ещё раз прислать корректный адрес. Предлагайте и то, и то сразу, первое обязательно! Сами никакие конкретные варианты адресов НЕ предлагайте и НЕ упоминайте"
+                else:
+                    full_address = addresses[0]
+        except Exception as e:
+            self.logger.error(
+                f"Error in geocoding address: {e}")
+            return "Не удалось определить координаты адреса. Запросите адрес ещё раз"
 
+        try:
             await self.request_service.save_to_request(
                 chat_id,
                 latitude,
@@ -615,15 +670,15 @@ class ChatAgent:
             )
             await self.request_service.save_to_request(
                 chat_id,
-                address,
+                full_address,
                 "address"
             )
         except Exception as e:
             self.logger.error(f"Error in saving address: {e}")
             return f"Ошибка при сохранении адреса: {e}"
         
-        self.logger.info("Address was saved in the request")
-        return "Адрес пользователя был сохранен в заявку"
+        self.logger.info(f"Address {full_address} was saved in the request")
+        return f"Адрес пользователя {full_address} был сохранен в заявку"
 
     async def save_address_to_request(self, chat_id, full_address):
         del_pattern = re.compile(
@@ -762,8 +817,8 @@ class ChatAgent:
             self.logger.error(f"Error in saving address: {e}")
             return f"Ошибка при сохранении адреса: {e}"
         
-        self.logger.info("Address was saved in the request")
-        return "Адрес пользователя был сохранен в заявку"
+        self.logger.info(f"Address {full_address} was saved in the request")
+        return f"Адрес пользователя {full_address} был сохранен в заявку"
 
     async def save_address_line_2_to_request(self, chat_id, address_line_2):
         self.logger.info(
