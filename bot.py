@@ -28,6 +28,10 @@ from config_manager import ConfigManager
 class Application:
     def __init__(self):
         self.logger = self.setup_logging()
+        self.dialogues_api_manager = ConfigManager(
+            "./data/dialogues_api_users.json",
+            self.logger
+        )
         self.ban_manager = ConfigManager(
             "./data/banned_users.json",
             self.logger
@@ -72,6 +76,7 @@ class Application:
         self.CHANNEL_IDS = self.auth_manager.get("TELEGRAM_CHANNEL_IDS", [])
         self.channel_posts = self.channel_manager.load_config()
 
+        self.dialogues_api_accounts = self.dialogues_api_manager.load_config()
         self.banned_accounts = self.ban_manager.load_config()
         self.user_last_message_time = defaultdict(datetime.now)
         self.SPAM_THRESHOLD = timedelta(
@@ -129,6 +134,10 @@ Cвяжитесь с нами по телефону 8 495 723 723 0 для да�
         )
         os.environ["CHAT_HISTORY_TOKEN"] = self.auth_manager.get(
             "CHAT_HISTORY_TOKEN",
+            ""
+        )
+        os.environ["BOT_COMMUNICATION_TOKEN"] = self.auth_manager.get(
+            "BOT_COMMUNICATION_TOKEN",
             ""
         )
         os.environ["HISTORY_CHANNEL_ID"] = self.auth_manager.get(
@@ -320,8 +329,8 @@ Cвяжитесь с нами по телефону 8 495 723 723 0 для да�
                         )
                         self.channel_posts = self.channel_manager.load_config()
 
-            # Ignoring service and bot messages
-            if message["from"]["is_bot"] or message["from"]["first_name"] == "Telegram":
+            # Ignoring service and bot messages; also messages from dialogues with the presence of a human operator
+            if message["from"]["is_bot"] or message["from"]["first_name"] == "Telegram" or str(message["chat"]["id"]) in self.dialogues_api_accounts:
                 return self.empty_response
 
             self.chat_id = message["chat"]["id"]
@@ -962,6 +971,7 @@ chat_id текущего пользователя - {self.chat_id}"""
                             f"Error in saving message to SQL: {error}"
                         )
                 self.banned_accounts = self.ban_manager.load_config()
+                self.dialogues_api_accounts = self.dialogues_api_manager.load_config()
                 return await self.chat_data_service.save_message_id(
                     self.chat_id,
                     self.message_id
@@ -1072,6 +1082,56 @@ chat_id текущего пользователя - {self.chat_id}"""
             return JSONResponse(
                 content=json.dumps(chat_history, ensure_ascii=False)
             )
+
+        # Endpoint for (en/dis)able bot communication
+        @self.app.get("/bot_communication/{received_token}/{chat_id}/{switch}")
+        async def set_bot_communication(
+            received_token: str,
+            chat_id: str,
+            switch: int
+        ):
+            correct_token = os.environ.get("BOT_COMMUNICATION_TOKEN", "")
+            if received_token != correct_token:
+                answer = "Неверный токен получения истории чата"
+                return self.text_response(answer)
+            
+            if switch==0:
+                if chat_id not in self.dialogues_api_accounts:
+                    self.dialogues_api_manager.set(
+                        chat_id,
+                        time.strftime("%Y-%m-%d %H:%M:%S", time.localtime())
+                    )
+                    self.dialogues_api_accounts = self.dialogues_api_manager.load_config()
+                    self.logger.info(
+                        f"Dialogue with user with chat id {chat_id} transferred to a human operator"
+                    )
+                    answer = f"Диалог с пользователем с chat id {chat_id} переведен на оператора-человека"
+                    return self.text_response(answer)
+                else:
+                    self.logger.info(
+                        f"Dialogue with user with chat id {chat_id} is already being conducted by a human operator"
+                    )
+                    answer = f"Диалог с пользователем с chat id {chat_id} уже ведётся оператором-человеком"
+                    return self.text_response(answer)
+
+            elif switch==1:
+                try:
+                    self.dialogues_api_manager.delete(chat_id)
+                    self.dialogues_api_accounts = self.dialogues_api_manager.load_config()
+                    self.logger.info(
+                        f"Dialogue with user with chat_id {chat_id} transferred to a bot"
+                    )
+                    answer = f"Диалог с пользователем с chat id {chat_id} переведен на бота"
+                    return self.text_response(answer)
+                except:
+                    self.logger.info(
+                        f"Dialogue with user with chat id {chat_id} is already being conducted by a bot"
+                    )
+                    answer = f"Диалог с пользователем с chat id {chat_id} уже ведётся ботом"
+                    return self.text_response(answer)
+            else:
+                answer = f"Параметр switch должен быть 0 или 1, передан {switch}"
+                return self.text_response(answer)
 
 
 application = Application()
