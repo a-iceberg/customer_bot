@@ -4,15 +4,14 @@ import time
 import json
 import requests
 
-import numpy as np
 import phonenumbers
 
+from datetime import datetime
 from openai import AsyncOpenAI
 from anthropic import AsyncAnthropic
-from datetime import datetime
+from pydantic import BaseModel, Field
 from geopy.distance import geodesic
 from geopy.geocoders import Nominatim, Yandex
-from pydantic import BaseModel, Field
 from telebot.types import ReplyKeyboardMarkup
 
 from langchain_openai import ChatOpenAI
@@ -422,21 +421,21 @@ class ChatAgent:
             max_iterations=20,
             return_intermediate_steps=True
         )
-    
+
     def distance_calculation(self, latitude, longitude, affilate_coordinates):
-        distance = np.inf
+        distance = float('inf')
         affilate = None
+
         for aff, boundaries in affilate_coordinates:
-            for coordinates in boundaries:
-                if geodesic(
-                    [latitude, longitude],
-                    coordinates
-                ).kilometers < distance:
-                    distance = geodesic(
+            if abs(latitude - boundaries[0][0]) < 7 and abs(longitude - boundaries[0][1]) < 3:
+                for coordinates in boundaries:
+                    current_distance = geodesic(
                         [latitude, longitude],
                         coordinates
                     ).kilometers
-                    affilate = aff
+                    if current_distance < distance:
+                        distance = current_distance
+                        affilate = aff
         return distance, affilate
     
     async def check_personal_data(self, comment):
