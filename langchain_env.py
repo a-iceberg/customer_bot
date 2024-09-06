@@ -4,15 +4,14 @@ import time
 import json
 import requests
 
-import numpy as np
 import phonenumbers
 
+from datetime import datetime
 from openai import AsyncOpenAI
 from anthropic import AsyncAnthropic
-from datetime import datetime
+from pydantic import BaseModel, Field
 from geopy.distance import geodesic
 from geopy.geocoders import Nominatim, Yandex
-from pydantic import BaseModel, Field
 from telebot.types import ReplyKeyboardMarkup
 
 from langchain_openai import ChatOpenAI
@@ -148,7 +147,6 @@ class ChatAgent:
             "affilates": affilates
         }
         self.agent_executor = None
-        self.affilate = None
         self.bot_instance = bot_instance
 
         self.request_service = FileService(
@@ -422,21 +420,21 @@ class ChatAgent:
             max_iterations=20,
             return_intermediate_steps=True
         )
-    
+
     def distance_calculation(self, latitude, longitude, affilate_coordinates):
-        distance = np.inf
+        distance = float('inf')
         affilate = None
+
         for aff, boundaries in affilate_coordinates:
-            for coordinates in boundaries:
-                if geodesic(
-                    [latitude, longitude],
-                    coordinates
-                ).kilometers < distance:
-                    distance = geodesic(
+            if abs(latitude - boundaries[0][0]) < 7 and abs(longitude - boundaries[0][1]) < 3:
+                for coordinates in boundaries:
+                    current_distance = geodesic(
                         [latitude, longitude],
                         coordinates
                     ).kilometers
-                    affilate = aff
+                    if current_distance < distance:
+                        distance = current_distance
+                        affilate = aff
         return distance, affilate
     
     async def check_personal_data(self, comment):
@@ -568,21 +566,21 @@ class ChatAgent:
             f"save_gps_to_request latitude: {latitude} longitude: {longitude}"
         )
         try:
-            distance, self.affilate = self.distance_calculation(
+            distance, affilate = self.distance_calculation(
                 latitude,
                 longitude,
                 self.config["affilates"].items()
             )
             if (
-                self.affilate == "Москва" and distance > 100
+                affilate == "Москва" and distance > 100
             ) or (
-                self.affilate != "Москва" and distance > 90
+                affilate != "Москва" and distance > 90
             ):
                 return "Указанный пользователем адрес находится вне зоны работы компании. Вежливо донесите это до пользователя и прекратите далее оформлять заявку!"
             elif (
-                self.affilate == "Москва" and distance > 50
+                affilate == "Москва" and distance > 50
             ) or (
-                self.affilate != "Москва" and distance > 40
+                affilate != "Москва" and distance > 40
             ):
                 return "Указанный пользователем адрес находится вне зоны бесплатного выезда мастера. Предложите пользователю связаться с нами по нашему контактному телефону 8 495 723 723 0, указав его, и прекратите далее оформлять заявку!"
         except Exception as e:
@@ -672,6 +670,11 @@ class ChatAgent:
                 chat_id,
                 full_address,
                 "address"
+            )
+            await self.request_service.save_to_request(
+                chat_id,
+                affilate,
+                "affilate"
             )
         except Exception as e:
             self.logger.error(f"Error in saving address: {e}")
@@ -777,21 +780,21 @@ class ChatAgent:
             return "Не удалось определить координаты адреса. Запросите адрес ещё раз"
         
         try:
-            distance, self.affilate = self.distance_calculation(
+            distance, affilate = self.distance_calculation(
                 latitude,
                 longitude,
                 self.config["affilates"].items()
             )
             if (
-                self.affilate == "Москва" and distance > 100
+                affilate == "Москва" and distance > 100
             ) or (
-                self.affilate != "Москва" and distance > 90
+                affilate != "Москва" and distance > 90
             ):
                 return "Указанный пользователем адрес находится вне зоны работы компании. Вежливо донесите это до пользователя и прекратите далее оформлять заявку!"
             elif (
-                self.affilate == "Москва" and distance > 50
+                affilate == "Москва" and distance > 50
             ) or (
-                self.affilate != "Москва" and distance > 40
+                affilate != "Москва" and distance > 40
             ):
                 return "Указанный пользователем адрес находится вне зоны бесплатного выезда мастера. Предложите пользователю связаться с нами по нашему контактному телефону 8 495 723 723 0, указав его, и прекратите далее оформлять заявку!"
         except Exception as e:
@@ -813,6 +816,11 @@ class ChatAgent:
                 full_address,
                 "address"
             )
+            await self.request_service.save_to_request(
+                chat_id,
+                affilate,
+                "affilate"
+            )            
         except Exception as e:
             self.logger.error(f"Error in saving address: {e}")
             return f"Ошибка при сохранении адреса: {e}"
@@ -963,24 +971,32 @@ class ChatAgent:
         # Double-check of personal data
         comment = await self.check_personal_data(comment)
 
-        if not self.affilate:
+        affilate = None
+        try:
+            affilate = (await self.request_service.read_request(chat_id, True))["affilate"]
+        except Exception as e:
+            self.logger.error(
+                f"Error in reading current request files: {e}"
+            )
+            return "Вы не сохранили адрес! Перед 'Create_request' используйте сначала остальные инструменты для сохранения всех полученных данных"
+        if not affilate:
             try:
-                distance, self.affilate = self.distance_calculation(
+                distance, affilate = self.distance_calculation(
                     latitude,
                     longitude,
                     self.config["affilates"].items()
                 )
                 if (
-                    self.affilate == "Москва" and distance > 100
+                    affilate == "Москва" and distance > 100
                 ) or (
-                    self.affilate != "Москва" and distance > 90
+                    affilate != "Москва" and distance > 90
                 ):
                     return """Указанный пользователем адрес находится вне зоны работы компании.
                     Вежливо донесите это до пользователя и прекратите далее оформлять заявку!"""
                 elif (
-                    self.affilate == "Москва" and distance > 50
+                    affilate == "Москва" and distance > 50
                 ) or (
-                    self.affilate != "Москва" and distance > 40
+                    affilate != "Москва" and distance > 40
                 ):
                     return """Указанный пользователем адрес находится вне зоны бесплатного выезда мастера.
                     Предложите пользователю связаться с нами по нашему контактному телефону 8 495 723 723 0, указав его, и прекратите далее оформлять заявку!"""
@@ -1002,7 +1018,7 @@ class ChatAgent:
             order_params["order"]["desired_dt"] = date
             order_params["order"]["client"]["phone"] = phone
             order_params["order"]["address"]["name"] = address
-            order_params["order"]["address"]["name_components"][0]["name"] = self.affilate
+            order_params["order"]["address"]["name_components"][0]["name"] = affilate
             order_params["order"]["comment"] = comment
             order_params["order"]["address"]["geopoint"]["latitude"] = latitude
             order_params["order"]["address"]["geopoint"]["longitude"] = longitude

@@ -197,14 +197,14 @@ Cвяжитесь с нами по телефону 8 495 723 723 0 для да�
                 )
             self.logger.info(message)
 
-            self.user_id = message["from"]["id"]
+            user_id = message["from"]["id"]
             current_time = datetime.now()
-            last_message_time = current_time - self.user_last_message_time[self.user_id]
+            last_message_time = current_time - user_last_message_time[user_id]
 
             # Automatic spam detection and banning
             if last_message_time <= self.SPAM_THRESHOLD and str(message["chat"]["id"]) not in self.CHANNEL_IDS and str(message["chat"]["id"]) not in self.banned_accounts:
-                self.USER_SPAM_COUNT[self.user_id] += 1
-                if self.USER_SPAM_COUNT[self.user_id] >= self.SPAM_COUNT_THRESHOLD:
+                self.USER_SPAM_COUNT[user_id] += 1
+                if self.USER_SPAM_COUNT[user_id] >= self.SPAM_COUNT_THRESHOLD:
                     self.ban_manager.set(
                         message["chat"]["id"],
                         time.strftime("%Y-%m-%d %H:%M:%S", time.localtime())
@@ -214,8 +214,8 @@ Cвяжитесь с нами по телефону 8 495 723 723 0 для да�
                         f'Banned user with chat_id {message["chat"]["id"]}'
                     )
             else:
-                self.USER_SPAM_COUNT[self.user_id] = 0
-            self.user_last_message_time[self.user_id] = current_time
+                self.USER_SPAM_COUNT[user_id] = 0
+            self.user_last_message_time[user_id] = current_time
 
             # Manual banning
             if message["chat"]["id"] == int(self.GROUP_ID) and "text" in message and "reply_to_message" in message:
@@ -235,7 +235,7 @@ Cвяжитесь с нами по телефону 8 495 723 723 0 для да�
                                 self.GROUP_ID,
                                 f"Пользователь с chat_id {banned_id} был забанен",
                                 reply_to_message_id=self.channel_posts[
-                                    str(self.chat_id)
+                                    str(message["chat"]["id"])
                                 ]
                             )
                             await asyncio.sleep(5)
@@ -257,7 +257,7 @@ Cвяжитесь с нами по телефону 8 495 723 723 0 для да�
                                 self.GROUP_ID,
                                 f"Пользователь с chat_id {banned_id} уже был забанен ранее",
                                 reply_to_message_id=self.channel_posts[
-                                    str(self.chat_id)
+                                    str(message["chat"]["id"])
                                 ]
                             )
                             await asyncio.sleep(5)
@@ -281,7 +281,7 @@ Cвяжитесь с нами по телефону 8 495 723 723 0 для да�
                                 self.GROUP_ID,
                                 f"Пользователь с chat_id {unbanned_id} был разбанен",
                                 reply_to_message_id=self.channel_posts[
-                                    str(self.chat_id)
+                                    str(message["chat"]["id"])
                                 ]
                             )
                             await asyncio.sleep(5)
@@ -300,7 +300,7 @@ Cвяжитесь с нами по телефону 8 495 723 723 0 для да�
                                 self.GROUP_ID,
                                 f"Пользователь с chat_id {unbanned_id} не был забанен",
                                 reply_to_message_id=self.channel_posts[
-                                    str(self.chat_id)
+                                    str(message["chat"]["id"])
                                 ]
                             )
                             await asyncio.sleep(5)
@@ -315,16 +315,16 @@ Cвяжитесь с нами по телефону 8 495 723 723 0 для да�
                             )
 
             if message["from"]["first_name"] == "Telegram":
-                if str(self.chat_id) not in self.channel_posts:
+                if str(message["chat"]["id"]) not in self.channel_posts:
                     if 'message_thread_id' in message:
                         self.channel_manager.set(
-                            self.chat_id,
+                            message["chat"]["id"],
                             message["message_thread_id"]
                         )
                         self.channel_posts = self.channel_manager.load_config()
                     else:
                         self.channel_manager.set(
-                            self.chat_id,
+                            message["chat"]["id"],
                             message["message_id"]
                         )
                         self.channel_posts = self.channel_manager.load_config()
@@ -333,29 +333,29 @@ Cвяжитесь с нами по телефону 8 495 723 723 0 для да�
             if message["from"]["is_bot"] or message["from"]["first_name"] == "Telegram" or str(message["chat"]["id"]) in self.dialogues_api_accounts:
                 return self.empty_response
 
-            self.chat_id = message["chat"]["id"]
-            self.message_id = message["message_id"]
-            self.user_name = message["from"]["first_name"] if "first_name" in message["from"] else message["from"]["username"]
+            chat_id = message["chat"]["id"]
+            message_id = message["message_id"]
+            user_name = message["from"]["first_name"] if "first_name" in message["from"] else message["from"]["username"]
 
             await self.chat_data_service.save_message_id(
-                self.chat_id,
-                self.message_id
+                chat_id,
+                message_id
             )
 
             # Create post with a messages resended to a telegram channel
-            if str(self.chat_id) not in self.channel_posts:
+            if str(chat_id) not in self.channel_posts:
                 name = f'@{message["from"]["username"]}' if "username" in message["from"] else message["from"]["first_name"]
                 await bot.send_message(
                     self.CHANNEL_ID,
-                    f'Chat with {name} (Chat ID: {self.chat_id})'
+                    f'Chat with {name} (Chat ID: {chat_id})'
                 )
 
             # Message type processing
             if "location" in message:
-                self.user_message = f"Передаю координаты обращения для определения вами полного адреса - {message['location']}"
+                user_message = f"Передаю координаты обращения для определения вами полного адреса - {message['location']}"
 
             elif "text" in message:
-                self.user_message = message["text"]
+                user_message = message["text"]
 
             elif (
                 "audio" in message
@@ -395,7 +395,7 @@ Cвяжитесь с нами по телефону 8 495 723 723 0 для да�
                 file_name = f"{uuid4().hex}_{file_name}"
                 audio_path = os.path.join(
                     self.config_manager.get("audio_dir"),
-                    str(self.chat_id)
+                    str(chat_id)
                 )
                 Path(audio_path).mkdir(parents=True, exist_ok=True)
                 file_path = os.path.join(audio_path, file_name)
@@ -427,7 +427,7 @@ Cвяжитесь с нами по телефону 8 495 723 723 0 для да�
 
                 self.logger.info("Transcribing audio..")
                 try:
-                    self.user_message = transcribe_audio_file(file_path)
+                    user_message = transcribe_audio_file(file_path)
                 except Exception as e:
                     self.logger.error(f"Error transcribing audio file: {e}")
                     return self.text_response(
@@ -438,14 +438,14 @@ Cвяжитесь с нами по телефону 8 495 723 723 0 для да�
                 return self.empty_response
             
             # Banned accounts processing
-            if str(self.chat_id) in self.banned_accounts:
+            if str(chat_id) in self.banned_accounts:
                 # Resending user message to Telegram group
                 try:
                     await bot.send_message(
                         self.GROUP_ID,
-                        f"{self.user_name}: " + self.user_message,
+                        f"{user_name}: " + user_message,
                         reply_to_message_id=self.channel_posts[
-                            str(self.chat_id)
+                            str(chat_id)
                         ]
                     )
                 except:
@@ -453,35 +453,35 @@ Cвяжитесь с нами по телефону 8 495 723 723 0 для да�
                 return self.empty_response
             
             # Maintenance processing
-            if not self.is_llm_active and str(self.chat_id) not in self.WHITE_LIST_IDS:
+            if not self.is_llm_active and str(chat_id) not in self.WHITE_LIST_IDS:
                 # Resending user message to Telegram group
                 try:
                     await bot.send_message(
                         self.GROUP_ID,
-                        f"{self.user_name}: " + self.user_message,
+                        f"{user_name}: " + user_message,
                         reply_to_message_id=self.channel_posts[
-                            str(self.chat_id)
+                            str(chat_id)
                         ]
                     )
                 except:
                     self.logger.info("Chat id not received yet")
                 return await bot.send_message(
-                    self.chat_id,
+                    chat_id,
                     self.inactive_answer
                 )
 
             # Command processing
-            if self.user_message == "/disable" and str(self.chat_id) in self.WHITE_LIST_IDS:
-                await bot.delete_message(self.chat_id, self.message_id)
+            if user_message == "/disable" and str(chat_id) in self.WHITE_LIST_IDS:
+                await bot.delete_message(chat_id, message_id)
                 self.config_manager.set("is_llm_active", False)
                 self.is_llm_active = self.config_manager.get("is_llm_active")
                 answer = await bot.send_message(
-                    self.chat_id,
+                    chat_id,
                     "Ответы бота пользователям переведены в режим техобслуживания"
                 )
                 await asyncio.sleep(5)
-                await bot.delete_message(self.chat_id, answer.message_id)
-                for user in (u for u in self.WHITE_LIST_IDS + [self.CHANNEL_ID] if u != str(self.chat_id)):
+                await bot.delete_message(chat_id, answer.message_id)
+                for user in (u for u in self.WHITE_LIST_IDS + [self.CHANNEL_ID] if u != str(chat_id)):
                     try:
                         if message["from"]["first_name"]:
                             id = message["from"]["first_name"]
@@ -497,17 +497,17 @@ Cвяжитесь с нами по телефону 8 495 723 723 0 для да�
                         self.logger.error(
                             f"Error in sending message about maintenance to {user}: {e}"
                         )
-            elif self.user_message == "/enable" and str(self.chat_id) in self.WHITE_LIST_IDS:
-                await bot.delete_message(self.chat_id, self.message_id)
+            elif user_message == "/enable" and str(chat_id) in self.WHITE_LIST_IDS:
+                await bot.delete_message(chat_id, message_id)
                 self.config_manager.set("is_llm_active", True)
                 self.is_llm_active = self.config_manager.get("is_llm_active")
                 answer = await bot.send_message(
-                    self.chat_id,
+                    chat_id,
                     "Ответы бота пользователям переведены в обычный режим"
                 )
                 await asyncio.sleep(5)
-                await bot.delete_message(self.chat_id, answer.message_id)
-                for user in (u for u in self.WHITE_LIST_IDS + [self.CHANNEL_ID] if u != str(self.chat_id)):
+                await bot.delete_message(chat_id, answer.message_id)
+                for user in (u for u in self.WHITE_LIST_IDS + [self.CHANNEL_ID] if u != str(chat_id)):
                     try:
                         if message["from"]["first_name"]:
                             id = message["from"]["first_name"]
@@ -523,11 +523,11 @@ Cвяжитесь с нами по телефону 8 495 723 723 0 для да�
                         self.logger.error(
                             f"Error in sending message about maintenance to {user}: {e}"
                         )
-            elif self.user_message.startswith("/start"):
-                await bot.delete_message(self.chat_id, self.message_id)
-                self.request_service.delete_files(self.chat_id)
+            elif user_message.startswith("/start"):
+                await bot.delete_message(chat_id, message_id)
+                self.request_service.delete_files(chat_id)
                 await self.chat_data_service.update_chat_history_date(
-                    self.chat_id
+                    chat_id
                 )
                 markup = ReplyKeyboardMarkup(
                     resize_keyboard=True,
@@ -543,35 +543,35 @@ Cвяжитесь с нами по телефону 8 495 723 723 0 для да�
                     "Здраствуйте, это сервисный центр. Чем могу вам помочь?"
                 )
                 await bot.send_message(
-                    self.chat_id,
+                    chat_id,
                     welcome_message,
                     reply_markup=markup
                 )
-                self.logger.info(f"Source - {self.user_message.split()[1]}") if len(self.user_message.split()) > 1 else None
+                self.logger.info(f"Source - {user_message.split()[1]}") if len(user_message.split()) > 1 else None
 
-            elif self.user_message == "/requestreset":
-                await bot.delete_message(self.chat_id, self.message_id)
-                self.request_service.delete_files(self.chat_id)
+            elif user_message == "/requestreset":
+                await bot.delete_message(chat_id, message_id)
+                self.request_service.delete_files(chat_id)
                 answer = await bot.send_message(
-                    self.chat_id,
+                    chat_id,
                     "Информация по заявкам была очищена"
                 )
                 await asyncio.sleep(5)
-                await bot.delete_message(self.chat_id, answer.message_id)
+                await bot.delete_message(chat_id, answer.message_id)
 
-            elif self.user_message == "/fullreset":
-                await bot.delete_message(self.chat_id, self.message_id)
-                self.request_service.delete_files(self.chat_id)
-                await self.chat_data_service.update_chat_history_date(self.chat_id)
+            elif user_message == "/fullreset":
+                await bot.delete_message(chat_id, message_id)
+                self.request_service.delete_files(chat_id)
+                await self.chat_data_service.update_chat_history_date(chat_id)
                 answer = await bot.send_message(
-                    self.chat_id,
+                    chat_id,
                     "Полная история чата была очищена"
                 )
                 await asyncio.sleep(5)
-                await bot.delete_message(self.chat_id, answer.message_id)
+                await bot.delete_message(chat_id, answer.message_id)
             
-            elif self.user_message == "📑 Выбрать свою активную заявку":
-                await bot.delete_message(self.chat_id, self.message_id)
+            elif user_message == "📑 Выбрать свою активную заявку":
+                await bot.delete_message(chat_id, message_id)
                 token = os.environ.get("1С_TOKEN", "")
                 login = os.environ.get("1C_LOGIN", "")
                 password = os.environ.get("1C_PASSWORD", "")
@@ -580,7 +580,7 @@ Cвяжитесь с нами по телефону 8 495 723 723 0 для да�
                     ws_url = f'{self.config_manager.get("proxy_url")}/ws'        
                     ws_params = {
                         "Идентификатор": "bid_numbers",
-                        "НомерПартнера": str(self.chat_id),
+                        "НомерПартнера": str(chat_id),
                     }
                     ws_data = {
                         "clientPath": self.config_manager.get("ws_paths"),
@@ -630,21 +630,21 @@ Cвяжитесь с нами по телефону 8 495 723 723 0 для да�
                         )
                     markup.add("🏠 Вернуться в меню")
                     await bot.send_message(
-                        self.chat_id,
+                        chat_id,
                         "Выберете нужную заявку ниже 👇",
                         reply_markup=markup
                     )
                 else:
                     await bot.send_message(
-                        self.chat_id,
+                        chat_id,
                         """
                             К сожалению, у вас нет текущих активных заявок.
 Буду рад помочь оформить новую! 😃
                         """
                     )
             
-            elif self.user_message =="🏠 Вернуться в меню":
-                await bot.delete_message(self.chat_id, self.message_id)
+            elif user_message =="🏠 Вернуться в меню":
+                await bot.delete_message(chat_id, message_id)
                 markup = ReplyKeyboardMarkup(
                     resize_keyboard=True,
                     one_time_keyboard=True
@@ -659,7 +659,7 @@ Cвяжитесь с нами по телефону 8 495 723 723 0 для да�
                     "Возвращаюсь в меню..."
                 )
                 await bot.send_message(
-                    self.chat_id,
+                    chat_id,
                     return_message,
                     reply_markup=markup
                 )
@@ -670,16 +670,16 @@ Cвяжитесь с нами по телефону 8 495 723 723 0 для да�
                 try:
                     await bot.send_message(
                         self.GROUP_ID,
-                        f"{self.user_name}: " + self.user_message,
+                        f"{user_name}: " + user_message,
                         reply_to_message_id=self.channel_posts[
-                            str(self.chat_id)
+                            str(chat_id)
                         ]
                     )
                 except:
                     self.logger.info("Chat id not received yet")
 
                 try:
-                    request = await self.request_service.read_request(self.chat_id)
+                    request = await self.request_service.read_request(chat_id)
                 except Exception as e:
                     self.logger.error(
                         f"Error in reading current request files: {e}"
@@ -698,12 +698,12 @@ Cвяжитесь с нами по телефону 8 495 723 723 0 для да�
                     date = time.strftime("%Y-%m-%d", time.localtime())
                     time_str = time.strftime("%H:%M", time.localtime())
 
-                system_prompt = f"""Вы - только сотрудник колл-центра сервисного центра по ремонту и различным бытовым услугам. Говорите всегда от мужского рода. Отвечайте на русском языке, учитывая контекст переписки. На благодарности же пользователя просто свободно отвечайте, а НЕ ещё раз уточняйте или отправляйте данные, так как это не новое обращение. Вы получаете сообщения от пользователя c аккаунта с именем {self.user_name}.
+                system_prompt = f"""Вы - только сотрудник колл-центра сервисного центра по ремонту и различным бытовым услугам. Говорите всегда от мужского рода. Отвечайте на русском языке, учитывая контекст переписки. На благодарности же пользователя просто свободно отвечайте, а НЕ ещё раз уточняйте или отправляйте данные, так как это не новое обращение. Вы получаете сообщения от пользователя c аккаунта с именем {user_name}.
 Ваша итоговая цель - в принципе МАКСИМАЛЬНО дружелюбно, доброжелательно, внимательно и участливо на каждом этапе отвечать на вопросы пользователя только в рамках ваших должностных обязанностей сотрудника колл-центра и деятельности комании и вести с ним диалог, а также оформлять заявки, обязательно используя соответствующий инструмент "Create_request".
 Ни в коем случае не отвечайте абсолютно ни на какие вопросы, кроме тех, что относятся к деятельности, услугам сервисного центра. То есть никаких советов самому давать не нужно.
 ОБЯЗАТЕЛЬНО никогда НЕ будьте настойчивы при запросе нужной информации, то есть в том числе НИ В КОЕМ СЛУЧАЕ НЕ запрашивайте повторно, несколько раз один и тот же пункт перечисленной ниже нужной вам информации в нескольких ваших сообщениях подряд во время ответов на вопросы или возражения пользователя, просто ТОЛЬКО отвечайте на них и далее НИЧЕГО больше в каждом таком сообщении. Запросить повторно одну и ту же информацию в одном диалоге можете ТОЛЬКО ПОСЛЕ того, как вы убедитесь, УТОЧНИВ у самого пользователя, а не сами, что у него НЕ осталось вопросов по текущей теме.
 Также цель - для создания заявок запрашивать сообщениями у пользователя, ТОЛЬКО если он уже НЕ предоставил это сам ранее в диалоге (в таком случае не уточняйте, а просто сохраняйте информацию в заявку с помощью ваших инструментов) и у него НЕТ вопросов, ПО ОДНОМУ сообщению:
-1) ТОЛЬКО если имеющееся у вас имя аккаунта пользователя - {self.user_name} - выглядит НЕ как обычное человеческое, а как какой-то ЛОГИН / НИКНЕЙМ, - в НАЧАЛЕ диалога ДО всех остальных вопросов однократно запрашивайте имя пользователя, как к нему можно обращаться. Иначе, если у вас есть обычное имя, обращайтесь сами по нему без уточнения. Но пользователь может отказаться называть его при вопросе, в таком случае снова НЕ настаивайте;
+1) ТОЛЬКО если имеющееся у вас имя аккаунта пользователя - {user_name} - выглядит НЕ как обычное человеческое, а как какой-то ЛОГИН / НИКНЕЙМ, - в НАЧАЛЕ диалога ДО всех остальных вопросов однократно запрашивайте имя пользователя, как к нему можно обращаться. Иначе, если у вас есть обычное имя, обращайтесь сами по нему без уточнения. Но пользователь может отказаться называть его при вопросе, в таком случае снова НЕ настаивайте;
 2) цель / причину обращения. Если вы однозначно не уверены в ней после ответа, уточните ещё раз, а не сохраняйте сразу, например, если вам сказали просто про машинку без уточнения, какая она;
 3) какие-либо дополнительные обстоятельства, характеристики обращения (сформулируйте сами в зависимости от причины обращения, например, какая именно неисправность, если обращение по поводу поломки, нюансы установки, в чём особенности и тому подобное), ТОЛЬКО, если пользователь не назвал уже их ранее сам, но именно подробные. Если названа только причина без подробностей, уточняйте! Пользователь также может отказаться отвечать на этот пункт, запрашивайте его разово и в любом случае продолжайте уточнять следующие, в таком случае НИКАКИХ обстоятельств отказа, ответ пользователя сохранять НЕ нужно!;
 4) ТОЛЬКО если в обращении фигурирует какая-либо именно ТЕХНИКА (напирмер, услуги, окна, двери или сантехника техникой НЕ являются), запросите её бренд, модель при наличии, иначе НЕ запрашивайте! Если же запрашиваете, то снова только разово, без возврата к этому пункту позднее, и не настаивайте на ответе при отказе;
@@ -778,14 +778,14 @@ Cвяжитесь с нами по телефону 8 495 723 723 0 для да�
 Если же ваше текущее время после 19:00, то доносите, что мастер свяжется с пользователем уже завтра.
 Только если в результате создания заявки вы действительно получили её номер, в этом же завершающем сообщении передавайте его пользователю.
 НЕ здоровайтесь ПОВТОРНО в рамках одного диалога, но однократно в начале нужно.
-chat_id текущего пользователя - {self.chat_id}"""
+chat_id текущего пользователя - {chat_id}"""
 
                 chat_history = await self.chat_data_service.read_chat_history(
-                    self.chat_id,
-                    self.message_id,
+                    chat_id,
+                    message_id,
                     self.TOKEN
                 )
-                self.logger.info(f"History for {self.chat_id}: {chat_history}")
+                self.logger.info(f"History for {chat_id}: {chat_history}")
 
                 # Creating chat agent
                 if self.chat_agent is None:
@@ -813,7 +813,7 @@ chat_id текущего пользователя - {self.chat_id}"""
                             bot_response = await self.chat_agent.agent_executor.ainvoke(
                                 {
                                     "system_prompt": system_prompt,
-                                    "input": self.user_message,
+                                    "input": user_message,
                                     "chat_history": chat_history,
                                 }
                             )
@@ -827,7 +827,7 @@ chat_id текущего пользователя - {self.chat_id}"""
                             bot_response = await self.chat_agent.agent_executor.ainvoke(
                                 {
                                     "system_prompt": system_prompt,
-                                    "input": self.user_message,
+                                    "input": user_message,
                                     "chat_history": chat_history,
                                 }
                             )
@@ -839,7 +839,7 @@ chat_id текущего пользователя - {self.chat_id}"""
                         bot_response = await self.chat_agent.agent_executor.ainvoke(
                             {
                                 "system_prompt": system_prompt+f". Сейчас вы получили следующую ошибку при своей работе, попробуйте действовать иначе: {first_error}",
-                                "input": self.user_message,
+                                "input": user_message,
                                 "chat_history": chat_history,
                             }
                         )
@@ -898,15 +898,15 @@ chat_id текущего пользователя - {self.chat_id}"""
                         output = bot_response["output"]
                         steps = bot_response["intermediate_steps"]
 
-                    self.logger.info("Replying in " + str(self.chat_id))
+                    self.logger.info("Replying in " + str(chat_id))
                     self.logger.info(f"Answer: {output}")
 
                     # Bot LLM answer
                     answer = await bot.send_message(
-                        self.chat_id,
+                        chat_id,
                         output
                     )
-                    self.message_id = answer.message_id
+                    message_id = answer.message_id
 
                     # Saving bot answer to SQL DB
                     try:
@@ -915,8 +915,8 @@ chat_id текущего пользователя - {self.chat_id}"""
                             answer.from_user.last_name if answer.from_user.last_name else None,
                             answer.from_user.is_bot,
                             answer.from_user.id,
-                            self.chat_id,
-                            self.message_id,
+                            chat_id,
+                            message_id,
                             datetime.fromtimestamp(
                                 answer.date
                             ).strftime("%Y-%m-%d %H:%M:%S"),
@@ -934,7 +934,7 @@ chat_id текущего пользователя - {self.chat_id}"""
                             self.GROUP_ID,
                             f"Бот: " + output,
                             reply_to_message_id=self.channel_posts[
-                                str(self.chat_id)
+                                str(chat_id)
                             ]
                         )
                     except:
@@ -946,10 +946,10 @@ chat_id текущего пользователя - {self.chat_id}"""
 
                     # Automatic bot answer by LLM error
                     answer = await bot.send_message(
-                        self.chat_id,
+                        chat_id,
                         self.llm_error_answer
                     )
-                    self.message_id = answer.message_id
+                    message_id = answer.message_id
 
                     # Saving bot answer to SQL DB
                     try:
@@ -958,8 +958,8 @@ chat_id текущего пользователя - {self.chat_id}"""
                             answer.from_user.last_name if answer.from_user.last_name else None,
                             answer.from_user.is_bot,
                             answer.from_user.id,
-                            self.chat_id,
-                            self.message_id,
+                            chat_id,
+                            message_id,
                             datetime.fromtimestamp(
                                 answer.date
                             ).strftime("%Y-%m-%d %H:%M:%S"),
@@ -973,8 +973,8 @@ chat_id текущего пользователя - {self.chat_id}"""
                 self.banned_accounts = self.ban_manager.load_config()
                 self.dialogues_api_accounts = self.dialogues_api_manager.load_config()
                 return await self.chat_data_service.save_message_id(
-                    self.chat_id,
-                    self.message_id
+                    chat_id,
+                    message_id
                 )
 
         # Splitting audio into chunks
