@@ -199,7 +199,7 @@ Cвяжитесь с нами по телефону 8 495 723 723 0 для да�
 
             user_id = message["from"]["id"]
             current_time = datetime.now()
-            last_message_time = current_time - user_last_message_time[user_id]
+            last_message_time = current_time - self.user_last_message_time[user_id]
 
             # Automatic spam detection and banning
             if last_message_time <= self.SPAM_THRESHOLD and str(message["chat"]["id"]) not in self.CHANNEL_IDS and str(message["chat"]["id"]) not in self.banned_accounts:
