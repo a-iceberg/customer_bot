@@ -239,7 +239,7 @@ class FileService:
                 )
             )
 
-    async def read_request(self, chat_id: str):
+    async def read_request(self, chat_id: str, show_affilate=False):
         # Reads request items from a folder and returns it
         request_items = {}
         request_path = self.file_path(chat_id)
@@ -267,6 +267,8 @@ class FileService:
                         request_items["address"] = message["text"]
                     elif message["type"] == "address_line_2":
                         request_items["address_line_2"] = message["text"]
+                    elif message["type"] == "affilate" and show_affilate:
+                        request_items["affilate"] = message["text"]
                     elif message["type"] == "date":
                         request_items["date"] = message["text"]
                     elif message["type"] == "comment":
