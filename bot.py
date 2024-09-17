@@ -19,7 +19,7 @@ from openai import OpenAI, RateLimitError
 from fastapi.responses import JSONResponse
 from fastapi import FastAPI, Request, Header
 from telebot import async_telebot, apihelper
-from telebot.types import ReplyKeyboardMarkup, KeyboardButton
+from telebot.types import ReplyKeyboardMarkup, KeyboardButton, BotCommand, BotCommandScopeChat
 
 from langchain_env import ChatAgent
 from file_service import FileService
@@ -166,6 +166,31 @@ Cвяжитесь с нами по телефону 8 495 723 723 0 для да�
         logger.setLevel(logging.INFO)
         return logger
 
+    async def set_bot_commands(self, bot):
+        common_commands = [
+            BotCommand("start", "Начать новую сессию")
+        ]
+        admin_commands = common_commands + [
+            BotCommand("requestreset", "Очистить информацию по заявкам"),
+            BotCommand("fullreset", "Очистить полную историю чата"),
+            BotCommand("disablebot", "Перевести бота в режим техобслуживания"),
+            BotCommand("enablebot", "Перевести бота в обычный режим"),
+            BotCommand("ban", "Забанить пользователя из просматриваемого чата"),
+            BotCommand("unban", "Разбанить пользователя из просматриваемого чата"),
+        ]
+        await bot.set_my_commands(common_commands)
+        
+        for admin_id in self.WHITE_LIST_IDS:
+            try:
+                await bot.set_my_commands(
+                admin_commands,
+                scope=BotCommandScopeChat(admin_id)
+            )
+            except Exception as e:
+                self.logger.warning(
+                f"Error in setting bot commands for chat id {admin_id}: {e}"
+            )
+
     def setup_routes(self):
         @self.app.get("/test")
         def test():
@@ -189,6 +214,7 @@ Cвяжитесь с нами по телефону 8 495 723 723 0 для да�
                 apihelper.FILE_URL = server_file_url
                 self.logger.info(f'Setting FILE_URL: {server_file_url}')
                 bot = async_telebot.AsyncTeleBot(self.TOKEN)
+                await self.set_bot_commands(bot)
             else:
                 self.logger.error("Failed to get bot token")
                 return self.text_response("Не удалось определить токен")
