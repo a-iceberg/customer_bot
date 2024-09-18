@@ -19,7 +19,7 @@ from openai import OpenAI, RateLimitError
 from fastapi.responses import JSONResponse
 from fastapi import FastAPI, Request, Header
 from telebot import async_telebot, apihelper
-from telebot.types import ReplyKeyboardMarkup, KeyboardButton
+from telebot.types import ReplyKeyboardMarkup, KeyboardButton, ReplyKeyboardRemove, BotCommand, BotCommandScopeChat, InlineKeyboardMarkup, InlineKeyboardButton
 
 from langchain_env import ChatAgent
 from file_service import FileService
@@ -160,6 +160,33 @@ Cвяжитесь с нами по телефону 8 495 723 723 0 для да�
         logger.setLevel(logging.INFO)
         return logger
 
+    async def set_bot_commands(self, bot):
+        common_commands = [
+            BotCommand("start", "Начать новую сессию"),
+            BotCommand("newrequest", "Оформить новую заявку"),
+            BotCommand("coordsonmap", "Указать координаты на карте")
+        ]
+        admin_commands = common_commands + [
+            BotCommand("requestreset", "Очистить информацию по заявкам"),
+            BotCommand("fullreset", "Очистить полную историю чата"),
+            BotCommand("disablebot", "Перевести бота в режим техобслуживания"),
+            BotCommand("enablebot", "Перевести бота в обычный режим"),
+            BotCommand("ban", "Забанить пользователя из просматриваемого чата"),
+            BotCommand("unban", "Разбанить пользователя из просматриваемого чата"),
+        ]
+        await bot.set_my_commands(common_commands)
+
+        for admin_id in self.WHITE_LIST_IDS:
+            try:
+                await bot.set_my_commands(
+                admin_commands,
+                scope=BotCommandScopeChat(admin_id)
+            )
+            except Exception as e:
+                self.logger.warning(
+                f"Error in setting bot commands for chat id {admin_id}: {e}"
+            )
+
     def setup_routes(self):
         @self.app.get("/test")
         def test():
@@ -183,6 +210,7 @@ Cвяжитесь с нами по телефону 8 495 723 723 0 для да�
                 apihelper.FILE_URL = server_file_url
                 self.logger.info(f'Setting FILE_URL: {server_file_url}')
                 bot = async_telebot.AsyncTeleBot(self.TOKEN)
+                await self.set_bot_commands(bot)
             else:
                 self.logger.error("Failed to get bot token")
                 return self.text_response("Не удалось определить токен")
@@ -353,6 +381,13 @@ Cвяжитесь с нами по телефону 8 495 723 723 0 для да�
             # Message type processing
             if "location" in message:
                 user_message = f"Передаю координаты обращения для определения вами полного адреса - {message['location']}"
+                remove_message = "Координаты успешно получены!"
+                markup = ReplyKeyboardRemove()
+                await bot.send_message(
+                    chat_id,
+                    remove_message,
+                    reply_markup=markup
+                )
 
             elif "text" in message:
                 user_message = message["text"]
@@ -569,6 +604,28 @@ Cвяжитесь с нами по телефону 8 495 723 723 0 для да�
                 )
                 await asyncio.sleep(5)
                 await bot.delete_message(chat_id, answer.message_id)
+
+            elif user_message == "/coordsonmap":
+                await bot.delete_message(chat_id, message_id)
+                await self.chat_data_service.update_chat_history_date(
+                    chat_id
+                )
+                markup = ReplyKeyboardMarkup(
+                    resize_keyboard=True,
+                    one_time_keyboard=True
+                )
+                markup.add(KeyboardButton(
+                    text="🗺 Указать координаты на карте",
+                    request_location=True)
+                )
+                location_message = (
+                    "Выберете нужное местоположение, нажав кнопку ниже 👇"
+                )
+                await bot.send_message(
+                    chat_id,
+                    location_message,
+                    reply_markup=markup
+                )
             
             elif user_message == "📑 Выбрать свою активную заявку":
                 await bot.delete_message(chat_id, message_id)
@@ -666,6 +723,9 @@ Cвяжитесь с нами по телефону 8 495 723 723 0 для да�
 
             # Default processing
             else:
+                if user_message == "/newrequest":
+                    await bot.delete_message(chat_id, message_id)
+                    user_message = "Хочу оформить новую заявку"
                 # Resending user message to Telegram group
                 try:
                     await bot.send_message(
