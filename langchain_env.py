@@ -858,9 +858,9 @@ class ChatAgent:
                 if phonenumbers.is_valid_number(parse):
                     phone = str(parse.national_number)
                 else:
-                    return "Пользователь предоставил некорректный номер телефона, запросите его ещё раз"
+                    return "Пользователь предоставил некорректный номер телефона, запросите его ещё раз и донесите это до пользователя"
             except Exception:
-                return "Пользователь предоставил некорректный номер телефона, запросите его ещё раз"
+                return "Пользователь предоставил некорректный номер телефона, запросите его ещё раз и донесите это до пользователя"
 
         try:
             await self.request_service.save_to_request(
@@ -1286,9 +1286,9 @@ class ChatAgent:
                         if phonenumbers.is_valid_number(parse):
                             field_value = str(parse.national_number)
                         else:
-                            return "Пользователь предоставил некорректный номер телефона, запросите его ещё раз"
+                            return "Пользователь предоставил некорректный номер телефона, запросите его ещё раз и донесите это до пользователя"
                     except Exception:
-                        return "Пользователь предоставил некорректный номер телефона, запросите его ещё раз"
+                        return "Пользователь предоставил некорректный номер телефона, запросите его ещё раз и донесите это до пользователя"
 
                 change_params["order"]["client"]["phone"] = field_value
                 change_params["order"]["comment"] = comment
