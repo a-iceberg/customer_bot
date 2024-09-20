@@ -447,6 +447,8 @@ chat_id текущего пользователя - {chat_id}"""
                         re.search(r'заявк[ау]', output.lower()
                     ) and (
                         "созда" in output.lower() or "оформл" in output.lower()
+                    ) and (
+                        not "подтвер" in output.lower()
                     )
                     ) and (
                         (
