@@ -12,7 +12,7 @@ from anthropic import AsyncAnthropic
 from pydantic import BaseModel, Field
 from geopy.distance import geodesic
 from geopy.geocoders import Nominatim, Yandex
-from telebot.types import ReplyKeyboardMarkup
+from telebot.types import ReplyKeyboardMarkup, InlineKeyboardMarkup, InlineKeyboardButton
 
 from langchain_openai import ChatOpenAI
 from langchain_anthropic import ChatAnthropic
@@ -375,8 +375,10 @@ class ChatAgent:
             coroutine=self.request_selection,
             name="Request_selection",
             description="""
-                Находит и предоставляет пользователю список его ОФОРМЛЕННЫХ заявок для выбора, чтобы определить контекст всего диалога, если речь идёт уже о каких-либо созданных заявках, а НЕ об оформлении новой. Используйте этот инструмент ВСЕГДА ОБЯЗАТЕЛЬНО, когда спрашивайте номер заявки у пользователя, но ТОЛЬКО ОДИН РАЗ, когда вам нужно понять, о какой именно заявке идёт речь, например, СРАЗУ, как только пользователь захочет изменить или дополнить данные по уже существующей заявке.
-Если вы уже явно получили от пользователя номер заявки, повторно НИ В КОЕМ СЛУЧАЕ НЕ используйте этот инструмент! Вам следует предоставить chat_id в качестве параметра
+                Находит и ОДНОКРАТНО предоставляет пользователю список его ОФОРМЛЕННЫХ заявок для выбора, чтобы определить контекст всего диалога, если речь идёт уже о каких-либо созданных заявках, а НЕ об оформлении новой, и ТОЛЬКО если пользователь уже НЕ указал номер заявки ранее.
+Используйте этот инструмент ТОЛЬКО ОДИН РАЗ и ТОЛЬКО ТОГДА, когда спрашивайте номер заявки у пользователя, например, СРАЗУ, как только пользователь запросит изменение или дополнение данных по уже существующей заявке.
+Если вы уже явно получили от пользователя номер заявки или уточняете другую информацию, НЕ НОМЕР, а, напрмер, предмет изменения, повторно НИ В КОЕМ СЛУЧАЕ НЕ используйте этот инструмент!
+Вам следует предоставить chat_id в качестве параметра
             """,
             args_schema=request_selection_args,
             return_direct=False,
@@ -607,7 +609,7 @@ class ChatAgent:
                     text = "Секунду..."
                     for address in addresses:
                         markup.add(address)
-                    markup.add("🏠 Вернуться в меню")
+                    # markup.add("🏠 Вернуться в меню")
                     await self.bot_instance.send_message(
                         chat_id,
                         text,
@@ -641,7 +643,7 @@ class ChatAgent:
                     text = "Секунду..."
                     for address in addresses:
                         markup.add(address)
-                    markup.add("🏠 Вернуться в меню")
+                    # markup.add("🏠 Вернуться в меню")
                     await self.bot_instance.send_message(
                         chat_id,
                         text,
@@ -724,7 +726,7 @@ class ChatAgent:
                     text = "Секунду..."
                     for address in addresses:
                         markup.add(address)
-                    markup.add("🏠 Вернуться в меню")
+                    # markup.add("🏠 Вернуться в меню")
                     await self.bot_instance.send_message(
                         chat_id,
                         text,
@@ -763,7 +765,7 @@ class ChatAgent:
                     text = "Секунду..."
                     for address in addresses:
                         markup.add(address)
-                    markup.add("🏠 Вернуться в меню")
+                    # markup.add("🏠 Вернуться в меню")
                     await self.bot_instance.send_message(
                         chat_id,
                         text,
@@ -846,22 +848,20 @@ class ChatAgent:
     async def save_phone_to_request(self, chat_id, phone):
         self.logger.info(f"save_phone_to_request phone: {phone}")
         phones = phonenumbers.PhoneNumberMatcher(phone, "RU")
-        if phones:
+        if len([num for num in phones]) > 0:
             for num in phones:
                 if phonenumbers.is_valid_number(num.number):
                     phone = str(num.number.national_number)
-        elif phonenumbers.is_valid_number(
-            phonenumbers.parse("".join(re.findall(r"[\d]", phone)), "RU")
-        ):
-            phone = str(
-                phonenumbers.parse(
-                    "".join(re.findall(r"[\d]", phone)),
-                    "RU"
-                ).national_number
-            )
         else:
-            return "Пользователь предоставил некорректный номер телефона, запросите его ещё раз"
-        
+            try:
+                parse = phonenumbers.parse("".join(re.findall(r"[\d]", phone)), "RU")
+                if phonenumbers.is_valid_number(parse):
+                    phone = str(parse.national_number)
+                else:
+                    return "Пользователь предоставил некорректный номер телефона, запросите его ещё раз и донесите это до пользователя"
+            except Exception:
+                return "Пользователь предоставил некорректный номер телефона, запросите его ещё раз и донесите это до пользователя"
+
         try:
             await self.request_service.save_to_request(
                 chat_id,
@@ -1144,22 +1144,42 @@ class ChatAgent:
         
         if request_creating==False:
             if len(request_numbers) > 0:
-                markup = ReplyKeyboardMarkup(
-                    resize_keyboard=True,
-                    one_time_keyboard=True
+                # markup = ReplyKeyboardMarkup(
+                #     resize_keyboard=True,
+                #     one_time_keyboard=True
+                # )
+                # text = "Секунду..."
+                # for number, values in request_numbers.items():
+                #     markup.add(
+                #         f"Заявка {number} от {values['date']}; {values['division']}"
+                #     )
+                # markup.add("🏠 Вернуться в меню")
+                # await self.bot_instance.send_message(
+                #     chat_id,
+                #     text,
+                #     reply_markup=markup
+                # )
+                markup = InlineKeyboardMarkup(
+                    row_width=1
                 )
-                text = "Секунду..."
+                text = """
+                    Выберете нужную заявку ниже 👇
+если ещё не указали её
+                """
                 for number, values in request_numbers.items():
+                    callback_data = f"request_{number}"
                     markup.add(
-                        f"Заявка {number} от {values['date']}; {values['division']}"
+                        InlineKeyboardButton(
+                            f"Заявка {number} от {values['date']}; {values['division']}",
+                            callback_data=callback_data
+                        )
                     )
-                markup.add("🏠 Вернуться в меню")
                 await self.bot_instance.send_message(
                     chat_id,
                     text,
                     reply_markup=markup
                 )
-                return "У пользователя был только запрошен номер заявки, в рамках которой сейчас идёт диалог"
+                return "У пользователя был только запрошен номер заявки списком выше, в рамках которой сейчас идёт диалог, НЕ нужно использовать этот инструмент ещё раз и НЕ нужно писать список заявок, просто попросите выбрать!"
             else:
                 return "У пользователя нет существующих заявок"
     
@@ -1255,6 +1275,21 @@ class ChatAgent:
                 self.logger.info(f"Parametrs: {change_params}")
 
             elif field_name == "phone":
+                phones = phonenumbers.PhoneNumberMatcher(field_value, "RU")
+                if len([num for num in phones]) > 0:
+                    for num in phones:
+                        if phonenumbers.is_valid_number(num.number):
+                            field_value = str(num.number.national_number)
+                else:
+                    try:
+                        parse = phonenumbers.parse("".join(re.findall(r"[\d]", field_value)), "RU")
+                        if phonenumbers.is_valid_number(parse):
+                            field_value = str(parse.national_number)
+                        else:
+                            return "Пользователь предоставил некорректный номер телефона, запросите его ещё раз и донесите это до пользователя"
+                    except Exception:
+                        return "Пользователь предоставил некорректный номер телефона, запросите его ещё раз и донесите это до пользователя"
+
                 change_params["order"]["client"]["phone"] = field_value
                 change_params["order"]["comment"] = comment
                 self.logger.info(f"Parametrs: {change_params}")
