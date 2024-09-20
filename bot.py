@@ -724,16 +724,17 @@ chat_id текущего пользователя - {chat_id}"""
                             )
 
             if message["from"]["first_name"] == "Telegram":
-                if str(message["chat"]["id"]) not in self.channel_posts:
+                id = message["text"].split()[-1].strip(')')
+                if id not in self.channel_posts:
                     if 'message_thread_id' in message:
                         self.channel_manager.set(
-                            message["chat"]["id"],
+                            id,
                             message["message_thread_id"]
                         )
                         self.channel_posts = self.channel_manager.load_config()
                     else:
                         self.channel_manager.set(
-                            message["chat"]["id"],
+                            id,
                             message["message_id"]
                         )
                         self.channel_posts = self.channel_manager.load_config()
