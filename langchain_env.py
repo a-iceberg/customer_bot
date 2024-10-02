@@ -474,7 +474,7 @@ class ChatAgent:
                     comment = comment.parsed.confidential_safe_answer
                 else:
                     response = await client.chat.completions.create(
-                        model=self.config["oai_model"],
+                        model="gpt-4o-2024-05-13",
                         temperature=temperature,
                         seed=seed,
                         messages=messages
@@ -598,7 +598,7 @@ class ChatAgent:
                 addresses = []
                 points = []
                 for location in locations:
-                    if location.raw['addresstype'] == 'building':
+                    if location.raw['addresstype'] == 'building' and location.raw['name'] == '':
                         if location.raw['display_name'] not in addresses:
                             addresses.append(location.raw['display_name'])
                             points.append(location)
@@ -715,7 +715,7 @@ class ChatAgent:
                 addresses = []
                 points = []
                 for location in locations:
-                    if location.raw['addresstype'] == 'building':
+                    if location.raw['addresstype'] == 'building' and location.raw['name'] == '':
                         if location.raw['display_name'] not in addresses:
                             addresses.append(location.raw['display_name'])
                             points.append(location)

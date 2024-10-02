@@ -6,7 +6,7 @@ Docker server with telegram bot for customers
 1. Update the following settings in the docker-compose.yml:  
 * container_name  
 * ports  
-2. Define keys in the data/keys.json
+2. Define keys in the data/auth.json
 
 ## Usage
 
