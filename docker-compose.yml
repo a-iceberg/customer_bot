@@ -1,8 +1,8 @@
 version: '3.8'
 
 services:
-  customer_bot_vlad_test:
-    container_name: customer_bot_vlad_test
+  customer_bot_cc_test:
+    container_name: customer_bot_cc_test
     network_mode: host
     restart: unless-stopped
     build:
@@ -12,9 +12,9 @@ services:
       - TZ=Europe/Moscow
       - LANGCHAIN_TRACING_V2=true
       - LANGCHAIN_ENDPOINT=https://api.smith.langchain.com
-      - LANGCHAIN_PROJECT=customer_bot_vlad_test
+      - LANGCHAIN_PROJECT=customer_bot_cc_test
     volumes:
       - ./data:/app/data
       - /etc/letsencrypt/live/ml.icecorp.ru/fullchain.pem:/app/data/ssl_cert.pem
       - /etc/letsencrypt/live/ml.icecorp.ru/privkey.pem:/app/data/ssl_pkey.pem
-    command: ["/bin/sh", "-c", "if [ ! -f /app/data/auth.json ]; then echo '{\"LANGCHAIN_API_KEY\": \"\", \"OPENAI_API_KEY\": \"\", \"ANTHROPIC_API_KEY\": \"\", \"1С_TOKEN\": \"\", \"1C_LOGIN\": \"\", \"1C_PASSWORD\": \"\", \"CHAT_HISTORY_TOKEN\": \"\", \"BOT_COMMUNICATION_TOKEN\": \"\", \"TELEGRAM_API_ID\": 0, \"TELEGRAM_API_HASH\": \"\", \"DB_USER\": \"\", \"DB_PASSWORD\": \"\", \"DB_HOST\": \"\", \"DB_PORT\": \"\", \"YANDEX_GEOCODER_KEY\": \"\", \"TELEGRAM_CHANNEL_IDS\": [], \"WHITE_LIST_IDS\": [], \"HISTORY_CHANNEL_ID\": \"\", \"HISTORY_GROUP_ID\": \"\", \"BOT_TOKEN\": \"\"}' > /app/data/auth.json; fi && exec gunicorn -k 'uvicorn.workers.UvicornWorker' bot:app --bind '0.0.0.0:7406' --timeout 600 --keyfile=./data/ssl_pkey.pem --certfile=./data/ssl_cert.pem"]
+    command: ["/bin/sh", "-c", "if [ ! -f /app/data/auth.json ]; then echo '{\"LANGCHAIN_API_KEY\": \"\", \"OPENAI_API_KEY\": \"\", \"ANTHROPIC_API_KEY\": \"\", \"1С_TOKEN\": \"\", \"1C_LOGIN\": \"\", \"1C_PASSWORD\": \"\", \"CHAT_HISTORY_TOKEN\": \"\", \"BOT_COMMUNICATION_TOKEN\": \"\", \"TELEGRAM_API_ID\": 0, \"TELEGRAM_API_HASH\": \"\", \"DB_USER\": \"\", \"DB_PASSWORD\": \"\", \"DB_HOST\": \"\", \"DB_PORT\": \"\", \"YANDEX_GEOCODER_KEY\": \"\", \"TELEGRAM_CHANNEL_IDS\": [], \"WHITE_LIST_IDS\": [], \"HISTORY_CHANNEL_ID\": \"\", \"HISTORY_GROUP_ID\": \"\", \"BOT_TOKEN\": \"\"}' > /app/data/auth.json; fi && exec gunicorn -k 'uvicorn.workers.UvicornWorker' bot:app --bind '0.0.0.0:7408' --timeout 600 --keyfile=./data/ssl_pkey.pem --certfile=./data/ssl_cert.pem"]
