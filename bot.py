@@ -64,12 +64,13 @@ class Application:
         self.empty_response = JSONResponse(
             content={"type": "empty", "body": ""}
         )
+        self.TOKEN = os.environ.get("BOT_TOKEN", "")
+        self.bot = async_telebot.AsyncTeleBot(self.TOKEN)
         self.app = FastAPI()
         self.setup_routes()
         self.chat_agent = None
         self.chat_history_client = None
         self.is_llm_active = self.config_manager.get("is_llm_active")
-        self.TOKEN = os.environ.get("BOT_TOKEN", "")
         self.CHANNEL_ID = os.environ.get("HISTORY_CHANNEL_ID", "")
         self.GROUP_ID = os.environ.get("HISTORY_GROUP_ID", "")
         self.WHITE_LIST_IDS = self.auth_manager.get("WHITE_LIST_IDS", [])
@@ -166,7 +167,7 @@ Cвяжитесь с нами по телефону 8 495 463 50 46 для да�
         logger.setLevel(logging.INFO)
         return logger
 
-    async def set_bot_commands(self, bot):
+    async def set_bot_commands(self):
         common_commands = [
             BotCommand("start", "Начать новую сессию"),
             BotCommand("newrequest", "Оформить новую заявку"),
@@ -180,14 +181,18 @@ Cвяжитесь с нами по телефону 8 495 463 50 46 для да�
             BotCommand("ban", "Забанить пользователя из просматриваемого чата"),
             BotCommand("unban", "Разбанить пользователя из просматриваемого чата"),
         ]
-        await bot.set_my_commands(common_commands)
+        existing_commands = await self.bot.get_my_commands(scope=None, language_code=None)
+        if existing_commands != common_commands:
+            await self.bot.set_my_commands(common_commands)
 
         for admin_id in self.WHITE_LIST_IDS:
             try:
-                await bot.set_my_commands(
-                admin_commands,
-                scope=BotCommandScopeChat(admin_id)
-            )
+                existing_admin_commands = await self.bot.get_my_commands(scope=BotCommandScopeChat(admin_id), language_code=None)
+                if existing_admin_commands != admin_commands:
+                    await self.bot.set_my_commands(
+                    admin_commands,
+                    scope=BotCommandScopeChat(admin_id)
+                )
             except Exception as e:
                 self.logger.warning(
                 f"Error in setting bot commands for chat id {admin_id}: {e}"
@@ -216,7 +221,7 @@ Cвяжитесь с нами по телефону 8 495 463 50 46 для да�
                 apihelper.FILE_URL = server_file_url
                 self.logger.info(f'Setting FILE_URL: {server_file_url}')
                 bot = async_telebot.AsyncTeleBot(self.TOKEN)
-                await self.set_bot_commands(bot)
+                # await self.set_bot_commands(bot)
             else:
                 self.logger.error("Failed to get bot token")
                 return self.text_response("Не удалось определить токен")
@@ -589,8 +594,8 @@ chat_id текущего пользователя - {chat_id}"""
             self.logger.info("Handle_message")
 
             if authorization and authorization.startswith("Bearer "):
-                self.TOKEN = authorization.split(" ")[1]
-            if self.TOKEN:
+                TOKEN = authorization.split(" ")[1]
+            if TOKEN == self.TOKEN:
                 server_api_uri = 'http://localhost:8081/bot{0}/{1}'
                 apihelper.API_URL = server_api_uri
                 self.logger.info(f'Setting API_URL: {server_api_uri}')
@@ -598,8 +603,9 @@ chat_id текущего пользователя - {chat_id}"""
                 server_file_url = 'http://localhost:8081'
                 apihelper.FILE_URL = server_file_url
                 self.logger.info(f'Setting FILE_URL: {server_file_url}')
-                bot = async_telebot.AsyncTeleBot(self.TOKEN)
-                await self.set_bot_commands(bot)
+                # bot = async_telebot.AsyncTeleBot(self.TOKEN)
+                # await self.set_bot_commands(bot)
+                pass
             else:
                 self.logger.error("Failed to get bot token")
                 return self.text_response("Не удалось определить токен")
@@ -766,7 +772,7 @@ chat_id текущего пользователя - {chat_id}"""
             # Create post with a messages resended to a telegram channel
             if str(chat_id) not in self.channel_posts:
                 name = f'@{message["from"]["username"]}' if "username" in message["from"] else message["from"]["first_name"]
-                await bot.send_message(
+                await self.bot.send_message(
                     self.CHANNEL_ID,
                     f'Chat with {name} (Chat ID: {chat_id})'
                 )
@@ -777,7 +783,7 @@ chat_id текущего пользователя - {chat_id}"""
                 remove_message = "Координаты успешно получены!"
                 try:
                     markup = ReplyKeyboardRemove()
-                    await bot.send_message(
+                    await self.bot.send_message(
                         chat_id,
                         remove_message,
                         reply_markup=markup
@@ -872,7 +878,7 @@ chat_id текущего пользователя - {chat_id}"""
             if str(chat_id) in self.banned_accounts:
                 # Resending user message to Telegram group
                 try:
-                    await bot.send_message(
+                    await self.bot.send_message(
                         self.GROUP_ID,
                         f"{user_name}: " + user_message,
                         reply_to_message_id=self.channel_posts[
@@ -955,7 +961,7 @@ chat_id текущего пользователя - {chat_id}"""
                             f"Error in sending message about maintenance to {user}: {e}"
                         )
             elif user_message.startswith("/start"):
-                await bot.delete_message(chat_id, message_id)
+                await self.bot.delete_message(chat_id, message_id)
                 self.request_service.delete_files(chat_id)
                 await self.chat_data_service.update_chat_history_date(
                     chat_id
@@ -973,7 +979,7 @@ chat_id текущего пользователя - {chat_id}"""
                 welcome_message = (
                     "Здраствуйте, это сервисный центр. Чем могу вам помочь?"
                 )
-                await bot.send_message(
+                await self.bot.send_message(
                     chat_id,
                     welcome_message,
                     # reply_markup=markup
@@ -981,9 +987,9 @@ chat_id текущего пользователя - {chat_id}"""
                 self.logger.info(f"Source - {user_message.split()[1]}") if len(user_message.split()) > 1 else None
 
             elif user_message == "/requestreset":
-                await bot.delete_message(chat_id, message_id)
+                await self.bot.delete_message(chat_id, message_id)
                 self.request_service.delete_files(chat_id)
-                answer = await bot.send_message(
+                answer = await self.bot.send_message(
                     chat_id,
                     "Информация по заявкам была очищена"
                 )
@@ -991,18 +997,18 @@ chat_id текущего пользователя - {chat_id}"""
                 await bot.delete_message(chat_id, answer.message_id)
 
             elif user_message == "/fullreset":
-                await bot.delete_message(chat_id, message_id)
+                await self.bot.delete_message(chat_id, message_id)
                 self.request_service.delete_files(chat_id)
                 await self.chat_data_service.update_chat_history_date(chat_id)
-                answer = await bot.send_message(
+                answer = await self.bot.send_message(
                     chat_id,
                     "Полная история чата была очищена"
                 )
                 await asyncio.sleep(5)
-                await bot.delete_message(chat_id, answer.message_id)
+                await self.bot.delete_message(chat_id, answer.message_id)
 
             elif user_message == "/coordsonmap":
-                await bot.delete_message(chat_id, message_id)
+                await self.bot.delete_message(chat_id, message_id)
                 await self.chat_data_service.update_chat_history_date(
                     chat_id
                 )
@@ -1017,14 +1023,14 @@ chat_id текущего пользователя - {chat_id}"""
                 location_message = (
                     "Выберете нужное местоположение, нажав кнопку ниже 👇"
                 )
-                await bot.send_message(
+                await self.bot.send_message(
                     chat_id,
                     location_message,
                     reply_markup=markup
                 )
             
             elif user_message == "📑 Выбрать свою активную заявку":
-                await bot.delete_message(chat_id, message_id)
+                await self.bot.delete_message(chat_id, message_id)
                 token = os.environ.get("1С_TOKEN", "")
                 login = os.environ.get("1C_LOGIN", "")
                 password = os.environ.get("1C_PASSWORD", "")
@@ -1082,13 +1088,13 @@ chat_id текущего пользователя - {chat_id}"""
                             f"Заявка {number} от {values['date']}; {values['division']}"
                         )
                     markup.add("🏠 Вернуться в меню")
-                    await bot.send_message(
+                    await self.bot.send_message(
                         chat_id,
                         "Выберете нужную заявку ниже 👇",
-                        reply_markup=markup
+                        # reply_markup=markup
                     )
                 else:
-                    await bot.send_message(
+                    await self.bot.send_message(
                         chat_id,
                         """
                             К сожалению, у вас нет текущих активных заявок.
@@ -1114,14 +1120,14 @@ chat_id текущего пользователя - {chat_id}"""
                 await bot.send_message(
                     chat_id,
                     return_message,
-                    reply_markup=markup
+                    # reply_markup=markup
                 )
 
             # Default processing
             else:
                 # Resending user message to Telegram group
                 try:
-                    await bot.send_message(
+                    await self.bot.send_message(
                         self.GROUP_ID,
                         f"{user_name}: " + user_message,
                         reply_to_message_id=self.channel_posts[
@@ -1132,7 +1138,7 @@ chat_id текущего пользователя - {chat_id}"""
                     self.logger.info("Chat id not received yet")
 
                 if user_message == "/newrequest":
-                    await bot.delete_message(chat_id, message_id)
+                    await self.bot.delete_message(chat_id, message_id)
                     user_message = "Хочу оформить новую заявку"
 
                 try:
@@ -1176,7 +1182,7 @@ chat_id текущего пользователя - {chat_id}"""
 Запрашивайте только ОДНОКРАТНО, именно получить необязательно, но запрашивайте ОДНОЗНАЧНО и УВЕРЕННО, НЕ НУЖНО самому изначально нанаводить пользователя на эту мысль о необязательности, прописывая, например, ему 'если это возможно' или подобные сомнительные обороты, НЕ НУЖНО упоминать, что это необязательно.
 Пользователь может отказаться предоставлять данную информацию полностью или частично, запросить что-то ещё, например, звонок мастера (который будет после оформления заявки), в таком случае СРАЗУ просто ПРОДОЛЖАЙТЕ работу БЕЗ этой дополнительной информации и БЕЗ повторных уточнений);
 а также цель - каждый раз СРАЗУ после получения, а НЕ потом несколько одновременно, СОХРАНИТЬ каждый этот пункт с помощью ваших ИНСТРУМЕНТОВ по одному ОБЯЗАТЕЛЬНО для каждой новой заявки и каждый раз, когда информация по пункту будет обновляться! НЕ запрашивайте несколько пунктов в одном сообщении.
-В том числе по запросу пользователя вы можете менять / дополнять информацию в уже оформленных заявках. Для этого используйте ТОЛЬКО ваши инструменты Request_selection (ОДИН РАЗ) и Change_request, ВСЕГДА ОБА, Change_request ПОСЛЕ Request_selection. НЕ запрашивайте номер заявки у пользователя без использования Request_selection, но используйте этот инструмент СРАЗУ и ТОЛЬКО ОДИН РАЗ!
+В том числе по запросу пользователя вы можете менять / дополнять информацию в уже оформленных заявках. Для этого используйте ТОЛЬКО ваши инструменты Request_selection (ОДИН РАЗ для запроса ТОЛЬКО НОМЕРА) и Change_request, ВСЕГДА ОБА, Change_request ПОСЛЕ Request_selection. НЕ запрашивайте номер заявки у пользователя без использования Request_selection, но используйте этот инструмент СРАЗУ и ТОЛЬКО ОДИН РАЗ!
 Далее указана ваша детальная инструкция, внимательно и чётко обязательно соблюдайте из неё все пункты. НЕ додумывайте сами никаких фактов, которых нет в вашей инструкции!
 Актуальные направления, причины обращения / ремонта для сопоставления (самостоятельно до клиента их доносить НЕ нужно):
 Электроинструмент
@@ -1260,7 +1266,7 @@ chat_id текущего пользователя - {chat_id}"""
                         self.config_manager.get("divisions"),
                         self.coordinates_manager.get("affilates"),
                         self.logger,
-                        bot,
+                        self.bot,
                     )
                     self.chat_agent.initialize_agent()
                 # Reply to user message
@@ -1332,6 +1338,8 @@ chat_id текущего пользователя - {chat_id}"""
                         re.search(r'заявк[ау]', output.lower()
                     ) and (
                         "созда" in output.lower() or "оформл" in output.lower()
+                    ) and (
+                        "мастер" not in output.lower()
                     )
                     ) and (
                         (
@@ -1383,7 +1391,7 @@ chat_id текущего пользователя - {chat_id}"""
                     self.logger.info(f"Answer: {output}")
 
                     # Bot LLM answer
-                    answer = await bot.send_message(
+                    answer = await self.bot.send_message(
                         chat_id,
                         output
                     )
@@ -1411,7 +1419,7 @@ chat_id текущего пользователя - {chat_id}"""
 
                     # Resending bot message to Telegram group
                     try:
-                        await bot.send_message(
+                        await self.bot.send_message(
                             self.GROUP_ID,
                             f"Бот: " + output,
                             reply_to_message_id=self.channel_posts[
@@ -1426,7 +1434,7 @@ chat_id текущего пользователя - {chat_id}"""
                     )
 
                     # Automatic bot answer by LLM error
-                    answer = await bot.send_message(
+                    answer = await self.bot.send_message(
                         chat_id,
                         self.llm_error_answer
                     )
@@ -1444,7 +1452,7 @@ chat_id текущего пользователя - {chat_id}"""
                             datetime.fromtimestamp(
                                 answer.date
                             ).strftime("%Y-%m-%d %H:%M:%S"),
-                            output,
+                            self.llm_error_answer,
                             answer.from_user.username if answer.from_user.username else None
                         )
                     except Exception as error:
@@ -1617,3 +1625,7 @@ chat_id текущего пользователя - {chat_id}"""
 
 application = Application()
 app = application.app
+
+@app.on_event("startup")
+async def startup_event():
+    await application.set_bot_commands()
