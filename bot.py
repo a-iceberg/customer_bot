@@ -453,7 +453,7 @@ chat_id текущего пользователя - {chat_id}"""
                     ) and (
                         "созда" in output.lower() or "оформл" in output.lower()
                     ) and (
-                        not "подтвер" in output.lower()
+                        "подтвер" not in output.lower() and "мастер" not in output.lower()
                     )
                     ) and (
                         (
@@ -1330,7 +1330,7 @@ chat_id текущего пользователя - {chat_id}"""
                     ) and (
                         "созда" in output.lower() or "оформл" in output.lower()
                     ) and (
-                        "мастер" not in output.lower()
+                        "подтвер" not in output.lower() and "мастер" not in output.lower()
                     )
                     ) and (
                         (
