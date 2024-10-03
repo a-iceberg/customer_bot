@@ -974,7 +974,7 @@ chat_id текущего пользователя - {chat_id}"""
                 await self.bot.send_message(
                     chat_id,
                     welcome_message,
-                    reply_markup=markup
+                    # reply_markup=markup
                 )
                 self.logger.info(f"Source - {user_message.split()[1]}") if len(user_message.split()) > 1 else None
 
@@ -1083,7 +1083,7 @@ chat_id текущего пользователя - {chat_id}"""
                     await self.bot.send_message(
                         chat_id,
                         "Выберете нужную заявку ниже 👇",
-                        reply_markup=markup
+                        # reply_markup=markup
                     )
                 else:
                     await self.bot.send_message(
@@ -1112,7 +1112,7 @@ chat_id текущего пользователя - {chat_id}"""
                 await bot.send_message(
                     chat_id,
                     return_message,
-                    reply_markup=markup
+                    # reply_markup=markup
                 )
 
             # Default processing
@@ -1330,6 +1330,8 @@ chat_id текущего пользователя - {chat_id}"""
                         re.search(r'заявк[ау]', output.lower()
                     ) and (
                         "созда" in output.lower() or "оформл" in output.lower()
+                    ) and (
+                        "мастер" not in output.lower()
                     )
                     ) and (
                         (
