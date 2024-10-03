@@ -45,7 +45,7 @@ class Application:
             self.logger
         )
         self.channel_manager = ConfigManager(
-            "./data/сс/channel_posts.json",
+            "./data/cc/channel_posts.json",
             self.logger
         )
         self.coordinates_manager = ConfigManager(
