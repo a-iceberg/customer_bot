@@ -29,52 +29,42 @@ class save_name_to_request_args(BaseModel):
     chat_id: int = Field(description="chat_id")
     name: str = Field(description="name")
 
-
 class save_direction_to_request_args(BaseModel):
     chat_id: int = Field(description="chat_id")
     direction: str = Field(description="direction")
-
 
 class save_circumstances_to_request_args(BaseModel):
     chat_id: int = Field(description="chat_id")
     circumstances: str = Field(description="circumstances")
 
-
 class save_brand_to_request_args(BaseModel):
     chat_id: int = Field(description="chat_id")
     brand: str = Field(description="brand")
-
 
 class save_gps_to_request_args(BaseModel):
     chat_id: int = Field(description="chat_id")
     latitude: float = Field(description="latitude")
     longitude: float = Field(description="longitude")
 
-
 class save_address_to_request_args(BaseModel):
     chat_id: int = Field(description="chat_id")
     full_address: str = Field(description="full_address")
-
 
 class save_address_line_2_to_request_args(BaseModel):
     chat_id: int = Field(description="chat_id")
     address_line_2: str = Field(description="address_line_2")
 
-
 class save_phone_to_request_args(BaseModel):
     chat_id: int = Field(description="chat_id")
     phone: str = Field(description="phone")
-
 
 class save_date_to_request_args(BaseModel):
     chat_id: int = Field(description="chat_id")
     date: str = Field(description="date")
 
-
 class save_comment_to_request_args(BaseModel):
     chat_id: int = Field(description="chat_id")
     comment: str = Field(description="comment")
-
 
 class create_request_args(BaseModel):
     chat_id: int = Field(description="chat_id")
@@ -93,17 +83,19 @@ class create_request_args(BaseModel):
     name: str = Field(description="name")
     comment: str = Field(description="comment")
 
-
 class request_selection_args(BaseModel):
     chat_id: int = Field(description="chat_id")
-
 
 class change_request_args(BaseModel):
     request_number: str = Field(description="request_number")
     field_name: str = Field(description="field_name")
     field_value: str = Field(description="field_value")
 
+class call_operator_args(BaseModel):
+    chat_id: str = Field(description="chat_id")
 
+
+# Classes for structured output in LLM response
 class Step(BaseModel):
     explanation: str
     output: str
@@ -113,6 +105,7 @@ class ConfidentialSafeResponse(BaseModel):
     confidential_safe_answer: str
 
 
+# Main class
 class ChatAgent:
     def __init__(
         self,
@@ -120,16 +113,20 @@ class ChatAgent:
         a_model,
         oai_temperature,
         a_temperature,
-        chats_dir,
+        # chats_dir,
         request_dir,
         proxy_url,
         order_path,
         ws_paths,
         change_path,
+        dialogue_path,
         divisions,
         affilates,
         logger,
         bot_instance,
+        request_service,
+        ban_manager,
+        dialogues_api_manager
     ):
         self.logger = logger
         self.config = {
@@ -137,30 +134,45 @@ class ChatAgent:
             "a_model": a_model,
             "oai_temperature": oai_temperature,
             "a_temperature": a_temperature,
-            "chats_dir": chats_dir,
+            # "chats_dir": chats_dir,
             "request_dir": request_dir,
             "proxy_url": proxy_url,
             "order_path": order_path,
             "ws_paths": ws_paths,
             "change_path": change_path,
+            "dialogue_path": dialogue_path,
             "divisions": divisions,
             "affilates": affilates
         }
+
+        # self.request_service = FileService(
+        #     self.config["request_dir"],
+        #     self.logger
+        # )
+        # self.chat_history_service = FileService(
+        #     self.config["chats_dir"],
+        #     self.logger
+        # )
+        # self.ban_manager = ConfigManager(
+        #     "./data/banned_users.json",
+        #     self.logger
+        # )
+        # self.dialogues_api_manager = ConfigManager(
+        #     "./data/dialogues_api_users.json",
+        #     self.logger
+        # )
+
+        self.request_service = request_service
+        self.ban_manager = ban_manager
+        self.dialogues_api_manager = dialogues_api_manager
+
         self.agent_executor = None
         self.bot_instance = bot_instance
+        self.dialogues_api_accounts = self.dialogues_api_manager.load_config()
 
-        self.request_service = FileService(
-            self.config["request_dir"],
-            self.logger
-        )
-        self.chat_history_service = FileService(
-            self.config["chats_dir"],
-            self.logger
-        )
-        self.ban_manager = ConfigManager(
-            "./data/banned_users.json",
-            self.logger
-        )
+        self.token = os.environ.get("1С_TOKEN", "")
+        self.login = os.environ.get("1C_LOGIN", "")
+        self.password = os.environ.get("1C_PASSWORD", "")
 
     def initialize_agent(self, company="OpenAI"):
         # Agent initialization depending on different LLMs
@@ -192,7 +204,7 @@ class ChatAgent:
             coroutine=self.save_name_to_request,
             name="Saving_name",
             description="""
-                Сохраняет имя пользователя в новую заявку. Используйте этот инструмент ОБЯЗАТЕЛЬНО ВСЕГДА и СРАЗУ, если имеющееся у вас или полученное имя выглядит как настоящее человеческое.
+                Сохраняет имя клиента в новую заявку. Используйте этот инструмент ОБЯЗАТЕЛЬНО ВСЕГДА и СРАЗУ, если имеющееся у вас или полученное имя выглядит как настоящее человеческое.
 Вам следует предоставить chat_id и непосредственно само name в качестве параметров
             """,
             args_schema=save_name_to_request_args,
@@ -208,8 +220,8 @@ class ChatAgent:
             coroutine=self.save_direction_to_request,
             name="Saving_direction",
             description="""
-                Сохраняет подходящее под запрос пользователя направление, причину обращения из имеющегося списка направлений в новую заявку. Нужно соотнести запрос и выбрать подходящее только из тех, что в этом списке.
-Если вы не уверены, какаую точно причину назвал пользователь, например, просто какая-то машинка, СНАЧАЛА уточните это ещё раз, прежде чем использовать этот инструмент и сохранять какое-либо направление.
+                Сохраняет подходящее под запрос клиента направление, причину обращения из имеющегося списка направлений в новую заявку. Нужно соотнести запрос и выбрать подходящее только из тех, что в этом списке.
+Если вы не уверены, какую точно причину назвал клиент, например, просто какая-то машинка, СНАЧАЛА уточните это ещё раз, прежде чем использовать этот инструмент и сохранять какое-либо направление.
 Вам следует предоставить chat_id и непосредственно само direction из списка в качестве параметров
             """,
             args_schema=save_direction_to_request_args,
@@ -326,7 +338,7 @@ class ChatAgent:
             name="Saving_visit_date",
             description="""
                 Сохраняет нужную дату визита в новую заявку. Вам следует САМИМ предоставить в инструмент chat_id и непосредственно саму date в формате 'yyyy-mm-ddT00:00Z', определённую вами самостоятельно по умолчанию или же полученную из сообщения пользователя в качестве параметров.
-ПРИНИМАЙТЕ дату от пользователя в ЛЮБОМ свободном формате (например, 'сегодня' или 'завтра'), а НЕ в том, что выше. Главное используйте сами потом в указанном, отформатировав при необходимости
+ПРИНИМАЙТЕ дату от клиента в ЛЮБОМ свободном формате (например, 'сегодня' или 'завтра'), а НЕ в том, что выше. Главное используйте сами потом в указанном, отформатировав при необходимости
             """,
             args_schema=save_date_to_request_args,
             return_direct=False,
@@ -341,7 +353,7 @@ class ChatAgent:
             coroutine=self.save_comment_to_request,
             name="Saving_comment",
             description="""
-                Сохраняет любые полезные по вашему мнению комментарии пользователя, а также важную информацию (например, факт того, что была озвучена стоимость диагностики) в диалоге в новую заявку. Ни в коем случае НЕЛЬЗЯ передавать здесь информацию, содержающую детали адреса (квартира, подъезд и т.п.) или ЛЮБЫЕ телефоны клиента, даже если он просит, в таком случае НЕ используйте этот инструмент.
+                Сохраняет любые полезные по вашему мнению комментарии клиента, а также важную информацию (например, факт того, что была озвучена стоимость диагностики) в диалоге в новую заявку. Ни в коем случае НЕЛЬЗЯ передавать здесь информацию, содержающую детали адреса (квартира, подъезд и т.п.) или ЛЮБЫЕ телефоны клиента, даже если он просит, в таком случае НЕ используйте этот инструмент.
 Вам следует предоставить chat_id и comment своими словами в качестве параметров
             """,
             args_schema=save_comment_to_request_args,
@@ -375,9 +387,9 @@ class ChatAgent:
             coroutine=self.request_selection,
             name="Request_selection",
             description="""
-                Находит и ОДНОКРАТНО предоставляет пользователю список его ОФОРМЛЕННЫХ заявок для выбора, чтобы определить контекст всего диалога, если речь идёт уже о каких-либо созданных заявках, а НЕ об оформлении новой, и ТОЛЬКО если пользователь уже НЕ указал номер заявки ранее.
-Используйте этот инструмент ТОЛЬКО ОДИН РАЗ и ТОЛЬКО ТОГДА, когда спрашивайте номер заявки у пользователя, например, СРАЗУ, как только пользователь запросит изменение или дополнение данных по уже существующей заявке.
-Если вы уже явно получили от пользователя номер заявки или уточняете другую информацию, НЕ НОМЕР, а, напрмер, предмет изменения, повторно НИ В КОЕМ СЛУЧАЕ НЕ используйте этот инструмент!
+                Находит и ОДНОКРАТНО предоставляет клиенту список его ОФОРМЛЕННЫХ заявок для выбора, чтобы определить контекст всего диалога, если речь идёт уже о каких-либо созданных заявках, а НЕ об оформлении новой, и ТОЛЬКО если клиент уже НЕ указал номер заявки ранее.
+Используйте этот инструмент ТОЛЬКО ОДИН РАЗ и ТОЛЬКО ТОГДА, когда спрашивайте номер заявки у клиента, например, СРАЗУ, как только клиент запросит изменение или дополнение данных по уже существующей заявке.
+Если вы уже явно получили от клиента номер заявки или уточняете другую информацию, НЕ НОМЕР, а, напрмер, предмет изменения, повторно НИ В КОЕМ СЛУЧАЕ НЕ используйте этот инструмент!
 Вам следует предоставить chat_id в качестве параметра
             """,
             args_schema=request_selection_args,
@@ -394,7 +406,7 @@ class ChatAgent:
             name="Change_request",
             description="""
                 Изменяет нужные данные / значения полей в уже СУЩЕСТВУЮЩЕЙ заявке. Допустимо обрабатывать ТОЛЬКО ТЕЛЕФОН или ЛЮБУЮ ДОПОЛНИТЕЛЬНУЮ ИНФОРМАЦИЮ КАК КОММЕНТАРИЙ. Для редактирования уже имеющихся СОЗДАННЫХ заявок используйте ТОЛЬКО ЭТОТ инструмент, а НЕ обычные с добавлением информации в новую!
-Вам следует предоставить сам номер текущей заявки request_number; field_name - подходящее название поля: 'comment' или 'phone'; а также само новое значение поля, полученное от пользователя (field_value) в качестве параметров
+Вам следует предоставить сам номер текущей заявки request_number; field_name - подходящее название поля: 'comment' или 'phone'; а также само новое значение поля, полученное от клиента (field_value) в качестве параметров
             """,
             args_schema=change_request_args,
             return_direct=False,
@@ -403,6 +415,28 @@ class ChatAgent:
             verbose=True,
         )
         tools.append(change_request_tool)
+
+        # Tool: call_operator_tool
+        call_operator_tool = StructuredTool.from_function(
+            coroutine=self.call_operator,
+            name="Call_operator",
+            description="""
+                Вызывает в чат оператора колл-центра и переводит на него диалог в следующих случаях:
+1) превышении зоны БЕСПЛАТНОГО ВЫЕЗДА мастера
+2) получения вами любых внутренних ошибок вашей работы и работы сервиса в целом;
+3) явных заявлений клиента о недовольстве вашей работой;
+4) двух подряд ваших ответов на один и тот же вопрос клиента, которые его не удовлетворят;
+5) если вы изначально не знаете и не можете получить с помощью ваших инструментов ответ на вопрос клиента;
+6) а также в случае нерешенных вами вопросов клиента, но только при нежелании клиента обсудить их с мастером.
+Вам следует предоставить chat_id в качестве параметра
+            """,
+            args_schema=call_operator_args,
+            return_direct=False,
+            handle_tool_error=True,
+            handle_validation_error=True,
+            verbose=True,
+        )
+        tools.append(call_operator_tool)
 
         prompt = ChatPromptTemplate.from_messages(
             [
@@ -520,7 +554,7 @@ class ChatAgent:
         except Exception as e:
             self.logger.error(f"Error in saving customer name: {e}")
         self.logger.info("Customer name was saved in the request")
-        return "Имя пользователя было сохранено в заявку"
+        return "Имя клиента было сохранено в заявку"
 
     async def save_direction_to_request(self, chat_id, direction):
         self.logger.info(f"save_direction_to_request direction: {direction}")
@@ -579,13 +613,13 @@ class ChatAgent:
             ) or (
                 affilate != "Москва" and distance > 90
             ):
-                return "Указанный пользователем адрес находится вне зоны работы компании. Вежливо донесите это до пользователя и прекратите далее оформлять заявку!"
+                return "Указанный клиентом адрес находится вне зоны работы компании. Вежливо донесите это до клиента и прекратите далее оформлять заявку!"
             elif (
                 affilate == "Москва" and distance > 50
             ) or (
                 affilate != "Москва" and distance > 40
             ):
-                return "Указанный пользователем адрес находится вне зоны бесплатного выезда мастера. Предложите пользователю связаться с нами по нашему контактному телефону 8 495 463 50 46, указав его, и прекратите далее оформлять заявку!"
+                return "Указанный клиентом адрес находится вне зоны бесплатного выезда мастера. Предложите клиенту связаться с нами по нашему контактному телефону 8 495 463 50 46, указав его, и прекратите далее оформлять заявку!"
         except Exception as e:
             self.logger.error(f"Error in distance calculation: {e}")
 
@@ -616,7 +650,7 @@ class ChatAgent:
                         text,
                         reply_markup=markup
                     )
-                    return "Не удалось однозначно определить адрес. ОБЯЗАТЕЛЬНО ПРЕДЛОЖИТЕ пользователю ВЫБРАТЬ из нескольких подходящих адресов, автоматически уже отображенных в диалоге, либо самостоятельно ещё раз прислать корректный адрес. Предлагайте и то, и то сразу, первое обязательно! Сами никакие конкретные варианты адресов НЕ предлагайте и НЕ упоминайте"
+                    return "Не удалось однозначно определить адрес. ОБЯЗАТЕЛЬНО ПРЕДЛОЖИТЕ клиенту ВЫБРАТЬ из нескольких подходящих адресов, автоматически уже отображенных в диалоге, либо самостоятельно ещё раз прислать корректный адрес. Предлагайте и то, и то сразу, первое обязательно! Сами никакие конкретные варианты адресов НЕ предлагайте и НЕ упоминайте"
                 else:
                     full_address = addresses[0]
             except Exception as e:
@@ -650,7 +684,7 @@ class ChatAgent:
                         text,
                         reply_markup=markup
                     )
-                    return "Не удалось однозначно определить адрес. ОБЯЗАТЕЛЬНО ПРЕДЛОЖИТЕ пользователю ВЫБРАТЬ из нескольких подходящих адресов, автоматически уже отображенных в диалоге, либо самостоятельно ещё раз прислать корректный адрес. Предлагайте и то, и то сразу, первое обязательно! Сами никакие конкретные варианты адресов НЕ предлагайте и НЕ упоминайте"
+                    return "Не удалось однозначно определить адрес. ОБЯЗАТЕЛЬНО ПРЕДЛОЖИТЕ клиенту ВЫБРАТЬ из нескольких подходящих адресов, автоматически уже отображенных в диалоге, либо самостоятельно ещё раз прислать корректный адрес. Предлагайте и то, и то сразу, первое обязательно! Сами никакие конкретные варианты адресов НЕ предлагайте и НЕ упоминайте"
                 else:
                     full_address = addresses[0]
         except Exception as e:
@@ -684,7 +718,7 @@ class ChatAgent:
             return f"Ошибка при сохранении адреса: {e}"
         
         self.logger.info(f"Address {full_address} was saved in the request")
-        return f"Адрес пользователя {full_address} был сохранен в заявку"
+        return f"Адрес клиента {full_address} был сохранен в заявку"
 
     async def save_address_to_request(self, chat_id, full_address):
         del_pattern = re.compile(
@@ -733,7 +767,7 @@ class ChatAgent:
                         text,
                         reply_markup=markup
                     )
-                    return "Не удалось однозначно определить адрес. ОБЯЗАТЕЛЬНО ПРЕДЛОЖИТЕ пользователю ВЫБРАТЬ из нескольких подходящих адресов, автоматически уже отображенных в диалоге, либо самостоятельно ещё раз прислать корректный адрес. Предлагайте и то, и то сразу, первое обязательно! Сами никакие конкретные варианты адресов НЕ предлагайте и НЕ упоминайте"
+                    return "Не удалось однозначно определить адрес. ОБЯЗАТЕЛЬНО ПРЕДЛОЖИТЕ клиенту ВЫБРАТЬ из нескольких подходящих адресов, автоматически уже отображенных в диалоге, либо самостоятельно ещё раз прислать корректный адрес. Предлагайте и то, и то сразу, первое обязательно! Сами никакие конкретные варианты адресов НЕ предлагайте и НЕ упоминайте"
                 else:
                     latitude = points[0].latitude
                     longitude = points[0].longitude
@@ -772,7 +806,7 @@ class ChatAgent:
                         text,
                         reply_markup=markup
                     )
-                    return "Не удалось однозначно определить адрес. ОБЯЗАТЕЛЬНО ПРЕДЛОЖИТЕ пользователю ВЫБРАТЬ из нескольких подходящих адресов, автоматически уже отображенных в диалоге, либо самостоятельно ещё раз прислать корректный адрес. Предлагайте и то, и то сразу, первое обязательно! Сами никакие конкретные варианты адресов НЕ предлагайте и НЕ упоминайте"
+                    return "Не удалось однозначно определить адрес. ОБЯЗАТЕЛЬНО ПРЕДЛОЖИТЕ клиенту ВЫБРАТЬ из нескольких подходящих адресов, автоматически уже отображенных в диалоге, либо самостоятельно ещё раз прислать корректный адрес. Предлагайте и то, и то сразу, первое обязательно! Сами никакие конкретные варианты адресов НЕ предлагайте и НЕ упоминайте"
                 else:
                     latitude = points[0].latitude
                     longitude = points[0].longitude
@@ -793,13 +827,13 @@ class ChatAgent:
             ) or (
                 affilate != "Москва" and distance > 90
             ):
-                return "Указанный пользователем адрес находится вне зоны работы компании. Вежливо донесите это до пользователя и прекратите далее оформлять заявку!"
+                return "Указанный клиентом адрес находится вне зоны работы компании. Вежливо донесите это до клиента и прекратите далее оформлять заявку!"
             elif (
                 affilate == "Москва" and distance > 50
             ) or (
                 affilate != "Москва" and distance > 40
             ):
-                return "Указанный пользователем адрес находится вне зоны бесплатного выезда мастера. Предложите пользователю связаться с нами по нашему контактному телефону 8 495 463 50 46, указав его, и прекратите далее оформлять заявку!"
+                return "Указанный клиентом адрес находится вне зоны бесплатного выезда мастера. Предложите клиенту связаться с нами по нашему контактному телефону 8 495 463 50 46, указав его, и прекратите далее оформлять заявку!"
         except Exception as e:
             self.logger.error(f"Error in distance calculation: {e}")
         
@@ -829,7 +863,7 @@ class ChatAgent:
             return f"Ошибка при сохранении адреса: {e}"
         
         self.logger.info(f"Address {full_address} was saved in the request")
-        return f"Адрес пользователя {full_address} был сохранен в заявку"
+        return f"Адрес клиента {full_address} был сохранен в заявку"
 
     async def save_address_line_2_to_request(self, chat_id, address_line_2):
         self.logger.info(
@@ -844,7 +878,7 @@ class ChatAgent:
         except Exception as e:
             self.logger.error(f"Error in saving address line 2: {e}")
         self.logger.info("Address line 2 was saved in the request")
-        return "Вторая линия адреса пользователя была сохранена в заявку"
+        return "Вторая линия адреса клиента была сохранена в заявку"
 
     async def save_phone_to_request(self, chat_id, phone):
         self.logger.info(f"save_phone_to_request phone: {phone}")
@@ -859,9 +893,9 @@ class ChatAgent:
                 if phonenumbers.is_valid_number(parse):
                     phone = str(parse.national_number)
                 else:
-                    return "Пользователь предоставил некорректный номер телефона, ОБЯЗАТЕЛЬНО донесите это до пользователя и запросите телефон ещё раз"
+                    return "Клиент предоставил некорректный номер телефона, ОБЯЗАТЕЛЬНО донесите это до клиента и запросите телефон ещё раз"
             except Exception:
-                return "Пользователь предоставил некорректный номер телефона, ОБЯЗАТЕЛЬНО донесите это до пользователя и запросите телефон ещё раз"
+                return "Клиент предоставил некорректный номер телефона, ОБЯЗАТЕЛЬНО донесите это до клиента и запросите телефон ещё раз"
 
         try:
             await self.request_service.save_to_request(
@@ -873,7 +907,7 @@ class ChatAgent:
             self.logger.error(f"Error in saving phone: {e}")
             return f"Ошибка при сохранении телефона: {e}"
         self.logger.info("Phone was saved in the request")
-        return "Телефон пользователя был сохранен в заявку"
+        return "Телефон клиента был сохранен в заявку"
 
     async def save_date_to_request(self, chat_id, date):
         self.logger.info(f"save_date_to_request date: {date}")
@@ -916,10 +950,6 @@ class ChatAgent:
         circumstances="",
         brand=""
     ):
-        token = os.environ.get("1С_TOKEN", "")
-        login = os.environ.get("1C_LOGIN", "")
-        password = os.environ.get("1C_PASSWORD", "")
-
         try:
             if await self.request_selection(
                 chat_id,
@@ -929,7 +959,7 @@ class ChatAgent:
                     chat_id,
                     time.strftime("%Y-%m-%d %H:%M", time.localtime())
                 )
-                return """Пользователем создано подозрительное число заявок за день.
+                return """Клиентом создано подозрительное число заявок за день.
                 Передайте ему это, а также то, что в целях безопасности ему необходимо оформлять далее заявки с другого Телеграм аккаунта. И прекратите далее оформлять заявку!
                 """
         except Exception as error:
@@ -992,15 +1022,15 @@ class ChatAgent:
                 ) or (
                     affilate != "Москва" and distance > 90
                 ):
-                    return """Указанный пользователем адрес находится вне зоны работы компании.
-                    Вежливо донесите это до пользователя и прекратите далее оформлять заявку!"""
+                    return """Указанный клиентом адрес находится вне зоны работы компании.
+                    Вежливо донесите это до клиентом и прекратите далее оформлять заявку!"""
                 elif (
                     affilate == "Москва" and distance > 50
                 ) or (
                     affilate != "Москва" and distance > 40
                 ):
-                    return """Указанный пользователем адрес находится вне зоны бесплатного выезда мастера.
-                    Предложите пользователю связаться с нами по нашему контактному телефону 8 495 463 50 46, указав его, и прекратите далее оформлять заявку!"""
+                    return """Указанный клиентом адрес находится вне зоны бесплатного выезда мастера.
+                    Предложите клиенту связаться с нами по нашему контактному телефону 8 495 463 50 46, указав его, и прекратите далее оформлять заявку!"""
             except Exception as e:
                 self.logger.error(f"Error in distance calculation: {e}")
 
@@ -1044,8 +1074,8 @@ class ChatAgent:
             }
             ws_data = {
                 "clientPath": self.config["ws_paths"],
-                "login": login,
-                "password": password,
+                "login": self.login,
+                "password": self.password,
             }
             request_number = None
         except Exception as e:
@@ -1058,7 +1088,7 @@ class ChatAgent:
                 json={
                     "config": order_data,
                     "params": order_params,
-                    "token": token
+                    "token": self.token
                 }
             )
         except Exception as e:
@@ -1072,7 +1102,7 @@ class ChatAgent:
             # Receiving number of new request
             results = requests.post(
                 ws_url,
-                json={"config": ws_data, "params": ws_params, "token": token}
+                json={"config": ws_data, "params": ws_params, "token": self.token}
             ).json()["result"]
             self.logger.info(f"results: {results}")
             for value in results.values():
@@ -1095,11 +1125,6 @@ class ChatAgent:
             return f"Ошибка при создании заявки: {order.text}"
 
     async def request_selection(self, chat_id, request_creating=False):
-        token = os.environ.get("1С_TOKEN", "")
-        login = os.environ.get("1C_LOGIN", "")
-        password = os.environ.get("1C_PASSWORD", "")
-        request_creating=request_creating
-
         try:
             ws_url = f"{self.config['proxy_url']}/ws"        
             ws_params = {
@@ -1108,8 +1133,8 @@ class ChatAgent:
             }
             ws_data = {
                 "clientPath": self.config["ws_paths"],
-                "login": login,
-                "password": password,
+                "login": self.login,
+                "password": self.password,
             }
             request_numbers = {}
             divisions = self.config["divisions"]
@@ -1120,7 +1145,7 @@ class ChatAgent:
         try:
             results = requests.post(
                 ws_url,
-                json={"config": ws_data, "params": ws_params, "token": token}
+                json={"config": ws_data, "params": ws_params, "token": self.token}
             ).json()["result"]
             self.logger.info(f"results: {results}")
             for value in results.values():
@@ -1180,15 +1205,11 @@ class ChatAgent:
                     text,
                     reply_markup=markup
                 )
-                return "У пользователя был только запрошен номер заявки списком выше, в рамках которой сейчас идёт диалог, НЕ нужно использовать этот инструмент ещё раз и НЕ нужно писать список заявок, просто попросите выбрать!"
+                return "У клиента был только запрошен номер заявки списком выше, в рамках которой сейчас идёт диалог, НЕ нужно использовать этот инструмент ещё раз и НЕ нужно писать список заявок, просто попросите выбрать!"
             else:
-                return "У пользователя нет существующих заявок"
+                return "У клиента нет существующих заявок"
     
     async def change_request(self, request_number, field_name, field_value):
-        token = os.environ.get("1С_TOKEN", "")
-        login = os.environ.get("1C_LOGIN", "")
-        password = os.environ.get("1C_PASSWORD", "")
-
         partner_number = None
         date_str = None
         revision = None
@@ -1202,8 +1223,8 @@ class ChatAgent:
             }
             ws_data = {
                 "clientPath": self.config["ws_paths"],
-                "login": login,
-                "password": password,
+                "login": self.login,
+                "password": self.password,
             }
         except Exception as e:
             self.logger.error(f"Error in getting web service params: {e}")
@@ -1213,7 +1234,7 @@ class ChatAgent:
         try:
             results = requests.post(
                 ws_url,
-                json={"config": ws_data, "params": ws_params, "token": token}
+                json={"config": ws_data, "params": ws_params, "token": self.token}
             ).json()["result"]
             self.logger.info(f"results: {results}")
             
@@ -1241,7 +1262,7 @@ class ChatAgent:
             }
             request = requests.post(
                 get_url,
-                json={"config": get_data, "token": token}
+                json={"config": get_data, "token": self.token}
             ).json()["result"]["order"]
             revision = request["revision"]
             locality = request["address"]["name_components"][0]["name"]
@@ -1287,9 +1308,9 @@ class ChatAgent:
                         if phonenumbers.is_valid_number(parse):
                             field_value = str(parse.national_number)
                         else:
-                            return "Пользователь предоставил некорректный номер телефона, ОБЯЗАТЕЛЬНО донесите это до пользователя и запросите телефон ещё раз"
+                            return "Клиент предоставил некорректный номер телефона, ОБЯЗАТЕЛЬНО донесите это до клиента и запросите телефон ещё раз"
                     except Exception:
-                        return "Пользователь предоставил некорректный номер телефона, ОБЯЗАТЕЛЬНО донесите это до пользователя и запросите телефон ещё раз"
+                        return "Клиент предоставил некорректный номер телефона, ОБЯЗАТЕЛЬНО донесите это до клиента и запросите телефон ещё раз"
 
                 change_params["order"]["client"]["phone"] = field_value
                 change_params["order"]["comment"] = comment
@@ -1303,14 +1324,14 @@ class ChatAgent:
             try:
                 change_url = f"{self.config['proxy_url']}/ex"
                 change_data = {
-                    "clientPath": {"crm": self.config["change_path"]["crm"]+partner_number}
+                    "clientPath": {"domain": self.config["change_path"]["domain"]+partner_number}
                 }
                 change = requests.post(
                     change_url,
                     json={
                         "config": change_data,
                         "params": change_params,
-                        "token": token
+                        "token": self.token
                     }
                 )
             except Exception as e:
@@ -1325,3 +1346,49 @@ class ChatAgent:
                 return f"Ошибка при обновлении заявки: {change.text}"
         else:
             return f"Произошла ошибка при получении данных заявки: {e}"
+
+    async def call_operator(self, chat_id):
+        if chat_id not in self.dialogues_api_accounts:
+            try:
+                off_params = {
+                    "chat_id": chat_id
+                }
+                off_url = f"{self.config['proxy_url']}/hs"
+                off_data = {
+                    "clientPath": self.config["dialogue_path"]
+                }
+            except Exception as e:
+                self.logger.error(f"Error in getting call operator params: {e}")
+                return f"Ошибка при получении параметров вызова оператора: {e}"
+            
+            try:
+                call = requests.post(
+                    off_url,
+                    json={
+                        "config": off_data,
+                        "params": off_params,
+                        "token": self.token
+                    }
+                )
+            except Exception as e:
+                self.logger.error(f"Error in calling operator: {e}")
+                return f"Ошибка при вызове оператора: {e}"
+
+            if call.status_code == 200:
+                self.dialogues_api_manager.set(
+                    chat_id,
+                    time.strftime("%Y-%m-%d %H:%M:%S", time.localtime())
+                )
+                self.dialogues_api_accounts = self.dialogues_api_manager.load_config()
+                self.logger.info(
+                    f"Dialogue with user transferred to a human operator"
+                )
+                return "Диалог с клиентом был переведен на оператора колл-центра. Оповестите клиента об этом и о том, что он также сам может связаться с нами по телефону 8 495 463 50 46"
+            else:
+                self.logger.error(f"Error in calling operator: {call.text}")
+                return f"Ошибка при вызове оператора: {call.text}"
+        else:
+            self.logger.info(
+                f"Dialogue with user is already being conducted by a human operator"
+            )
+            return f"Диалог с клиентом уже ведётся оператором колл-центра"
