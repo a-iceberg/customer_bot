@@ -958,11 +958,11 @@ chat_id текущего клиента - {chat_id}"""
                         "8 495 463 50 46" in output.lower() or "автоматич" in output.lower()
                     ) and (
                         len(steps)==0 or (
-                            len(steps)>0 and steps[-1][0].tool != "Create_request" and steps[-1][0].tool != "Saving_address" and steps[-1][0].tool != "Saving_GPS-coordinates"
+                            len(steps)>0 and not any(step[0].tool in {"Create_request", "Saving_address", "Saving_GPS-coordinates"} for step in steps)
                         )
                     ):
                         self.logger.error(
-                            f"Detected deceptive hallucination in LLM answer, reanswering.."
+                            f"Detected deceptive hallucination in LLM answer, steps - {steps} reanswering.."
                         )
                         bot_response = await self.chat_agent.agent_executor.ainvoke(
                             {
@@ -987,7 +987,7 @@ chat_id текущего клиента - {chat_id}"""
                     )
                     ) and (
                         (
-                            len(steps)>0 and steps[-1][0].tool != "Create_request"
+                            len(steps)>0 and not any(step[0].tool == "Create_request" for step in steps)
                         ) or len(steps)==0
                     ):
                         self.logger.error(
@@ -1011,7 +1011,7 @@ chat_id текущего клиента - {chat_id}"""
                         re.search(r'обновл[её]н', output.lower()
                     ) and (
                         (
-                            len(steps)>0 and steps[-1][0].tool != "Change_request"
+                            len(steps)>0 and not any(step[0].tool == "Change_request" for step in steps)
                         ) or len(steps)==0
                     )):
                         self.logger.error(
@@ -1032,10 +1032,10 @@ chat_id текущего клиента - {chat_id}"""
                         steps = bot_response["intermediate_steps"]
 
                     elif (
-                        re.search(r'пере[дв]', output.lower() and "оператор" in output.lower()
+                        re.search(r'пере[дв]', output.lower()) and "оператор" in output.lower()
                     ) and (
                         (
-                            len(steps)>0 and steps[-1][0].tool != "Call_operator"
+                            len(steps)>0 and not any(step[0].tool in {"Create_request", "Saving_address", "Saving_GPS-coordinates"} for step in steps)
                         ) or len(steps)==0
                     ):
                         self.logger.error(
