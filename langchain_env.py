@@ -20,9 +20,6 @@ from langchain_core.tools import StructuredTool
 from langchain_core.prompts import ChatPromptTemplate
 from langchain.agents import AgentExecutor, create_tool_calling_agent
 
-from file_service import FileService
-from config_manager import ConfigManager
-
 
 # Definition args schemas for tools
 class save_name_to_request_args(BaseModel):
@@ -87,12 +84,16 @@ class request_selection_args(BaseModel):
     chat_id: int = Field(description="chat_id")
 
 class change_request_args(BaseModel):
+    chat_id: int = Field(description="chat_id")
     request_number: str = Field(description="request_number")
     field_name: str = Field(description="field_name")
     field_value: str = Field(description="field_value")
 
 class call_operator_args(BaseModel):
     chat_id: str = Field(description="chat_id")
+
+class activity_indication_args(BaseModel):
+    chat_id: int = Field(description="chat_id")
 
 
 # Classes for structured output in LLM response
@@ -124,6 +125,7 @@ class ChatAgent:
         logger,
         bot_instance,
         request_service,
+        chat_data_service,
         ban_manager,
         dialogues_api_manager
     ):
@@ -144,6 +146,7 @@ class ChatAgent:
         }
 
         self.request_service = request_service
+        self.chat_data_service = chat_data_service
         self.ban_manager = ban_manager
         self.dialogues_api_manager = dialogues_api_manager
 
@@ -179,6 +182,22 @@ class ChatAgent:
             )
         tools = []
         # Definition args schemas for tools
+
+        # Tool: activity_indication_tool
+        activity_indication_tool = StructuredTool.from_function(
+            coroutine=self.activity_indication,
+            name="Activity_indication",
+            description="""
+                Указывает, отмечает факт АБСОЛЮТНО КАЖДОГО вашего вопроса / просьбы чего-либо у клиента (ответа на ЛЮБОЙ ваш вопрос, предоставления / подтверждения ЛЮБОЙ информации и тому подобное), КАЖДОЙ ситуации, когда вам нужно ЧТО УГОДНО узнать / получить от клиента, и вашем оповещении его об этом. Необходимо использовать этот инструмент ОБЯЗАТЕЛЬНО ИМЕННО при КАЖДОЙ ТАКОЙ ситуации!
+Вам следует предоставить chat_id в качестве параметра
+            """,
+            args_schema=activity_indication_args,
+            return_direct=False,
+            handle_tool_error=True,
+            handle_validation_error=True,
+            verbose=True,
+        )
+        # tools.append(activity_indication_tool)
 
         # Tool: save_name_tool
         save_name_tool = StructuredTool.from_function(
@@ -387,7 +406,7 @@ class ChatAgent:
             name="Change_request",
             description="""
                 Изменяет нужные данные / значения полей в уже СУЩЕСТВУЮЩЕЙ заявке. Допустимо обрабатывать ТОЛЬКО ТЕЛЕФОН или ЛЮБУЮ ДОПОЛНИТЕЛЬНУЮ ИНФОРМАЦИЮ КАК КОММЕНТАРИЙ. Для редактирования уже имеющихся СОЗДАННЫХ заявок используйте ТОЛЬКО ЭТОТ инструмент, а НЕ обычные с добавлением информации в новую!
-Вам следует предоставить сам номер текущей заявки request_number; field_name - подходящее название поля: 'comment' или 'phone'; а также само новое значение поля, полученное от клиента (field_value) в качестве параметров
+Вам следует предоставить chat_id; сам номер текущей заявки request_number; field_name - подходящее название поля: 'comment' или 'phone'; а также само новое значение поля, полученное от клиента (field_value) в качестве параметров
             """,
             args_schema=change_request_args,
             return_direct=False,
@@ -406,8 +425,8 @@ class ChatAgent:
 1) любого отказа клиента от дальнейшего оформления заявки;
 2) получения вами любых внутренних ошибок вашей работы и работы сервиса в целом;
 3) явных заявлений клиента о недовольстве вашей работой;
-4) двух подряд ваших ответов на один и тот же вопрос клиента, которые его не удовлетворят;
-5) если вы изначально не знаете и не можете получить с помощью ваших инструментов ответ на вопрос клиента;
+4) именно ДВУХ ПОДРЯД ваших ответов на один и тот же вопрос клиента, которые ему хоть каким-либо образом не понравятся;
+5) если вы изначально не знаете и не можете получить с помощью ваших инструментов ответ на вопрос клиента, не располагаете точной информацией для ответа на вопрос (НЕ нужно ограничиваться ответами клиенту о незнании);
 6) нерешенных вами вопросов клиента, но только при нежелании клиента обсудить их с мастером.
 Вам следует предоставить chat_id в качестве параметра
             """,
@@ -1102,6 +1121,10 @@ class ChatAgent:
             self.logger.info(f"number: {request_number}")
             self.request_service.delete_files(chat_id)
             self.affilate = None
+            await self.chat_data_service.update_bot_message_date(
+                chat_id,
+                False
+            )
             if request_number:
                 return f"Заявка была создана с номером {request_number}"
             else:
@@ -1175,7 +1198,7 @@ class ChatAgent:
             else:
                 return "У клиента нет существующих заявок"
     
-    async def change_request(self, request_number, field_name, field_value):
+    async def change_request(self, chat_id, request_number, field_name, field_value):
         partner_number = None
         date_str = None
         revision = None
@@ -1306,6 +1329,10 @@ class ChatAgent:
             self.logger.info(f"Result:\n{change.status_code}\n{change.text}")
             
             if change.status_code == 200:
+                await self.chat_data_service.update_bot_message_date(
+                    chat_id,
+                    False
+                )
                 return f"Данные заявки были обновлены"
             else:
                 self.logger.error(f"Error in changing request: {change.text}")
@@ -1356,6 +1383,18 @@ class ChatAgent:
                 return f"Ошибка при вызове оператора: {call.text}"
         else:
             self.logger.info(
-                f"Dialogue with user is already being conducted by a human operator"
+                "Dialogue with user is already being conducted by a human operator"
             )
-            return f"Диалог с клиентом уже передан оператору колл-центра"
+            return "Диалог с клиентом уже передан оператору колл-центра, он свяжется с ним. Оповестите клиента об этом и о том, что он также сам может связаться с нами по телефону 8 495 463 50 46"
+
+    async def activity_indication(self, chat_id):
+        try:
+            await self.chat_data_service.update_bot_message_date(
+                chat_id,
+                True
+            )
+            self.logger.info("User activity succesfully indicatied")
+            return "Ожидание активности пользователя успешно отмечено"
+        except Exception as e:
+            self.logger.error(f"Error in user activity indication: {e}")
+            return f"Ошибка при отметке ожидания активности пользователя: {e}"

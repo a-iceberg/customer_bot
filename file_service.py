@@ -6,17 +6,18 @@ import aiofiles
 
 from pathlib import Path
 from pyrogram import Client
-from datetime import datetime
+from datetime import datetime, timedelta
 from psycopg_pool import AsyncConnectionPool
 from langchain.schema import AIMessage, HumanMessage
 
 
 class FileService:
-    def __init__(self, data_dir, logger):
+    def __init__(self, data_dir, bot_instance, logger):
         self.data_dir = data_dir
         self.logger = logger
         self.chat_history_client = None
         self.pool = None
+        self.bot_instance = bot_instance
 
     def file_path(self, chat_id):
         return os.path.join(self.data_dir, str(chat_id))
@@ -59,6 +60,62 @@ class FileService:
             await f.write(
                 json.dumps(data, ensure_ascii=False)
             )
+
+    async def update_bot_message_date(self, chat_id, add):
+        # Updating the date of the last bot message requiring a client response
+        chat_dir = self.file_path(chat_id)
+        full_path = os.path.join(chat_dir, 'chat_data.json')
+
+        async with aiofiles.open(full_path, "r", encoding="utf-8") as f:
+            data = json.loads(await f.read())
+        
+        if add == True:
+            data["bot_message_date"] = time.strftime(
+                '%Y-%m-%d %H:%M:%S',
+                time.localtime()
+            )
+            data["call_operator"] = False
+        else:
+            data = {
+                "message_id": data.get("message_id"),
+                "chat_history_date": data.get("chat_history_date")
+            }
+        async with aiofiles.open(full_path, "w") as f:
+            await f.write(
+                json.dumps(data, ensure_ascii=False)
+            )
+
+    async def clients_activity_check(self, chat_agent):
+        # Checks clients activity and, if absent, tries to return them
+        for chat_id in os.listdir(self.data_dir):
+            chat_dir = self.file_path(chat_id)
+            if os.path.isdir(chat_dir):
+                full_path = os.path.join(chat_dir, 'chat_data.json')
+
+                async with aiofiles.open(full_path, "r", encoding="utf-8") as f:
+                    data = json.loads(await f.read())
+                
+                if "bot_message_date" in data:
+                    if datetime.now() - datetime.strptime(data["bot_message_date"], '%Y-%m-%d %H:%M:%S') >= timedelta(minutes=30):
+                        if data["call_operator"] == False:
+                            data["call_operator"] = True
+                            data["bot_message_date"] = time.strftime('%Y-%m-%d %H:%M:%S', time.localtime())
+                            await self.bot_instance.send_message(
+                                chat_id,
+                                "Подскажите, пожалуйста, могу ли я вам ещё чем-то помочь?"
+                            )
+                            async with aiofiles.open(full_path, "w") as f:
+                                await f.write(
+                                    json.dumps(data, ensure_ascii=False)
+                                )
+                        else:
+                            await self.update_bot_message_date(chat_id, False)
+                            await self.bot_instance.send_message(
+                                chat_id,
+                                """В чат приглашён оператор для дальнейшей помощи.
+Также вы сами можете связаться с нами по телефону 8 495 463 50 46"""
+                            )
+                            return await chat_agent.call_operator(str(chat_id))
     
     async def insert_message_to_sql(
         self,
