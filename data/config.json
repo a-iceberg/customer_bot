@@ -19,7 +19,10 @@
         "reg": "http://10.2.4.123/productionNNOV/ws/OuterQuery?wsdl"
     },
     "change_path": {
-        "crm": "https://partners.iceberg.ru/yandex/v1/order/"
+        "domain": "https://partners.iceberg.ru/yandex/v1/order/"
+    },
+    "dialogue_path": {
+        "bot_off": "http://msk-srv1cweb04.icecorp.ru/Messenger_Test/hs/BotInform/chat_id/"
     },
     "divisions": {
         "ЭЛТ": "Электроинструмент",
